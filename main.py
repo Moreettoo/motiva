@@ -1,10 +1,4 @@
-from dotenv import load_dotenv
-load_dotenv()
-
 """
-PASSO 3 - O servico unico (Opcao B).
-
-Faz tudo num lugar so:
   1. busca o trecho no Supabase
   2. pega a previsao do tempo no Open-Meteo
   3. preve o crescimento com o modelo .pkl  (IA de previsao)
@@ -14,6 +8,8 @@ Faz tudo num lugar so:
 Rodar local:  uvicorn main:app --reload
 Docs prontas: http://localhost:8000/docs
 """
+from dotenv import load_dotenv
+load_dotenv()
 
 import os
 import json
@@ -48,7 +44,23 @@ sb = create_client(SUPABASE_URL, SUPABASE_KEY,
                    options=ClientOptions(schema=DB_SCHEMA))
 openai = OpenAI()  # le OPENAI_API_KEY do ambiente sozinho
 
-_pacote = joblib.load("modelo_vegetacao.pkl")
+# Aviso claro se a versao do scikit-learn nao bater com a do treino.
+# Modelo salvo numa versao e carregado em outra pode falhar ou dar
+# resultado errado sem avisar.
+import warnings
+warnings.filterwarnings("error", category=UserWarning, module="sklearn")
+try:
+    _pacote = joblib.load("modelo_vegetacao.pkl")
+    warnings.resetwarnings()
+except Exception as _e:
+    import sklearn
+    raise RuntimeError(
+        f"Falha ao carregar modelo_vegetacao.pkl: {_e}\n"
+        f"scikit-learn instalado aqui: {sklearn.__version__}\n"
+        f"Provavel causa: o modelo foi treinado em outra versao.\n"
+        f"Solucao: ajuste scikit-learn e numpy no requirements.txt para as "
+        f"versoes usadas no treino, ou retreine com estas versoes."
+    ) from _e
 MODELO = _pacote["modelo"]
 FEATURES = _pacote["features"]
 MAPAS = _pacote["mapas"]
@@ -357,3 +369,165 @@ def perguntar(p: Pergunta):
         ],
     )
     return {"resposta": resp.choices[0].message.content}
+
+
+# ======================================================================
+# LEITURA - rotas que o front consome (nao gastam OpenAI)
+# ======================================================================
+ORDEM_PRIORIDADE = {"critica": 0, "alta": 1, "media": 2, "baixa": 3}
+
+
+@app.get("/agendamentos")
+def listar_agendamentos(prioridade: Optional[str] = None, limite: int = 100):
+    """Lista o que a IA ja decidiu. E o que a tela principal mostra."""
+    q = (sb.table("agendamentos")
+         .select("*, trechos(rodovia, km_inicio, km_fim, sentido, uf, "
+                 "especie, tipo_pista, altura_limite_cm, latitude, longitude)")
+         .eq("status", "sugerido"))
+    if prioridade:
+        q = q.eq("prioridade", prioridade)
+    dados = q.limit(limite).execute().data
+    dados.sort(key=lambda x: (ORDEM_PRIORIDADE.get(x["prioridade"], 9),
+                              x["data_sugerida"]))
+    return {"total": len(dados), "agendamentos": dados}
+
+
+@app.get("/painel")
+def painel():
+    """Numeros dos cards do topo do dashboard."""
+    ag = (sb.table("agendamentos").select("prioridade, data_sugerida, status")
+          .eq("status", "sugerido").execute().data)
+    pr = (sb.table("previsoes").select("crescimento_cm_dia, dias_ate_limite")
+          .order("criado_em", desc=True).limit(200).execute().data)
+
+    hoje = date.today()
+    proximos7 = sum(
+        1 for a in ag
+        if 0 <= (date.fromisoformat(a["data_sugerida"]) - hoje).days <= 7
+    )
+    cres = [float(p["crescimento_cm_dia"]) for p in pr] or [0]
+
+    return {
+        "total_pendentes": len(ag),
+        "por_prioridade": {
+            p: sum(1 for a in ag if a["prioridade"] == p)
+            for p in ORDEM_PRIORIDADE
+        },
+        "rocadas_proximos_7_dias": proximos7,
+        "crescimento_medio_cm_dia": round(sum(cres) / len(cres), 3),
+        "crescimento_maximo_cm_dia": round(max(cres), 3),
+        "precisao_do_modelo": {"r2": METRICAS["r2"], "mae": METRICAS["mae"]},
+    }
+
+
+@app.get("/trechos")
+def listar_trechos():
+    """Trechos com a ultima previsao e o agendamento mais recente."""
+    trechos = sb.table("trechos").select("*").order("id").execute().data
+    for t in trechos:
+        p = (sb.table("previsoes").select("*").eq("trecho_id", t["id"])
+             .order("criado_em", desc=True).limit(1).execute().data)
+        a = (sb.table("agendamentos").select("*").eq("trecho_id", t["id"])
+             .order("criado_em", desc=True).limit(1).execute().data)
+        t["ultima_previsao"] = p[0] if p else None
+        t["ultimo_agendamento"] = a[0] if a else None
+    return {"total": len(trechos), "trechos": trechos}
+
+
+class MudarStatus(BaseModel):
+    status: str   # aprovado | executado | descartado
+
+
+@app.patch("/agendamentos/{agendamento_id}")
+def mudar_status(agendamento_id: int, body: MudarStatus):
+    """Botao de aprovar/descartar na tela do gestor."""
+    if body.status not in ("aprovado", "executado", "descartado", "sugerido"):
+        raise HTTPException(400, "status invalido")
+    r = (sb.table("agendamentos").update({"status": body.status})
+         .eq("id", agendamento_id).execute())
+    if not r.data:
+        raise HTTPException(404, "Agendamento nao encontrado")
+    return r.data[0]
+
+
+import traceback
+from fastapi.responses import JSONResponse
+from fastapi import Request
+
+
+@app.exception_handler(Exception)
+async def mostrar_erro(request: Request, exc: Exception):
+    """Devolve a mensagem de erro de verdade no corpo da resposta."""
+    return JSONResponse(
+        status_code=500,
+        content={
+            "erro": type(exc).__name__,
+            "mensagem": str(exc),
+            "onde": traceback.format_exc().strip().split("\n")[-3:],
+        },
+    )
+
+
+@app.get("/diagnostico")
+async def diagnostico():
+    """Testa cada peca separadamente e diz qual esta quebrada."""
+    r = {}
+
+    # 1. Modelo .pkl
+    try:
+        teste = {
+            "dias_periodo": 16, "temperatura_media_c": 24.0,
+            "umidade_media_pct": 70.0, "precipitacao_total_mm": 100.0,
+            "precipitacao_media_diaria_mm": 6.25, "radiacao_media_mj_m2": 18.0,
+            "et0_medio_mm_dia": 3.5, "balanco_hidrico_chuva_sobre_et0": 1.79,
+        }
+        v = prever_crescimento(teste, "braquiaria", "SP", -23.4, 24.0)
+        r["1_modelo_pkl"] = {"ok": True, "previsao_cm_dia": round(v, 3)}
+    except Exception as e:
+        r["1_modelo_pkl"] = {"ok": False, "erro": f"{type(e).__name__}: {e}"}
+
+    # 2. Supabase
+    try:
+        d = sb.table("trechos").select("id,rodovia").limit(3).execute().data
+        r["2_supabase"] = {"ok": True, "schema": DB_SCHEMA, "trechos": d}
+    except Exception as e:
+        r["2_supabase"] = {"ok": False, "erro": f"{type(e).__name__}: {e}"}
+
+    # 3. Open-Meteo
+    try:
+        c = await buscar_clima(-23.4180, -47.4820)
+        r["3_open_meteo"] = {"ok": True,
+                             "temp_media": round(c["temperatura_media_c"], 1),
+                             "chuva_mm": round(c["precipitacao_total_mm"], 1)}
+    except Exception as e:
+        r["3_open_meteo"] = {"ok": False, "erro": f"{type(e).__name__}: {e}"}
+
+    # 4. OpenAI
+    try:
+        resp = openai.chat.completions.create(
+            model=MODELO_LLM,
+            messages=[{"role": "user", "content": "Responda apenas: ok"}],
+        )
+        r["4_openai"] = {"ok": True, "modelo": MODELO_LLM,
+                         "resposta": resp.choices[0].message.content}
+    except Exception as e:
+        r["4_openai"] = {"ok": False, "modelo": MODELO_LLM,
+                         "erro": f"{type(e).__name__}: {e}"}
+
+    # 5. OpenAI com JSON Schema (o modo que /analisar usa)
+    if r["4_openai"]["ok"]:
+        try:
+            resp = openai.chat.completions.create(
+                model=MODELO_LLM,
+                messages=[{"role": "user", "content":
+                           "Sugira roçada para amanha, prioridade alta."}],
+                response_format={"type": "json_schema", "json_schema": ESQUEMA},
+            )
+            r["5_json_schema"] = {"ok": True,
+                                  "json": json.loads(resp.choices[0].message.content)}
+        except Exception as e:
+            r["5_json_schema"] = {"ok": False, "erro": f"{type(e).__name__}: {e}"}
+
+    r["conclusao"] = [k for k, v in r.items()
+                      if isinstance(v, dict) and not v.get("ok")] or ["tudo ok"]
+    return r
