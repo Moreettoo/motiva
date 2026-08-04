@@ -105,54 +105,88 @@ MODELO, FEATURES, MAPAS = _p["modelo"], _p["features"], _p["mapas"]
 
 # ----------------------------------------------------------------------
 # ----------------------------------------------------------------------
-# ZONAS CLIMATICAS POR QUILOMETRO
+# ZONAS CLIMATICAS DECLARADAS POR FAIXA DE KM
 #
-# Rodovia e uma linha, entao o agrupamento correto e por faixa de km,
-# nao por grade de coordenadas. Cada zona = (rodovia, faixa de KM_POR_ZONA
-# quilometros). Todos os trechos dentro da mesma zona compartilham uma
-# unica consulta ao Open-Meteo.
+# Rodovia e uma linha, entao o agrupamento e por faixa de km, nao por
+# grade de coordenadas. As faixas ficam na tabela ia.zonas_clima, onde
+# cada uma pode ter tamanho proprio: longa no planalto, curta na serra.
 #
-# Tamanho da zona: 1 C de diferenca muda a previsao em ~10%. Em planalto
-# leva ~50 km para variar 1 C; em serra, ~10 km. Por isso 25 km e um
-# padrao seguro. Ajuste com a variavel KM_POR_ZONA.
+# Todos os trechos cujo ponto medio cai na mesma faixa compartilham UMA
+# consulta ao Open-Meteo.
+#
+# Se um trecho nao estiver coberto por nenhuma zona, o script cria uma
+# faixa automatica de KM_FALLBACK quilometros, para nunca travar.
 # ----------------------------------------------------------------------
-KM_POR_ZONA = float(os.getenv("KM_POR_ZONA", "25"))
+KM_FALLBACK = float(os.getenv("KM_POR_ZONA", "25"))
 
 
-def zona_do_trecho(t):
-    """(rodovia, indice da faixa) - o ponto medio do trecho define a faixa."""
-    km_medio = (float(t["km_inicio"]) + float(t["km_fim"])) / 2
-    return (t["rodovia"], int(km_medio // KM_POR_ZONA))
+def carregar_zonas():
+    try:
+        return sb.table("zonas_clima").select("*").execute().data
+    except Exception:
+        print("  (tabela ia.zonas_clima nao encontrada - usando faixas "
+              f"automaticas de {KM_FALLBACK:.0f} km)")
+        return []
+
+
+def zona_do_trecho(t, zonas):
+    """Devolve (chave_da_zona, latitude, longitude, rotulo)."""
+    km = (float(t["km_inicio"]) + float(t["km_fim"])) / 2
+
+    for z in zonas:
+        if (z["rodovia"] == t["rodovia"]
+                and float(z["km_inicio"]) <= km < float(z["km_fim"])):
+            rotulo = (f'{z["rodovia"]} km {float(z["km_inicio"]):.0f}-'
+                      f'{float(z["km_fim"]):.0f}')
+            if z.get("nome"):
+                rotulo += f' ({z["nome"]})'
+            return (("zona", z["id"]), float(z["latitude"]),
+                    float(z["longitude"]), rotulo)
+
+    # nenhuma zona cadastrada cobre este km: cai na faixa automatica
+    faixa = int(km // KM_FALLBACK)
+    rotulo = (f'{t["rodovia"]} km {faixa*KM_FALLBACK:.0f}-'
+              f'{(faixa+1)*KM_FALLBACK:.0f} (automatica)')
+    return (("auto", t["rodovia"], faixa),
+            float(t["latitude"]), float(t["longitude"]), rotulo)
 
 
 def montar_zonas(trechos):
-    """Agrupa os trechos em zonas e busca o clima uma vez por zona.
+    """Resolve a zona de cada trecho e busca o clima uma vez por zona."""
+    zonas = carregar_zonas()
 
-    A coordenada da zona e o centroide dos trechos que ela contem, o que
-    representa melhor a faixa do que a coordenada de um trecho qualquer.
-    """
     grupos = {}
     for t in trechos:
-        grupos.setdefault(zona_do_trecho(t), []).append(t)
+        chave, lat, lon, rotulo = zona_do_trecho(t, zonas)
+        g = grupos.setdefault(chave, {"lats": [], "lons": [], "n": 0,
+                                      "rotulo": rotulo, "declarada": lat})
+        g["n"] += 1
+        g["lats"].append(lat)
+        g["lons"].append(lon)
 
     clima_por_zona = {}
+    declaradas = sum(1 for k in grupos if k[0] == "zona")
     print(f"Zonas climaticas: {len(grupos)} para {len(trechos)} trechos "
-          f"(faixas de {KM_POR_ZONA:.0f} km)")
-    for (rodovia, faixa), membros in sorted(grupos.items()):
-        lat = sum(float(m["latitude"]) for m in membros) / len(membros)
-        lon = sum(float(m["longitude"]) for m in membros) / len(membros)
-        km0, km1 = faixa * KM_POR_ZONA, (faixa + 1) * KM_POR_ZONA
+          f"({declaradas} declarada(s), {len(grupos)-declaradas} automatica(s))")
+
+    for chave, g in sorted(grupos.items(), key=lambda x: x[1]["rotulo"]):
+        # zona declarada usa a coordenada cadastrada;
+        # zona automatica usa o centroide dos trechos
+        if chave[0] == "zona":
+            lat, lon = g["lats"][0], g["lons"][0]
+        else:
+            lat = sum(g["lats"]) / len(g["lats"])
+            lon = sum(g["lons"]) / len(g["lons"])
         try:
             c = buscar_clima(lat, lon)
-            clima_por_zona[(rodovia, faixa)] = c
-            print(f"  {rodovia} km {km0:.0f}-{km1:.0f}  "
-                  f"{len(membros)} trecho(s)  "
-                  f"{c['temperatura_media_c']:.1f} C  "
-                  f"{c['precipitacao_total_mm']:.0f} mm")
+            clima_por_zona[chave] = c
+            print(f'  {g["rotulo"]:52s} {g["n"]:>3} trecho(s)  '
+                  f'{c["temperatura_media_c"]:5.1f} C  '
+                  f'{c["precipitacao_total_mm"]:5.0f} mm')
         except Exception as e:
-            print(f"  {rodovia} km {km0:.0f}-{km1:.0f}  ERRO no clima: {e}")
+            print(f'  {g["rotulo"]:52s} ERRO no clima: {e}')
     print()
-    return clima_por_zona
+    return zonas, clima_por_zona
 
 
 def buscar_clima(lat, lon, dias=16):
@@ -253,7 +287,7 @@ def main():
     print(f"Analisando {len(trechos)} trechos  |  schema={DB_SCHEMA}  "
           f"modelo={MODELO_LLM}  limiar={LIMIAR_DIAS}d\n")
 
-    clima_por_zona = montar_zonas(trechos)
+    zonas, clima_por_zona = montar_zonas(trechos)
 
     gravados, pulados, erros = 0, 0, []
 
@@ -270,7 +304,7 @@ def main():
             altura_med = float(m[0]["altura_cm"])
             desde = (date.today() - date.fromisoformat(m[0]["data"])).days
 
-            clima = clima_por_zona.get(zona_do_trecho(t))
+            clima = clima_por_zona.get(zona_do_trecho(t, zonas)[0])
             if clima is None:
                 print(f"  [sem clima]   {nome}")
                 pulados += 1
