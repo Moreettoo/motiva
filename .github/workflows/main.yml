@@ -1,0 +1,30 @@
+name: Reanalise diaria
+
+on:
+  schedule:
+    - cron: "0 9 * * *"
+  workflow_dispatch:       
+
+jobs:
+  reanalisar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Rodar analise
+        env:
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          OPENAI_API_KEY:       ${{ secrets.OPENAI_API_KEY }}
+          DB_SCHEMA:            ia
+          OPENAI_MODEL:         gpt-5.4-mini
+          LIMIAR_DIAS:          "45"
+        run: python analisar_lote.py
