@@ -1,0 +1,382 @@
+@import "tailwindcss";
+
+/* O tema e sempre carimbado em <html data-theme>, resolvido por um script inline
+   antes da hidratacao (ver src/app/layout.tsx). Por isso a variante `dark:` pode
+   olhar so para o atributo: nao existe estado "sistema" nao resolvido. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* ==========================================================================
+   TOKENS — claro (padrao)
+
+   Todo par cor/fundo abaixo foi medido com o validador da skill dataviz
+   (scripts/validate_palette.js). Nao troque um hex sem rodar o validador de
+   novo: varios estao no limite do minimo de contraste.
+   ========================================================================== */
+:root {
+  color-scheme: light;
+
+  /* Planos */
+  --bg: #f7f7f4;
+  --surface: #fbfbf9;
+  --surface-2: #ffffff;
+  --surface-3: #f1f1ec;
+  --border: #e4e4dc;
+  --border-strong: #cfcfc4;
+
+  /* Tinta */
+  --ink: #0c100e;      /* 18.5:1 */
+  --ink-2: #5a625d;    /*  6.1:1 */
+  --ink-3: #676f6a;    /*  4.6:1 — minimo para texto pequeno */
+
+  /* Marca — verde-limao asfaltado. No claro o passo escuro carrega texto. */
+  --accent: #4d7c0f;        /* 4.8:1 sobre superficie */
+  --accent-hover: #3f6212;
+  --accent-ink: #ffffff;
+  /* Um passo mais claro do que parece necessario: com #edf6da a tinta de acento
+     media 4.47:1 em cima dele, logo abaixo do minimo de 4.5 para texto pequeno. */
+  --accent-soft: #eef7de;
+  --accent-line: #a3e635;   /* decorativo: filetes, brilhos. Nunca texto no claro. */
+
+  /* Status — escala fixa da skill dataviz. Nunca vira "serie 5".
+     Sempre acompanhada de icone + rotulo: no claro, warning e serious ficam
+     abaixo de 3:1 de proposito e a dupla icone+texto e a mitigacao. */
+  --good: #0ca30c;
+  --warning: #fab219;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+
+  --good-ink: #006300;
+  --warning-ink: #7a5200;
+  --serious-ink: #96401a;
+  --critical-ink: #a81f1b;
+
+  --good-soft: #e4f3e1;
+  --warning-soft: #fbf0d6;
+  --serious-soft: #fbe9e0;
+  --critical-soft: #fae3e2;
+
+  /* Series categoricas — ordem fixa, atribuidas em sequencia, nunca cicladas.
+     Validadas para 4 slots adjacentes; formas de todos-os-pares (dispersao,
+     mapa) usam no maximo 3. */
+  --s1: #2a78d6;
+  --s2: #eb6834;
+  --s3: #1baf7a;
+  --s4: #eda100;
+
+  /* Rampa sequencial — um hue, claro->escuro (magnitude continua) */
+  --seq-1: #cde2fb;
+  --seq-2: #9ec5f4;
+  --seq-3: #6da7ec;
+  --seq-4: #3987e5;
+  --seq-5: #256abf;
+  --seq-6: #184f95;
+
+  /* Cromo de grafico */
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+
+  --shadow-sm: 0 1px 2px rgb(12 16 14 / 0.05);
+  --shadow-md: 0 4px 16px -4px rgb(12 16 14 / 0.10), 0 1px 3px rgb(12 16 14 / 0.05);
+  --shadow-lg: 0 24px 48px -12px rgb(12 16 14 / 0.18);
+  --ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+}
+
+/* ==========================================================================
+   TOKENS — escuro
+   ========================================================================== */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0a0d0c;
+  --surface: #101413;
+  --surface-2: #171c1a;
+  --surface-3: #1e2422;
+  --border: #232927;
+  --border-strong: #333b38;
+
+  --ink: #f2f5f1;      /* 16.9:1 */
+  --ink-2: #a8b0ac;    /*  8.4:1 */
+  --ink-3: #7b8580;    /*  4.9:1 */
+
+  --accent: #a3e635;   /* 12.3:1 sobre superficie */
+  --accent-hover: #bef264;
+  --accent-ink: #0a0d0c;
+  --accent-soft: #1b2a10;
+  --accent-line: #a3e635;
+
+  --good: #0ca30c;
+  --warning: #fab219;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+
+  --good-ink: #5cdc5c;
+  --warning-ink: #fbc44a;
+  --serious-ink: #f0a084;
+  --critical-ink: #ff8a8a;
+
+  --good-soft: #10250f;
+  --warning-soft: #2a2109;
+  --serious-soft: #2c1b14;
+  --critical-soft: #2c1414;
+
+  --s1: #3987e5;
+  --s2: #d95926;
+  --s3: #199e70;
+  --s4: #c98500;
+
+  --seq-1: #184f95;
+  --seq-2: #256abf;
+  --seq-3: #2a78d6;
+  --seq-4: #3987e5;
+  --seq-5: #6da7ec;
+  --seq-6: #9ec5f4;
+
+  --grid: #2c2c2a;
+  --axis: #383835;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-md: 0 4px 16px -4px rgb(0 0 0 / 0.5), 0 1px 3px rgb(0 0 0 / 0.3);
+  --shadow-lg: 0 24px 48px -12px rgb(0 0 0 / 0.6);
+}
+
+/* ==========================================================================
+   PONTE PARA O TAILWIND
+   `inline` faz o utilitario resolver a var no ponto de uso, entao trocar o
+   tema troca a cor sem reconstruir a folha.
+   ========================================================================== */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-line: var(--accent-line);
+
+  --color-good: var(--good);
+  --color-warning: var(--warning);
+  --color-serious: var(--serious);
+  --color-critical: var(--critical);
+  --color-good-ink: var(--good-ink);
+  --color-warning-ink: var(--warning-ink);
+  --color-serious-ink: var(--serious-ink);
+  --color-critical-ink: var(--critical-ink);
+  --color-good-soft: var(--good-soft);
+  --color-warning-soft: var(--warning-soft);
+  --color-serious-soft: var(--serious-soft);
+  --color-critical-soft: var(--critical-soft);
+
+  --color-s1: var(--s1);
+  --color-s2: var(--s2);
+  --color-s3: var(--s3);
+  --color-s4: var(--s4);
+
+  --color-grid: var(--grid);
+  --color-axis: var(--axis);
+
+  --font-sans: var(--font-geist-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", monospace;
+
+  /* Escala tipografica — passos fechados, nada entre eles. */
+  --text-2xs: 0.6875rem;   /* 11px — rotulos de eixo, unidades */
+  --text-2xs--line-height: 1rem;
+  --text-xs: 0.75rem;      /* 12px — metadados, chips */
+  --text-xs--line-height: 1.125rem;
+  --text-sm: 0.8125rem;    /* 13px — corpo denso, tabelas */
+  --text-sm--line-height: 1.25rem;
+  --text-base: 0.9375rem;  /* 15px — corpo */
+  --text-base--line-height: 1.5rem;
+  --text-lg: 1.125rem;     /* 18px — titulo de cartao */
+  --text-lg--line-height: 1.5rem;
+  --text-xl: 1.5rem;       /* 24px — titulo de pagina */
+  --text-xl--line-height: 1.875rem;
+  --text-2xl: 2rem;        /* 32px — numero de destaque */
+  --text-2xl--line-height: 2.25rem;
+  --text-3xl: 2.75rem;     /* 44px — numero heroi */
+  --text-3xl--line-height: 3rem;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+
+  /* Curvas de movimento. `spring` e o padrao de entrada; `exit` sai rapido. */
+  --ease-spring: linear(
+    0, 0.0088 1.3%, 0.0352 2.7%, 0.1355 5.5%, 0.4266 11.7%, 0.5514 14.3%, 0.6592 16.9%,
+    0.7501 19.6%, 0.8264 22.4%, 0.8892 25.4%, 0.9401 28.6%, 0.9801 32.2%, 1.0074 35.8%,
+    1.0243 39.6%, 1.0326 43.9%, 1.0342 49.5%, 1.0273 60.1%, 1.0104 76.2%, 1
+  );
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+}
+
+/* ==========================================================================
+   BASE
+   ========================================================================== */
+* {
+  border-color: var(--border);
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--text-base--line-height);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  touch-action: manipulation;
+  overscroll-behavior-y: none;
+}
+
+/* Um unico anel de foco no app inteiro. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+h1, h2, h3, h4 {
+  text-wrap: balance;
+  letter-spacing: -0.015em;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+/* Numeros que precisam alinhar em coluna. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Barra de rolagem discreta — o painel tem muitas areas roláveis. */
+@supports (scrollbar-width: thin) {
+  .scroll-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+}
+
+/* ==========================================================================
+   MOVIMENTO
+   Tudo aqui anima so transform/opacity. Nada de `transition: all`.
+   ========================================================================== */
+@keyframes rise {
+  from { opacity: 0; transform: translate3d(0, 10px, 0); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes sweep {
+  from { transform: translate3d(-100%, 0, 0); }
+  to   { transform: translate3d(200%, 0, 0); }
+}
+
+@keyframes pulse-ring {
+  0%   { opacity: 0.55; transform: scale(1); }
+  70%  { opacity: 0;    transform: scale(2.4); }
+  100% { opacity: 0;    transform: scale(2.4); }
+}
+
+@keyframes draw {
+  from { stroke-dashoffset: var(--dash, 1000); }
+  to   { stroke-dashoffset: 0; }
+}
+
+/* Entrada em cascata. O filho define --i (indice) e herda o atraso. */
+.rise {
+  animation: rise 520ms var(--ease-out-quint) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+
+.fade {
+  animation: fade 420ms var(--ease-out-quint) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+
+/* Brilho que cruza o elemento — usado no estado "analisando". */
+.sweep::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, var(--accent-soft), transparent);
+  animation: sweep 1.4s var(--ease-out-quint) infinite;
+  pointer-events: none;
+}
+
+/* Traco de linha desenhando no grafico. */
+.draw {
+  stroke-dasharray: var(--dash, 1000);
+  animation: draw 900ms var(--ease-out-quint) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+
+  .rise,
+  .fade,
+  .draw {
+    animation: none;
+    opacity: 1;
+    transform: none;
+    stroke-dashoffset: 0;
+  }
+
+  .sweep::after { animation: none; opacity: 0; }
+}
+
+/* ==========================================================================
+   TEXTURA — canal de acessibilidade da skill dataviz.
+   Ligada por forced-colors ou impressao; nunca decorativa.
+   ========================================================================== */
+@media print, (forced-colors: active) {
+  /* Em forced-colors o navegador reescreve `fill` para a cor do sistema e a
+     hachura nunca chega a pintar — que e justamente o modo onde ela e o unico
+     canal que resta. `forced-color-adjust: none` devolve o controle, e o
+     `!important` vence o `fill` inline que os componentes de grafico escrevem. */
+  .viz-fill-1,
+  .viz-fill-2 {
+    forced-color-adjust: none;
+  }
+
+  .viz-fill-1 { fill: url(#hachura-45) !important; }
+  .viz-fill-2 { fill: url(#hachura-135) !important; }
+}

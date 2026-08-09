@@ -18,3 +18,19 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+
+# Notas de contexto para agentes — locais, nao versionadas
+CLAUDE.md
+**/CLAUDE.md
+AGENTS.md
+**/AGENTS.md
+.claude/
+
+# Node / Next.js (web/)
+node_modules/
+.next/
+out/
+build/
+.vercel
+*.tsbuildinfo
+next-env.d.ts
