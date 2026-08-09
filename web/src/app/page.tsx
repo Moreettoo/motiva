@@ -8,7 +8,7 @@ import type { DeltaIndicador } from "@/components/ui/indicador";
 import type { BarraDado } from "@/components/viz/barras";
 import type { SerieLinha } from "@/components/viz/linha";
 import { corSerie, ESPECIE, ordemRisco } from "@/lib/dominio";
-import { diasEntre, fmt, isoHoje } from "@/lib/format";
+import { diasEntre, fmt, isoHoje, proximaReanalise } from "@/lib/format";
 import {
   cargaDasEquipes,
   lacunasDeDados,
@@ -21,7 +21,7 @@ import {
 import { ESPECIES, type AgendamentoDetalhado, type Especie } from "@/lib/types";
 import { sum } from "@/lib/utils";
 
-import { BotaoAnalisarMalha } from "./_componentes/botao-analisar";
+import { CarimboDoLote } from "./_componentes/carimbo-lote";
 import { CargaDasEquipes } from "./_componentes/carga-equipes";
 import { CrescimentoPorEspecie } from "./_componentes/crescimento-especies";
 import { DistribuicaoDeRisco } from "./_componentes/distribuicao-risco";
@@ -200,7 +200,7 @@ export default async function PaginaPainel() {
       <CabecalhoPagina
         titulo="Painel"
         descricao="O que exige decisão hoje na faixa de domínio: prazo até o limite de altura, roçadas sugeridas pela IA e carga das equipes."
-        acoes={<BotaoAnalisarMalha trechos={painel.trechos_total} />}
+        acoes={<CarimboDoLote proximaEm={proximaReanalise()} />}
       />
 
       <Indicadores

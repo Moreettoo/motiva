@@ -28,5 +28,3 @@ export const db = createClient(url, key, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 
-/** Endereco do backend FastAPI que roda o modelo .pkl e a decisao da LLM. */
-export const API_URL = process.env.MOTIVA_API_URL ?? "http://127.0.0.1:8000";

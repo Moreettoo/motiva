@@ -1,10 +1,28 @@
+name: Reanalise
 
-name: Reanalise diaria
+# O nome da execucao carrega o id do trecho porque `workflow_dispatch` responde
+# 204 sem corpo: nao ha id de execucao na resposta, e o painel precisa achar a
+# execucao que acabou de criar para acompanhar o progresso.
+run-name: >-
+  ${{ inputs.trecho_id != '' && format('Reanalise · trecho {0}', inputs.trecho_id) || 'Reanalise da malha' }}
 
 on:
   schedule:
     - cron: "0 9 * * *"     # 06:00 de Brasilia (09:00 UTC)
-  workflow_dispatch:         # botao para rodar na mao
+  workflow_dispatch:
+    inputs:
+      trecho_id:
+        description: "Id de um trecho para reanalisar so ele. Vazio = malha inteira."
+        required: false
+        type: string
+        default: ""
+
+# Uma execucao por vez: duas reanalises simultaneas escreveriam previsoes
+# concorrentes para o mesmo trecho, e a view desempata por id — a ultima a
+# inserir venceria por acaso, nao por ser a mais correta.
+concurrency:
+  group: reanalise
+  cancel-in-progress: false
 
 jobs:
   reanalisar:
@@ -28,4 +46,5 @@ jobs:
           DB_SCHEMA:            ia
           OPENAI_MODEL:         gpt-5.4-mini
           LIMIAR_DIAS:          "45"
+          TRECHO_ID:            ${{ inputs.trecho_id }}
         run: python analisar_lote.py

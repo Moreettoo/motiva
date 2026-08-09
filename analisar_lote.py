@@ -42,6 +42,11 @@ MODELO_LLM = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
 # economiza credito: trecho a 90 dias de distancia nao precisa de decisao hoje.
 LIMIAR_DIAS = int(os.getenv("LIMIAR_DIAS", "45"))
 
+# Quando o painel enfileira a reanalise de um trecho so, o workflow passa o id
+# por aqui. Vazio (o caso do agendamento diario) significa a malha inteira.
+_trecho = (os.getenv("TRECHO_ID") or "").strip()
+TRECHO_ID = int(_trecho) if _trecho.isdigit() else None
+
 
 
 def _checar_ambiente():
@@ -283,9 +288,18 @@ def decidir(ctx):
 
 # ----------------------------------------------------------------------
 def main():
-    trechos = sb.table("trechos").select("*").order("id").execute().data
+    consulta = sb.table("trechos").select("*").order("id")
+    if TRECHO_ID is not None:
+        consulta = consulta.eq("id", TRECHO_ID)
+    trechos = consulta.execute().data
+
+    if TRECHO_ID is not None and not trechos:
+        print(f"Trecho {TRECHO_ID} nao existe. Nada a fazer.")
+        return
+
     print(f"Analisando {len(trechos)} trechos  |  schema={DB_SCHEMA}  "
-          f"modelo={MODELO_LLM}  limiar={LIMIAR_DIAS}d\n")
+          f"modelo={MODELO_LLM}  "
+          f"limiar={'ignorado (trecho unico)' if TRECHO_ID is not None else str(LIMIAR_DIAS) + 'd'}\n")
 
     zonas, clima_por_zona = montar_zonas(trechos)
 
@@ -328,8 +342,10 @@ def main():
                 "chuva_total_mm": round(clima["precipitacao_total_mm"], 2),
             }).execute()
 
-            # Economia: so chama a LLM se o trecho estiver proximo do limite
-            if dias is not None and dias > LIMIAR_DIAS:
+            # Economia: so chama a LLM se o trecho estiver proximo do limite.
+            # Nao vale quando alguem pediu ESTE trecho no painel: o pedido ja e
+            # a intencao de gastar a chamada, mesmo com folga de prazo.
+            if TRECHO_ID is None and dias is not None and dias > LIMIAR_DIAS:
                 print(f"  [ok, sem LLM]  {nome:44s} {cm_dia:.3f} cm/dia  "
                       f"{dias}d ate o limite")
                 pulados += 1

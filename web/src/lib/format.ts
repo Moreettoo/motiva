@@ -103,6 +103,22 @@ export function diasEntre(de: Date | string, ate: Date | string): number {
 /** Alias historico: todo "hoje" do painel sai do fuso de Brasilia. */
 export const isoHoje = hojeNoFusoDoPainel;
 
+/**
+ * Dia da proxima reanalise automatica.
+ *
+ * O workflow roda `cron: "0 9 * * *"`, ou seja 09:00 UTC = 06:00 de Brasilia.
+ * Se ja passou das 06:00 aqui, a proxima e amanha. Como o horario de verao nao
+ * existe mais no Brasil desde 2019, o deslocamento UTC-3 e fixo e a conta pode
+ * ser feita na data, sem biblioteca de fuso.
+ */
+export function proximaReanalise(agora = new Date()): string {
+  const hoje = hojeNoFusoDoPainel();
+  const horaBrasilia = Number(
+    new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", hour12: false }).format(agora),
+  );
+  return horaBrasilia < 6 ? hoje : somarDias(hoje, 1).toISOString().slice(0, 10);
+}
+
 export function somarDias(base: Date | string, dias: number): Date {
   const d = typeof base === "string" ? parseData(base) : new Date(base);
   d.setDate(d.getDate() + dias);

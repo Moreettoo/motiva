@@ -36,9 +36,11 @@ SUPABASE_URL = os.environ["SUPABASE_URL"]
 SUPABASE_KEY = os.environ["SUPABASE_SERVICE_KEY"]
 MODELO_LLM = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
 
-# "public" -> usa o schema.sql       (banco novo, so nosso)
 # "ia"     -> usa o schema_ia.sql    (convive com o banco que voces ja tem)
-DB_SCHEMA = os.getenv("DB_SCHEMA", "public")
+# "public" -> usa o schema.sql       (banco novo, so nosso)
+# O padrao e "ia" porque e onde o produto vive: o analisar_lote.py escreve la e
+# o painel le de la. Com padrao "public" a API leria um schema legado e vazio.
+DB_SCHEMA = os.getenv("DB_SCHEMA", "ia")
 
 sb = create_client(SUPABASE_URL, SUPABASE_KEY,
                    options=ClientOptions(schema=DB_SCHEMA))

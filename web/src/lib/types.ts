@@ -157,6 +157,23 @@ export type ZonaClima = {
   extensao_km: number;
 };
 
+/**
+ * Uma execucao do workflow de reanalise no GitHub Actions.
+ *
+ * Vive aqui, e nao em `github.ts`, porque o componente cliente que acompanha o
+ * progresso precisa do tipo — e `github.ts` importa `server-only`.
+ */
+export type ExecucaoAnalise = {
+  id: number;
+  nome: string;
+  url: string;
+  /** `queued` | `in_progress` | `completed` — vocabulario da propria API. */
+  situacao: string;
+  /** `success` | `failure` | `cancelled` | … So existe quando `completed`. */
+  desfecho: string | null;
+  criadaEm: string;
+};
+
 /** Numeros do topo do painel. */
 export type Painel = {
   trechos_total: number;

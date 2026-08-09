@@ -2,8 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 
-import { API_URL, db } from "./supabase";
-import type { StatusAgendamento } from "./types";
+import { enfileirarAnalise, situacaoDaExecucao } from "./github";
+import { db } from "./supabase";
+import type { ExecucaoAnalise, StatusAgendamento } from "./types";
 
 /**
  * Escritas.
@@ -88,84 +89,98 @@ export async function registrarMedicao(trechoId: number, alturaCm: number, data?
 }
 
 /**
- * Dispara a analise no backend Python (modelo .pkl + decisao da LLM).
+ * Enfileira a reanalise de um trecho no GitHub Actions.
  *
- * O Next nao carrega o modelo: quem faz isso e o `main.py`. Aqui so
- * encaminhamos e devolvemos um erro legivel se o servico estiver fora do ar,
- * que e o caso mais comum durante uma demonstracao.
+ * Nao existe mais reanalise da malha inteira sob demanda: o lote roda todo dia
+ * as 06:00 e a janela de previsao do Open-Meteo e a mesma de 16 dias, entao
+ * reprocessar 50 trechos a tarde custava sete minutos para nao mudar quase nada.
+ * O caso que pede reanalise pontual e outro — registrar uma medicao nova de
+ * campo, que muda `altura_atual_cm` e portanto o prazo.
  */
-export async function analisarTrecho(trechoId: number): Promise<Resultado<unknown>> {
-  try {
-    const resposta = await fetch(`${API_URL}/analisar`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ trecho_id: trechoId, gravar: true }),
-      signal: AbortSignal.timeout(120_000),
-      cache: "no-store",
-    });
-
-    if (!resposta.ok) {
-      const texto = await resposta.text();
-      return { ok: false, erro: `O serviço de análise respondeu ${resposta.status}: ${texto.slice(0, 200)}` };
-    }
-
-    revalidarTudo();
-    return { ok: true, dados: await resposta.json() };
-  } catch {
-    return {
-      ok: false,
-      erro: `Serviço de análise indisponível em ${API_URL}. Suba o backend com \`uvicorn main:app --reload\` na raiz do projeto.`,
-    };
-  }
+export async function enfileirarAnaliseDoTrecho(trechoId: number): Promise<Resultado<ExecucaoAnalise>> {
+  const resultado = await enfileirarAnalise(trechoId);
+  return resultado.ok ? { ok: true, dados: resultado.dados } : { ok: false, erro: resultado.erro };
 }
 
-export async function analisarMalhaInteira(): Promise<Resultado<unknown>> {
-  try {
-    const resposta = await fetch(`${API_URL}/analisar-todos`, {
-      method: "POST",
-      signal: AbortSignal.timeout(600_000),
-      cache: "no-store",
-    });
+/** Consulta o andamento. O cliente chama em intervalo enquanto a execucao vive. */
+export async function consultarAnalise(execucaoId: number): Promise<Resultado<ExecucaoAnalise>> {
+  const resultado = await situacaoDaExecucao(execucaoId);
+  if (!resultado.ok) return { ok: false, erro: resultado.erro };
 
-    if (!resposta.ok) {
-      const texto = await resposta.text();
-      return { ok: false, erro: `O serviço de análise respondeu ${resposta.status}: ${texto.slice(0, 200)}` };
-    }
+  // Terminou: o banco mudou por fora do Next, entao a tela precisa reler.
+  if (resultado.dados.situacao === "completed") revalidarTudo();
 
-    revalidarTudo();
-    return { ok: true, dados: await resposta.json() };
-  } catch {
-    return {
-      ok: false,
-      erro: `Serviço de análise indisponível em ${API_URL}. Suba o backend com \`uvicorn main:app --reload\` na raiz do projeto.`,
-    };
-  }
+  return { ok: true, dados: resultado.dados };
 }
 
-/** Pergunta em portugues sobre a malha — encaminhada ao endpoint /perguntar. */
+/** Teto de contexto do copiloto: os agendamentos mais recentes cabem no prompt. */
+const AGENDAMENTOS_NO_CONTEXTO = 60;
+
+const SISTEMA_COPILOTO =
+  "Você responde perguntas de gestores da Motiva sobre o planejamento de roçada. " +
+  "Use apenas os dados fornecidos. Seja direto, cite rodovia e km. " +
+  "Se o dado não estiver na lista, diga que não tem.";
+
+/**
+ * Pergunta em portugues sobre a malha.
+ *
+ * Diferente de `analisarTrecho`, esta acao nao passa pelo backend Python: ela
+ * so precisa de agendamentos e da OpenAI, nunca do `.pkl`. Manter o copiloto
+ * aqui e o que permite o painel rodar sozinho na Vercel.
+ */
 export async function perguntarAoCopiloto(texto: string): Promise<Resultado<{ resposta: string }>> {
   const pergunta = texto.trim();
   if (pergunta.length < 3) return { ok: false, erro: "Escreva uma pergunta um pouco mais completa." };
 
+  const chave = process.env.OPENAI_API_KEY;
+  if (!chave) {
+    return {
+      ok: false,
+      erro: "O copiloto precisa da variável OPENAI_API_KEY. Configure-a no ambiente do painel (web/.env.local ou nas variáveis do deploy).",
+    };
+  }
+
+  const { data, error } = await db
+    .from("agendamentos")
+    .select("*, trechos(rodovia, km_inicio, km_fim, uf, tipo_pista)")
+    .order("criado_em", { ascending: false })
+    .limit(AGENDAMENTOS_NO_CONTEXTO);
+
+  if (error) return { ok: false, erro: `Não foi possível ler os agendamentos: ${error.message}` };
+  if (!data || data.length === 0) {
+    return { ok: true, dados: { resposta: "Ainda não há análises. Rode a análise em lote primeiro." } };
+  }
+
+  let resposta: Response;
   try {
-    const resposta = await fetch(`${API_URL}/perguntar`, {
+    resposta = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ texto: pergunta }),
+      headers: {
+        Authorization: `Bearer ${chave}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: process.env.OPENAI_MODEL ?? "gpt-5.4-mini",
+        messages: [
+          { role: "system", content: SISTEMA_COPILOTO },
+          { role: "user", content: `Dados:\n${JSON.stringify(data)}\n\nPergunta: ${pergunta}` },
+        ],
+      }),
       signal: AbortSignal.timeout(120_000),
       cache: "no-store",
     });
-
-    if (!resposta.ok) {
-      const corpo = await resposta.text();
-      return { ok: false, erro: `O copiloto respondeu ${resposta.status}: ${corpo.slice(0, 200)}` };
-    }
-
-    return { ok: true, dados: (await resposta.json()) as { resposta: string } };
   } catch {
-    return {
-      ok: false,
-      erro: `Copiloto indisponível em ${API_URL}. Suba o backend com \`uvicorn main:app --reload\` na raiz do projeto.`,
-    };
+    return { ok: false, erro: "Não foi possível falar com a OpenAI. Verifique a conexão e tente de novo." };
   }
+
+  if (!resposta.ok) {
+    const corpo = await resposta.text();
+    return { ok: false, erro: `A OpenAI respondeu ${resposta.status}: ${corpo.slice(0, 200)}` };
+  }
+
+  const corpo = (await resposta.json()) as { choices?: { message?: { content?: string | null } }[] };
+  const conteudo = corpo.choices?.[0]?.message?.content;
+  if (!conteudo) return { ok: false, erro: "A OpenAI respondeu sem conteúdo. Tente perguntar de novo." };
+
+  return { ok: true, dados: { resposta: conteudo } };
 }
