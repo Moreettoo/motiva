@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { isoHoje } from "./format";
 import { enfileirarAnalise, situacaoDaExecucao } from "./github";
 import { db } from "./supabase";
 import type { ExecucaoAnalise, StatusAgendamento } from "./types";
@@ -44,12 +45,108 @@ export async function mudarStatusAgendamento(
 }
 
 export async function atribuirEquipe(agendamentoId: number, equipeId: number | null): Promise<Resultado> {
-  const { error } = await db
+  const { data, error } = await db
     .from("agendamentos")
     .update({ equipe_id: equipeId, atualizado_em: new Date().toISOString() })
-    .eq("id", agendamentoId);
+    .eq("id", agendamentoId)
+    .select("id")
+    .maybeSingle();
 
   if (error) return { ok: false, erro: `Não foi possível atribuir a equipe: ${error.message}` };
+  if (!data) return { ok: false, erro: "Agendamento não encontrado. Recarregue a página." };
+
+  revalidarTudo();
+  return { ok: true, dados: undefined };
+}
+
+/**
+ * Grava data e equipe de uma vez.
+ *
+ * NÃO é exportada de propósito: num arquivo `"use server"` todo export vira
+ * endpoint alcançável pela rede, e `permitirPassado` precisa continuar sendo
+ * uma decisão do servidor. O desfazer legítimo entra por `desfazerAlocacao`.
+ */
+async function gravarAlocacao(
+  agendamentoId: number,
+  data: string,
+  equipeId: number | null,
+  opcoes: { permitirPassado: boolean },
+): Promise<Resultado> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) {
+    return { ok: false, erro: "Data inválida. Use o formato AAAA-MM-DD." };
+  }
+  if (!opcoes.permitirPassado && data < isoHoje()) {
+    return { ok: false, erro: "Não dá para agendar para um dia que já passou." };
+  }
+
+  if (equipeId != null) {
+    const { data: equipe, error: erroEquipe } = await db
+      .from("equipes")
+      .select("id, ativo")
+      .eq("id", equipeId)
+      .maybeSingle();
+
+    if (erroEquipe) return { ok: false, erro: `Não foi possível ler a equipe: ${erroEquipe.message}` };
+    if (!equipe) return { ok: false, erro: "Equipe não encontrada. Recarregue a página." };
+    if (!equipe.ativo && !opcoes.permitirPassado) {
+      return { ok: false, erro: "Essa turma está desativada e não recebe serviço novo." };
+    }
+  }
+
+  // `.in(status)` + `.maybeSingle()` juntos: sem eles, um id inexistente ou um
+  // serviço já executado devolve ok e o cartão fica no lugar novo na tela e no
+  // lugar velho no banco — que é exatamente o que a ação única existe para evitar.
+  const { data: linha, error } = await db
+    .from("agendamentos")
+    .update({ data_sugerida: data, equipe_id: equipeId, atualizado_em: new Date().toISOString() })
+    .eq("id", agendamentoId)
+    .in("status", ["sugerido", "aprovado"])
+    .select("id")
+    .maybeSingle();
+
+  if (error) return { ok: false, erro: `Não foi possível agendar: ${error.message}` };
+  if (!linha) {
+    return { ok: false, erro: "Serviço não encontrado ou já encerrado. Recarregue a página." };
+  }
+
+  revalidarTudo();
+  return { ok: true, dados: undefined };
+}
+
+/** Soltar um serviço numa célula (dia, equipe) do quadro. */
+export async function alocarAgendamento(
+  agendamentoId: number,
+  data: string,
+  equipeId: number,
+): Promise<Resultado> {
+  return gravarAlocacao(agendamentoId, data, equipeId, { permitirPassado: false });
+}
+
+/**
+ * Desfazer volta o serviço ao estado anterior, e esse estado pode ser um dia que
+ * já passou — 26 dos 62 serviços da fila têm data vencida. Sem esta porta, o
+ * desfazer morreria justamente nos cartões que mais serão arrastados.
+ */
+export async function desfazerAlocacao(
+  agendamentoId: number,
+  data: string,
+  equipeId: number | null,
+): Promise<Resultado> {
+  return gravarAlocacao(agendamentoId, data, equipeId, { permitirPassado: true });
+}
+
+/** Soltar no trilho: tira a turma e o serviço volta a ser proposta da IA. */
+export async function devolverParaFila(agendamentoId: number): Promise<Resultado> {
+  const { data, error } = await db
+    .from("agendamentos")
+    .update({ equipe_id: null, atualizado_em: new Date().toISOString() })
+    .eq("id", agendamentoId)
+    .in("status", ["sugerido", "aprovado"])
+    .select("id")
+    .maybeSingle();
+
+  if (error) return { ok: false, erro: `Não foi possível devolver para a fila: ${error.message}` };
+  if (!data) return { ok: false, erro: "Serviço não encontrado ou já encerrado. Recarregue a página." };
 
   revalidarTudo();
   return { ok: true, dados: undefined };
@@ -60,12 +157,15 @@ export async function remarcarAgendamento(agendamentoId: number, novaData: strin
     return { ok: false, erro: "Data inválida. Use o formato AAAA-MM-DD." };
   }
 
-  const { error } = await db
+  const { data, error } = await db
     .from("agendamentos")
     .update({ data_sugerida: novaData, atualizado_em: new Date().toISOString() })
-    .eq("id", agendamentoId);
+    .eq("id", agendamentoId)
+    .select("id")
+    .maybeSingle();
 
   if (error) return { ok: false, erro: `Não foi possível remarcar: ${error.message}` };
+  if (!data) return { ok: false, erro: "Agendamento não encontrado. Recarregue a página." };
 
   revalidarTudo();
   return { ok: true, dados: undefined };
