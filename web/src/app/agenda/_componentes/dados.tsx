@@ -8,36 +8,9 @@
  */
 
 import { ordemRisco, riscoPorPrazo } from "@/lib/dominio";
-import { inicioDaSemana, parseData, somarDias } from "@/lib/format";
+import { diasEntre, fmt, inicioDaSemana, parseData, somarDias } from "@/lib/format";
 import type { AgendamentoDetalhado, Equipe, Risco, StatusAgendamento, UF } from "@/lib/types";
 import { sum } from "@/lib/utils";
-
-export const PERIODOS = ["semana", "quinzena", "mes"] as const;
-export type Periodo = (typeof PERIODOS)[number];
-
-/** Quinzena e não semana: a janela abre na segunda-feira da semana corrente, e
- *  numa sexta-feira "Semana" mostraria dois dias úteis de plano. Quinzena sempre
- *  deixa pelo menos uma semana inteira à frente de hoje. */
-export const PERIODO_PADRAO: Periodo = "quinzena";
-
-export const ROTULO_PERIODO: Record<Periodo, string> = {
-  semana: "Semana",
-  quinzena: "Quinzena",
-  mes: "Mês",
-};
-
-/** 28 dias em vez de 30: quatro semanas fechadas deixam as colunas de fim de
- *  semana no mesmo lugar em toda a extensão da régua. */
-export const DIAS_DO_PERIODO: Record<Periodo, number> = { semana: 7, quinzena: 14, mes: 28 };
-
-/** Largura da coluna de dia. Encolhe conforme a janela cresce para o mês inteiro
- *  ainda caber em duas telas de rolagem. */
-export const LARGURA_DIA: Record<Periodo, number> = { semana: 152, quinzena: 104, mes: 60 };
-
-export const LARGURA_RAIA = 208;
-export const ALTURA_BLOCO = 36;
-export const FOLGA_BLOCO = 4;
-export const ALTURA_RAIA_MINIMA = 72;
 
 /** Só o que a agenda lê da view de trechos — o resto não precisa cruzar a rede. */
 export type TrechoResumo = {
@@ -69,13 +42,257 @@ export function ehFimDeSemana(dia: string): boolean {
 
 export type Janela = { dias: string[]; inicio: string; fim: string };
 
-/** A janela sempre abre na segunda-feira: a operação de roçada é planejada por
- *  semana, e começar "hoje" faria a régua andar sozinha todo dia. */
-export function montarJanela(periodo: Periodo, hoje: string): Janela {
-  const primeiro = inicioDaSemana(hoje);
-  const total = DIAS_DO_PERIODO[periodo];
-  const dias = Array.from({ length: total }, (_, i) => chaveDia(somarDias(primeiro, i)));
-  return { dias, inicio: dias[0], fim: dias[total - 1] };
+export const HACHURA_EXCESSO =
+  "repeating-linear-gradient(45deg, color-mix(in oklab, var(--critical) 26%, transparent) 0 5px, transparent 5px 10px)";
+
+export function textoServico(dias: number): string {
+  return dias === 1 ? "1 dia de serviço" : `${fmt.n(dias)} dias de serviço`;
+}
+
+/** Quantos dias inteiros a turma gasta. Dias inteiros porque a turma mobiliza
+ *  caminhão, sinalização e equipe por dia — meio dia de roçada ainda ocupa o dia. */
+export function diasDeServico(km: number, capacidade: number): number {
+  return Math.max(1, Math.ceil(km / (capacidade || 1)));
+}
+
+export type ChaveCelula = string;
+
+/** `dia|equipeId`. O separador é pipe porque nenhum dos dois lados pode contê-lo.
+ *  O id de DOM usa outro formato — ver `idDoGrupo` em `quadro-semana.tsx`. */
+export function chaveCelula(dia: string, equipeId: number): ChaveCelula {
+  return `${dia}|${equipeId}`;
+}
+
+/** A janela sempre abre na segunda-feira: a operação é planejada por semana.
+ *  A âncora é qualquer dia da semana desejada — é o que permite navegar sem
+ *  depender de "hoje" e sem ida ao servidor. */
+export function montarJanela(ancora: string, dias = 7): Janela {
+  const primeiro = inicioDaSemana(ancora);
+  const lista = Array.from({ length: dias }, (_, i) => chaveDia(somarDias(primeiro, i)));
+  return { dias: lista, inicio: lista[0], fim: lista[dias - 1] };
+}
+
+/** Serviço ocupa `[inicio, inicio + diasServico)`. Comparar por igualdade de data
+ *  faria a capacidade mentir no dia em que `diasServico` deixar de ser sempre 1. */
+export function ocupaDia(item: ItemAgenda, dia: string): boolean {
+  const d = diasEntre(item.data, dia);
+  return d >= 0 && d < item.diasServico;
+}
+
+export type Fatia = { chave: ChaveCelula; dia: string; equipeId: number; km: number };
+
+/** Fatias que o item ocuparia se caísse em (dia, equipe). A duração é recalculada
+ *  na capacidade do DESTINO: mover para uma turma mais rápida encurta o serviço. */
+export function fatiasEm(item: ItemAgenda, dia: string, equipe: Equipe): Fatia[] {
+  const capacidade = Number(equipe.capacidade_km_dia) || 1;
+  const dias = diasDeServico(item.km, capacidade);
+  const km = item.km / dias;
+
+  return Array.from({ length: dias }, (_, i) => {
+    const d = chaveDia(somarDias(dia, i));
+    return { chave: chaveCelula(d, equipe.id), dia: d, equipeId: equipe.id, km };
+  });
+}
+
+export type Ocupacao = { km: number; ocupacao: number; excedida: boolean };
+
+function medir(km: number, capacidade: number): Ocupacao {
+  return {
+    km,
+    ocupacao: capacidade > 0 ? (km / capacidade) * 100 : 0,
+    excedida: km > capacidade + 1e-6,
+  };
+}
+
+export type Celula = {
+  chave: ChaveCelula;
+  dia: string;
+  equipeId: number;
+  itens: ItemAgenda[];
+  km: number;
+  capacidade: number;
+  ocupacao: number;
+  excedida: boolean;
+  /** Falso para dia passado e para turma inativa. Célula que não aceita solta
+   *  NÃO emite `data-celula` no DOM — senão o hit-test a encontraria mesmo assim. */
+  aceitaSolta: boolean;
+};
+
+export type LinhaEquipe = { equipe: Equipe; celulas: Celula[]; kmSemana: number };
+
+export type ResumoDia = {
+  dia: string;
+  comEquipe: number;
+  semEquipe: number;
+  algumaExcedida: boolean;
+};
+
+export type Grade = {
+  janela: Janela;
+  /** dia → itens sem equipe cuja data cai nele. Alimenta a linha de propostas. */
+  propostas: Map<string, ItemAgenda[]>;
+  linhas: LinhaEquipe[];
+  /** TODOS os em aberto sem equipe, por urgência. Independe da semana visível:
+   *  um backlog que encolhe quando você olha para outra semana não é um backlog. */
+  fila: ItemAgenda[];
+  porDia: ResumoDia[];
+  porCelula: Map<ChaveCelula, Celula>;
+  /** id do item → fatias que ele ocupa hoje. Devolve a carga da origem em O(1). */
+  fatiasPorItem: Map<number, Fatia[]>;
+};
+
+const EM_ABERTO = new Set<StatusAgendamento>(["sugerido", "aprovado"]);
+
+export function montarGrade({
+  itens,
+  equipes,
+  janela,
+  hoje,
+}: {
+  itens: ItemAgenda[];
+  equipes: Equipe[];
+  janela: Janela;
+  hoje: string;
+}): Grade {
+  const porId = new Map(equipes.map((e) => [e.id, e]));
+  const diasDaJanela = new Set(janela.dias);
+
+  // Uma turma desativada com serviço na janela ainda precisa de linha: sem ela o
+  // cartão sumiria do quadro enquanto o resumo continuaria contando o serviço.
+  const desativadaComServico = new Set(
+    itens
+      .filter((i) => i.equipeId != null && EM_ABERTO.has(i.status) && diasDaJanela.has(i.data))
+      .map((i) => i.equipeId as number),
+  );
+
+  const comLinha = equipes
+    .filter((e) => e.ativo || desativadaComServico.has(e.id))
+    .sort((a, b) => a.base_uf.localeCompare(b.base_uf, "pt-BR") || a.nome.localeCompare(b.nome, "pt-BR"));
+
+  const fatiasPorItem = new Map<number, Fatia[]>();
+  const kmPorCelula = new Map<ChaveCelula, number>();
+  const itensPorCelula = new Map<ChaveCelula, ItemAgenda[]>();
+
+  for (const item of itens) {
+    if (!EM_ABERTO.has(item.status) || item.equipeId == null) continue;
+    const equipe = porId.get(item.equipeId);
+    if (!equipe) continue;
+
+    const fatias = fatiasEm(item, item.data, equipe);
+    fatiasPorItem.set(item.id, fatias);
+
+    for (const fatia of fatias) {
+      kmPorCelula.set(fatia.chave, (kmPorCelula.get(fatia.chave) ?? 0) + fatia.km);
+    }
+    // O cartão desenha no dia em que começa; as demais fatias só entram na carga.
+    const chave = chaveCelula(item.data, item.equipeId);
+    itensPorCelula.set(chave, [...(itensPorCelula.get(chave) ?? []), item]);
+  }
+
+  const porCelula = new Map<ChaveCelula, Celula>();
+
+  const linhas: LinhaEquipe[] = comLinha.map((equipe) => {
+    const capacidade = Number(equipe.capacidade_km_dia) || 0;
+
+    const celulas = janela.dias.map((dia) => {
+      const chave = chaveCelula(dia, equipe.id);
+      const km = kmPorCelula.get(chave) ?? 0;
+      const medida = medir(km, capacidade);
+
+      const celula: Celula = {
+        chave,
+        dia,
+        equipeId: equipe.id,
+        itens: (itensPorCelula.get(chave) ?? []).slice().sort(ordenarPorUrgencia),
+        capacidade,
+        km: medida.km,
+        ocupacao: medida.ocupacao,
+        excedida: medida.excedida,
+        aceitaSolta: equipe.ativo && dia >= hoje,
+      };
+
+      porCelula.set(chave, celula);
+      return celula;
+    });
+
+    return { equipe, celulas, kmSemana: celulas.reduce((n, c) => n + c.km, 0) };
+  });
+
+  const semEquipe = itens.filter((i) => EM_ABERTO.has(i.status) && i.equipeId == null);
+
+  const propostas = new Map<string, ItemAgenda[]>();
+  for (const item of semEquipe) {
+    if (!diasDaJanela.has(item.data)) continue;
+    propostas.set(item.data, [...(propostas.get(item.data) ?? []), item]);
+  }
+  for (const lista of propostas.values()) lista.sort(ordenarPorUrgencia);
+
+  const porDia: ResumoDia[] = janela.dias.map((dia) => ({
+    dia,
+    comEquipe: linhas.reduce((n, l) => n + (porCelula.get(chaveCelula(dia, l.equipe.id))?.itens.length ?? 0), 0),
+    semEquipe: propostas.get(dia)?.length ?? 0,
+    algumaExcedida: linhas.some((l) => porCelula.get(chaveCelula(dia, l.equipe.id))?.excedida ?? false),
+  }));
+
+  return {
+    janela,
+    propostas,
+    linhas,
+    fila: semEquipe.slice().sort(ordenarPorUrgencia),
+    porDia,
+    porCelula,
+    fatiasPorItem,
+  };
+}
+
+/** Delta escalar sobre 2 a 4 células, nunca um recálculo da grade: isto roda a
+ *  cada `pointermove` enquanto o cartão paira. */
+export function previaDoMovimento(
+  grade: Grade,
+  item: ItemAgenda,
+  destino: ChaveCelula,
+  equipes: Equipe[],
+): Map<ChaveCelula, Ocupacao> {
+  const [dia, idTexto] = destino.split("|");
+  const equipe = equipes.find((e) => e.id === Number(idTexto));
+  if (!equipe) return new Map();
+
+  const antigas = grade.fatiasPorItem.get(item.id) ?? [];
+  const novas = fatiasEm(item, dia, equipe);
+
+  const mesmas =
+    antigas.length === novas.length && antigas.every((f, i) => f.chave === novas[i].chave);
+  if (mesmas) return new Map();
+
+  const delta = new Map<ChaveCelula, number>();
+  for (const f of antigas) delta.set(f.chave, (delta.get(f.chave) ?? 0) - f.km);
+  for (const f of novas) delta.set(f.chave, (delta.get(f.chave) ?? 0) + f.km);
+
+  const previa = new Map<ChaveCelula, Ocupacao>();
+  for (const [chave, dif] of delta) {
+    const celula = grade.porCelula.get(chave);
+    if (!celula) continue;
+    previa.set(chave, medir(Math.max(0, celula.km + dif), celula.capacidade));
+  }
+  return previa;
+}
+
+/** Quatro semanas a partir da segunda da âncora. Ancorada na semana VISÍVEL e não
+ *  na de hoje: navegar seis semanas à frente com a faixa parada em agosto
+ *  apontaria para um intervalo que não contém o quadro. */
+export function resumo28(itens: ItemAgenda[], ancora: string): ResumoDia[] {
+  const janela = montarJanela(ancora, 28);
+  const abertos = itens.filter((i) => EM_ABERTO.has(i.status));
+
+  return janela.dias.map((dia) => {
+    const doDia = abertos.filter((i) => i.data === dia);
+    return {
+      dia,
+      comEquipe: doDia.filter((i) => i.equipeId != null).length,
+      semEquipe: doDia.filter((i) => i.equipeId == null).length,
+      algumaExcedida: false,
+    };
+  });
 }
 
 export type ItemAgenda = {
@@ -151,10 +368,7 @@ export function montarItens({
       uf: ag.trecho.uf,
       risco: riscoDoItem(ag, porTrecho.get(ag.trecho.id)),
       km,
-      // Dias inteiros: a turma mobiliza caminhão, sinalização e equipe por dia,
-      // então meio dia de roçada ainda ocupa o dia. Também é o que mantém o
-      // bloco largo o bastante para carregar rótulo na régua.
-      diasServico: Math.max(1, Math.ceil(km / capacidade)),
+      diasServico: diasDeServico(km, capacidade),
       capacidade,
       atrasado: ag.data_sugerida < hoje && (ag.status === "sugerido" || ag.status === "aprovado"),
     };
@@ -171,134 +385,4 @@ export function combinaEquipe(item: ItemAgenda, filtro: FiltroEquipe): boolean {
   if (!filtro) return true;
   if (filtro === "sem") return item.equipeId == null;
   return String(item.equipeId) === filtro;
-}
-
-export type ItemPosicionado = ItemAgenda & { inicio: number; fim: number; linha: number };
-
-export type Raia = {
-  chave: string;
-  equipe: Equipe | null;
-  capacidade: number | null;
-  itens: ItemPosicionado[];
-  linhas: number;
-  cargaPorDia: number[];
-  diasExcedidos: number[];
-  ocupacao21: number | null;
-  km: number;
-};
-
-/** Empacotamento guloso: cada bloco cai na primeira sub-linha livre. Dois serviços
- *  no mesmo dia viram duas faixas, e a sobreposição fica visível em vez de somem. */
-function empilhar(itens: { inicio: number; fim: number }[]): number[] {
-  const ocupadoAte: number[] = [];
-  return itens.map((it) => {
-    let linha = ocupadoAte.findIndex((fim) => fim <= it.inicio + 1e-9);
-    if (linha === -1) {
-      linha = ocupadoAte.length;
-      ocupadoAte.push(it.fim);
-    } else {
-      ocupadoAte[linha] = it.fim;
-    }
-    return linha;
-  });
-}
-
-export function montarRaias({
-  itens,
-  equipes,
-  janela,
-  filtroEquipe,
-  cargas,
-}: {
-  itens: ItemAgenda[];
-  equipes: Equipe[];
-  janela: Janela;
-  filtroEquipe: FiltroEquipe;
-  cargas: CargaEquipe[];
-}): Raia[] {
-  const indiceDoDia = new Map(janela.dias.map((d, i) => [d, i]));
-  const porOcupacao = new Map(cargas.map((c) => [c.equipeId, c]));
-
-  // Uma turma desativada com serviço já atribuído ainda precisa de raia: sem ela o
-  // bloco sumiria da régua enquanto o resumo e os chips continuariam contando o
-  // agendamento, e o seletor de equipe — que só lista as ativas — não teria como
-  // devolvê-lo à tela.
-  const comItemNaJanela = new Set(
-    itens.filter((i) => i.equipeId != null && indiceDoDia.has(i.data)).map((i) => i.equipeId),
-  );
-
-  const comRaia = equipes
-    .filter((e) => e.ativo || comItemNaJanela.has(e.id))
-    .sort(
-      (a, b) =>
-        a.base_uf.localeCompare(b.base_uf, "pt-BR") || a.nome.localeCompare(b.nome, "pt-BR"),
-    );
-
-  const definicoes: { chave: string; equipe: Equipe | null }[] = [
-    { chave: "sem", equipe: null },
-    ...comRaia.map((e) => ({ chave: String(e.id), equipe: e })),
-  ].filter(({ chave }) => !filtroEquipe || chave === filtroEquipe);
-
-  return definicoes.map(({ chave, equipe }) => {
-    const capacidade = equipe ? Number(equipe.capacidade_km_dia) : null;
-
-    const naJanela = itens
-      .filter((item) => (equipe ? item.equipeId === equipe.id : item.equipeId == null))
-      .filter((item) => indiceDoDia.has(item.data))
-      .sort((a, b) => a.data.localeCompare(b.data) || ordemRisco(a.risco) - ordemRisco(b.risco));
-
-    const base = naJanela.map((item) => {
-      const inicio = indiceDoDia.get(item.data) as number;
-      return { ...item, inicio, fim: inicio + item.diasServico };
-    });
-
-    const linhas = empilhar(base);
-    const posicionados: ItemPosicionado[] = base.map((item, i) => ({ ...item, linha: linhas[i] }));
-
-    // Carga do dia: cada serviço distribui seus km pelos dias que ocupa. Um
-    // serviço longo nunca estoura sozinho — ele já foi esticado pela capacidade.
-    // O que estoura é acumular serviços no mesmo dia.
-    const cargaPorDia = janela.dias.map((_, d) =>
-      sum(
-        posicionados
-          .filter((it) => it.inicio <= d && d < it.fim - 1e-9)
-          .map((it) => it.km / it.diasServico),
-      ),
-    );
-
-    const diasExcedidos =
-      capacidade == null
-        ? []
-        : cargaPorDia.reduce<number[]>((acc, carga, d) => {
-            if (carga > capacidade + 1e-6) acc.push(d);
-            return acc;
-          }, []);
-
-    return {
-      chave,
-      equipe,
-      capacidade,
-      itens: posicionados,
-      linhas: Math.max(1, linhas.length ? Math.max(...linhas) + 1 : 1),
-      cargaPorDia,
-      diasExcedidos,
-      ocupacao21: equipe ? (porOcupacao.get(equipe.id)?.ocupacao ?? 0) : null,
-      km: sum(posicionados.map((it) => it.km)),
-    };
-  });
-}
-
-export function alturaDaRaia(raia: Raia): number {
-  return Math.max(ALTURA_RAIA_MINIMA, raia.linhas * (ALTURA_BLOCO + FOLGA_BLOCO) + FOLGA_BLOCO * 3);
-}
-
-/** Blocos de mês consecutivos dentro da janela — a faixa que nomeia "agosto". */
-export function fatiarPorMes(dias: string[]): { dia: string; quantidade: number }[] {
-  const fatias: { dia: string; quantidade: number }[] = [];
-  for (const dia of dias) {
-    const anterior = fatias[fatias.length - 1];
-    if (anterior && anterior.dia.slice(0, 7) === dia.slice(0, 7)) anterior.quantidade += 1;
-    else fatias.push({ dia, quantidade: 1 });
-  }
-  return fatias;
 }
