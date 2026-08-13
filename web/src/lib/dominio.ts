@@ -168,6 +168,74 @@ export function textoPrazo(dias: number | null | undefined): string {
   return `${rotuloPrazo(dias)} até o limite`;
 }
 
+/**
+ * Estado da altura contra o limite do trecho — o "quanto" do permitido ja foi
+ * consumido.
+ *
+ * NAO e o risco acima: risco vem de `dias_ate_limite` (o prazo), este vem da
+ * razao altura/limite. Sao eixos diferentes e um trecho pode estar folgado num e
+ * apertado no outro — limite alto com crescimento rapido da ocupacao baixa e
+ * prazo curto.
+ */
+export const ESTADO_ALTURA = {
+  dentro: {
+    rotulo: "Dentro do limite",
+    cor: "var(--good)",
+    tinta: "var(--good-ink)",
+    icone: "CircleCheck",
+  },
+  perto: {
+    rotulo: "Perto do limite",
+    cor: "var(--warning)",
+    tinta: "var(--warning-ink)",
+    icone: "TriangleAlert",
+  },
+  acima: {
+    rotulo: "Acima do limite",
+    cor: "var(--critical)",
+    tinta: "var(--critical-ink)",
+    icone: "OctagonAlert",
+  },
+} as const;
+
+export type ChaveEstadoAltura = keyof typeof ESTADO_ALTURA;
+
+export type LeituraAltura = {
+  alturaCm: number;
+  limiteCm: number;
+  /** Mesma conta de `ia.vw_trecho_status.ocupacao_pct`: altura sobre limite. */
+  pct: number;
+  /** Passou do limite de verdade. Exatamente no limite ja e `acima`, mas nao
+   *  excede — a hachura marca o excedente, e ali nao ha excedente. */
+  excedido: boolean;
+  chave: ChaveEstadoAltura;
+  token: (typeof ESTADO_ALTURA)[ChaveEstadoAltura];
+};
+
+/**
+ * Leitura unica da altura para toda superficie que compara altura com limite:
+ * medidor do trecho, balao da regua, balao do mapa.
+ *
+ * Devolve `null` quando falta previsao ou o limite nao e utilizavel — e a
+ * ausencia de dado, que o painel mostra como "—" em vez de fingir zero.
+ */
+export function estadoDaAltura(
+  alturaCm: number | string | null | undefined,
+  limiteCm: number | string | null | undefined,
+): LeituraAltura | null {
+  if (alturaCm == null || limiteCm == null) return null;
+
+  // `numeric` do Postgres chega como string pelo PostgREST.
+  const altura = Number(alturaCm);
+  const limite = Number(limiteCm);
+  if (!Number.isFinite(altura) || !Number.isFinite(limite) || limite <= 0) return null;
+
+  const pct = (altura / limite) * 100;
+  const chave: ChaveEstadoAltura = pct >= 100 ? "acima" : pct >= 90 ? "perto" : "dentro";
+
+  return { alturaCm: altura, limiteCm: limite, pct, excedido: altura > limite, chave, token: ESTADO_ALTURA[chave] };
+}
+
 export const TIPO_PISTA_ICONE: Record<string, string> = {
   reta: "Minus",
   curva: "Spline",

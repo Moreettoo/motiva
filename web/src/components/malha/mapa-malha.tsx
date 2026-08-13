@@ -7,8 +7,16 @@ import { MapPinned } from "lucide-react";
 import { ChipRisco } from "@/components/ui/chip";
 import { EstadoVazio } from "@/components/ui/vazio";
 import { CLASSE_BALAO, LARGURA_BALAO } from "@/components/viz/dica-grafico";
+import { IconeDominio } from "@/components/viz/legenda";
 import { useLargura } from "@/components/viz/usar-largura";
-import { ORDEM_RISCO, RISCO, ordemRisco, rotuloPrazo, textoPrazo } from "@/lib/dominio";
+import {
+  ORDEM_RISCO,
+  RISCO,
+  estadoDaAltura,
+  ordemRisco,
+  rotuloPrazo,
+  textoPrazo,
+} from "@/lib/dominio";
 import { fmt } from "@/lib/format";
 import type { Risco, TrechoStatus } from "@/lib/types";
 import { clamp, cn, scale } from "@/lib/utils";
@@ -207,6 +215,9 @@ export function MapaMalha({
 
   const { pontos, paralelos, meridianos } = mapa;
   const emFoco = pontos.find((p) => p.id === destacado) ?? null;
+  const alturaEmFoco = emFoco
+    ? estadoDaAltura(emFoco.trecho.altura_atual_cm, emFoco.trecho.altura_limite_cm)
+    : null;
 
   // O desenho empilha o crítico por último; a tabulação faz o contrário, para
   // que a primeira parada de teclado seja o trecho mais urgente.
@@ -460,11 +471,25 @@ export function MapaMalha({
                 {rotuloPrazo(emFoco.trecho.dias_ate_limite)}
               </dd>
 
-              <dt className="text-ink-3">Ocupação</dt>
-              <dd className="tnum text-right font-mono text-ink">
-                {emFoco.trecho.ocupacao_pct == null
-                  ? "—"
-                  : fmt.pct(Number(emFoco.trecho.ocupacao_pct))}
+              {/* Mesma leitura do balão da régua: altura contra limite, não o
+                  percentual — o limite muda de trecho para trecho. */}
+              <dt className="text-ink-3">Altura</dt>
+              <dd className="tnum flex items-center justify-end gap-1 text-right font-mono text-ink">
+                {alturaEmFoco == null ? (
+                  "—"
+                ) : (
+                  <>
+                    {alturaEmFoco.excedido ? (
+                      <span
+                        className="inline-flex shrink-0"
+                        style={{ color: alturaEmFoco.token.tinta }}
+                      >
+                        <IconeDominio nome={alturaEmFoco.token.icone} className="size-3" />
+                      </span>
+                    ) : null}
+                    {fmt.d1(alturaEmFoco.alturaCm)} / {fmt.cm(alturaEmFoco.limiteCm)}
+                  </>
+                )}
               </dd>
 
               <dt className="text-ink-3">Coordenada</dt>

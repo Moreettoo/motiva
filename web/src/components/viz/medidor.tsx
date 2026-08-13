@@ -1,47 +1,13 @@
-import { CircleCheck, OctagonAlert, TriangleAlert } from "lucide-react";
-
 import { Dica } from "@/components/ui/dica";
+import { ESTADO_ALTURA, estadoDaAltura } from "@/lib/dominio";
 import { fmt } from "@/lib/format";
 import { clamp, cn } from "@/lib/utils";
 
 import { caminhoArco, escalaLinear, pontoNoArco } from "./escalas";
+import { IconeDominio } from "./legenda";
 
 const ANGULO_INICIO = -120;
 const ANGULO_FIM = 120;
-
-/**
- * Estado de ocupação — quanto da altura permitida já foi consumida.
- *
- * NÃO é o risco de `@/lib/dominio`: risco vem de `dias_ate_limite` (o prazo),
- * este vem da razão altura/limite (o quanto). São eixos diferentes e um trecho
- * pode estar folgado num e apertado no outro.
- */
-const ESTADOS = {
-  dentro: {
-    rotulo: "Dentro do limite",
-    Icone: CircleCheck,
-    cor: "var(--good)",
-    tinta: "text-good-ink",
-  },
-  perto: {
-    rotulo: "Perto do limite",
-    Icone: TriangleAlert,
-    cor: "var(--warning)",
-    tinta: "text-warning-ink",
-  },
-  acima: {
-    rotulo: "Acima do limite",
-    Icone: OctagonAlert,
-    cor: "var(--critical)",
-    tinta: "text-critical-ink",
-  },
-} as const;
-
-function estadoPorOcupacao(pct: number) {
-  if (pct >= 100) return ESTADOS.acima;
-  if (pct >= 90) return ESTADOS.perto;
-  return ESTADOS.dentro;
-}
 
 /**
  * Arco de 240° com a altura atual contra o limite do trecho.
@@ -67,9 +33,12 @@ export function Medidor({
   tamanho?: number;
 }) {
   const teto = Math.max(maximo ?? 0, limite * 1.25, valor * 1.05, 1);
-  const ocupacao = limite > 0 ? (valor / limite) * 100 : 0;
-  const estado = estadoPorOcupacao(ocupacao);
-  const excedeu = valor > limite;
+  const estado = estadoDaAltura(valor, limite);
+  // Limite invalido nao existe em dado real, mas o arco precisa de uma cor:
+  // sem leitura, o medidor desenha como "dentro" e o numero fala por si.
+  const token = estado?.token ?? ESTADO_ALTURA.dentro;
+  const ocupacao = estado?.pct ?? 0;
+  const excedeu = estado?.excedido ?? false;
 
   const traco = Math.max(8, Math.round(tamanho * 0.075));
   const raio = tamanho / 2 - traco / 2 - 2;
@@ -86,7 +55,7 @@ export function Medidor({
   const [tickX1, tickY1] = pontoNoArco(cx, cy, raio - traco / 2 - 3, anguloLimite);
   const [tickX2, tickY2] = pontoNoArco(cx, cy, raio + traco / 2 + 3, anguloLimite);
 
-  const leitura = `${rotulo}: ${formatarValor(valor)}, limite ${formatarValor(limite)} — ${estado.rotulo}, ${fmt.pct(ocupacao)} do limite.`;
+  const leitura = `${rotulo}: ${formatarValor(valor)}, limite ${formatarValor(limite)} — ${token.rotulo}, ${fmt.pct(ocupacao)} do limite.`;
 
   return (
     <Dica
@@ -137,7 +106,7 @@ export function Medidor({
           <path
             d={caminhoArco(cx, cy, raio, ANGULO_INICIO, ANGULO_FIM)}
             fill="none"
-            style={{ stroke: `color-mix(in oklab, ${estado.cor} 20%, var(--surface))` }}
+            style={{ stroke: `color-mix(in oklab, ${token.cor} 20%, var(--surface))` }}
             strokeWidth={traco}
             strokeLinecap="round"
           />
@@ -146,7 +115,7 @@ export function Medidor({
             <path
               d={caminhoArco(cx, cy, raio, ANGULO_INICIO, anguloCheio)}
               fill="none"
-              style={{ stroke: estado.cor }}
+              style={{ stroke: token.cor }}
               strokeWidth={traco}
               // Ponta reta quando passou do limite: uma ponta redonda avançaria
               // meia espessura além da marca e mentiria sobre onde o limite está.
@@ -199,9 +168,12 @@ export function Medidor({
         </svg>
 
         {/* Cor de estado nunca sozinha: ícone + rótulo em texto, sempre. */}
-        <span className={cn("flex items-center gap-1.5 text-xs font-medium", estado.tinta)}>
-          <estado.Icone aria-hidden="true" className="size-3.5 shrink-0" />
-          {estado.rotulo}
+        <span
+          className="flex items-center gap-1.5 text-xs font-medium"
+          style={{ color: token.tinta }}
+        >
+          <IconeDominio nome={token.icone} />
+          {token.rotulo}
         </span>
 
         <span className="tnum font-mono text-2xs text-ink-3">

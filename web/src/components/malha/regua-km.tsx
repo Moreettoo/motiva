@@ -5,8 +5,9 @@ import Link from "next/link";
 
 import { ChipRisco } from "@/components/ui/chip";
 import { CLASSE_BALAO, LARGURA_BALAO } from "@/components/viz/dica-grafico";
+import { IconeDominio } from "@/components/viz/legenda";
 import { useLargura } from "@/components/viz/usar-largura";
-import { RISCO, rotuloPrazo, textoPrazo } from "@/lib/dominio";
+import { RISCO, estadoDaAltura, rotuloPrazo, textoPrazo } from "@/lib/dominio";
 import { fmt } from "@/lib/format";
 import type { Risco } from "@/lib/types";
 import { clamp, cn } from "@/lib/utils";
@@ -18,7 +19,10 @@ export type SegmentoRegua = {
   risco: Risco;
   /** Identifica o trecho no balão e no leitor de tela — normalmente rodovia + sentido. */
   rotulo: string;
-  ocupacaoPct?: number | null;
+  /** Altura estimada e limite do trecho, em cm. O balão lê os dois lado a lado
+   *  e o medidor do segmento sai da razão entre eles. */
+  alturaCm?: number | null;
+  limiteCm?: number | null;
   diasAteLimite?: number | null;
   /** Linha secundária do balão: espécie, tipo de pista, equipe… */
   detalhe?: string | null;
@@ -116,6 +120,7 @@ export function ReguaKm({
   const rotularKm = passo < 1 ? fmt.d1 : fmt.n;
 
   const emFoco = visiveis.find((s) => s.id === destacado) ?? null;
+  const alturaEmFoco = emFoco ? estadoDaAltura(emFoco.alturaCm, emFoco.limiteCm) : null;
   const centroDica = emFoco
     ? ((emFoco.kmInicio + emFoco.kmFim) / 2 - kmInicio) / extensao * largura
     : 0;
@@ -151,9 +156,25 @@ export function ReguaKm({
                 {rotuloPrazo(emFoco.diasAteLimite)}
               </dd>
 
-              <dt className="text-ink-3">Ocupação</dt>
-              <dd className="tnum text-right font-mono text-ink">
-                {emFoco.ocupacaoPct == null ? "—" : fmt.pct(emFoco.ocupacaoPct)}
+              {/* Altura contra o limite, e não o percentual: "114%" só se lê
+                  com o limite do trecho na cabeça, e o limite varia por trecho. */}
+              <dt className="text-ink-3">Altura</dt>
+              <dd className="tnum flex items-center justify-end gap-1 text-right font-mono text-ink">
+                {alturaEmFoco == null ? (
+                  "—"
+                ) : (
+                  <>
+                    {alturaEmFoco.excedido ? (
+                      <span
+                        className="inline-flex shrink-0"
+                        style={{ color: alturaEmFoco.token.tinta }}
+                      >
+                        <IconeDominio nome={alturaEmFoco.token.icone} className="size-3" />
+                      </span>
+                    ) : null}
+                    {fmt.d1(alturaEmFoco.alturaCm)} / {fmt.cm(alturaEmFoco.limiteCm)}
+                  </>
+                )}
               </dd>
 
               {emFoco.detalhe ? (
@@ -194,9 +215,11 @@ export function ReguaKm({
             const direita = clamp(posicao(s.kmFim), 0, 100);
             const cor = RISCO[s.risco].cor;
 
-            const ocupacao = s.ocupacaoPct;
-            const comMedidor = altura === "detalhada" && ocupacao != null;
-            const excedido = comMedidor && (ocupacao as number) > 100;
+            const leituraAltura = estadoDaAltura(s.alturaCm, s.limiteCm);
+            // Só a régua detalhada tem altura em pixel para o medidor dentro do
+            // segmento; nas outras o segmento é a barra de risco e nada mais.
+            const medidor = altura === "detalhada" ? leituraAltura : null;
+            const excedido = medidor?.excedido ?? false;
 
             const ativo = s.id === selecionado;
             const sobre = s.id === destacado;
@@ -209,12 +232,12 @@ export function ReguaKm({
               // trecho curto não desapareça numa malha longa.
               left: `calc(${esquerda}% + 1px)`,
               width: `max(3px, calc(${direita - esquerda}% - 2px))`,
-              backgroundColor: comMedidor
+              backgroundColor: medidor
                 ? `color-mix(in oklab, ${cor} 38%, var(--surface-3))`
                 : cor,
-              // O contorno delimita o "tanque": sem ele, uma ocupação baixa deixa
+              // O contorno delimita o "tanque": sem ele, uma altura baixa deixa
               // o corpo diluído perto demais do leito e o trecho some.
-              border: comMedidor ? `1px solid ${cor}` : undefined,
+              border: medidor ? `1px solid ${cor}` : undefined,
               transform: sobre ? `scaleY(${escalaHover})` : undefined,
               transformOrigin: "center",
               zIndex: sobre ? 20 : ativo ? 10 : undefined,
@@ -225,7 +248,9 @@ export function ReguaKm({
               fmt.faixaKm(s.kmInicio, s.kmFim),
               `classificação de risco ${RISCO[s.risco].rotulo.toLowerCase()}`,
               textoPrazo(s.diasAteLimite),
-              ocupacao == null ? null : `ocupação ${fmt.pct(ocupacao)}`,
+              leituraAltura == null
+                ? null
+                : `altura ${fmt.d1(leituraAltura.alturaCm)} cm para um limite de ${fmt.cm(leituraAltura.limiteCm)}`,
             ]
               .filter(Boolean)
               .join(", ");
@@ -237,7 +262,7 @@ export function ReguaKm({
 
             const interior = (
               <>
-                {comMedidor ? (
+                {medidor ? (
                   <span
                     aria-hidden="true"
                     className="absolute inset-x-0 bottom-0 rounded-sm"
@@ -248,7 +273,7 @@ export function ReguaKm({
                             backgroundImage: `repeating-linear-gradient(45deg, ${cor} 0 4px, color-mix(in oklab, ${cor} 55%, var(--surface-3)) 4px 8px)`,
                           }
                         : {
-                            height: `${clamp(ocupacao as number, 0, 100)}%`,
+                            height: `${clamp(medidor.pct, 0, 100)}%`,
                             backgroundColor: cor,
                           }
                     }

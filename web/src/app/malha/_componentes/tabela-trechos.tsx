@@ -33,7 +33,10 @@ const COLUNAS: Coluna[] = [
   { chave: "uf", rotulo: "UF" },
   { chave: "especie", rotulo: "Espécie" },
   { chave: "altura", rotulo: "Altura / limite", numerica: true },
-  { chave: "ocupacao", rotulo: "Ocupação" },
+  // A chave continua `ocupacao` porque vai para a URL e link compartilhado não
+  // pode quebrar; o que muda é o rótulo. "Ocupação" ficou reservado para carga
+  // de equipe, e aqui a barra compara altura com o limite do trecho.
+  { chave: "ocupacao", rotulo: "Contra o limite" },
   { chave: "dias", rotulo: "Dias até o limite", numerica: true },
   { chave: "risco", rotulo: "Risco" },
   { chave: "rocada", rotulo: "Próxima roçada" },
@@ -175,7 +178,7 @@ export function TabelaTrechos({
                     tom={TOM_BARRA_POR_RISCO[t.risco]}
                     altura="fina"
                     mostrarValor
-                    rotulo={`Ocupação da altura permitida em ${t.rodovia}, ${fmt.faixaKm(Number(t.km_inicio), Number(t.km_fim))}`}
+                    rotulo={`Altura contra o limite em ${t.rodovia}, ${fmt.faixaKm(Number(t.km_inicio), Number(t.km_fim))}`}
                   />
                 )}
               </TabelaCelula>

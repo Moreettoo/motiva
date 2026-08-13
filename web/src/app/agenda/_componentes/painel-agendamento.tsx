@@ -235,13 +235,16 @@ function Gaveta({
 
         {ocupacao != null ? (
           <div className="mt-3">
-            <p className="mb-1.5 text-2xs text-ink-3">Ocupação da altura limite</p>
+            {/* "Ocupação" nesta tela é carga de equipe (linha do tempo). Aqui a
+                barra compara altura com limite — a altura e o limite estão logo
+                acima, no mesmo `dl`, então o percentual tem referência. */}
+            <p className="mb-1.5 text-2xs text-ink-3">Altura contra o limite</p>
             <BarraProgresso
               valor={ocupacao}
               tom={TOM_BARRA_POR_RISCO[item.risco]}
               altura="media"
               mostrarValor
-              rotulo={`Ocupação da altura limite em ${t.rodovia}`}
+              rotulo={`Altura contra o limite em ${t.rodovia}`}
             />
           </div>
         ) : null}

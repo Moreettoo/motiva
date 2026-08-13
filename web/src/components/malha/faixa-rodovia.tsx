@@ -58,7 +58,8 @@ export function FaixaRodovia({
     risco: t.risco,
     rotulo: t.sentido ? `${t.rodovia} · ${t.sentido}` : t.rodovia,
     // `numeric` do Postgres chega como string pelo PostgREST; a régua faz conta com isso.
-    ocupacaoPct: t.ocupacao_pct == null ? null : Number(t.ocupacao_pct),
+    alturaCm: t.altura_atual_cm == null ? null : Number(t.altura_atual_cm),
+    limiteCm: Number(t.altura_limite_cm),
     diasAteLimite: t.dias_ate_limite,
     detalhe: ESPECIE[t.especie]?.rotulo ?? null,
     href: `/trechos/${t.id}`,
