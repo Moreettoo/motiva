@@ -92,6 +92,12 @@ A ordem das linhas é **estável e sempre a mesma**: `base_uf` e depois `nome`, 
 `montarRaias` já faz. Nunca por carga da semana — se a ordem mudasse ao navegar, "a mesma linha"
 deixaria de significar "a mesma turma", e o `↑ ↓` do teclado perderia o sentido.
 
+O nome da turma aparece **uma vez por linha**, numa calha grudada à esquerda da pista, e não
+repetido dentro de cada uma das 7 colunas. Repetir daria 70 rótulos na tela para 10 informações, e
+a calha é o que permite varrer uma turma ao longo da semana. O dia continua sendo a unidade
+visual: cada coluna tem cabeçalho próprio, ocupação própria, tinta de fim de semana e a marca de
+hoje. É "colunas por dia agrupadas por equipe" com o rótulo do grupo fatorado para fora.
+
 ---
 
 ## 2. Grade e capacidade
@@ -394,10 +400,17 @@ export const desfazerAlocacao = (id, data, equipeId) =>
 
 ### Revalidação
 
-Cada solta revalida a página inteira. Com rajadas de 10 soltas em 15 segundos isso é caro, então
-`revalidatePath` passa por um debounce de cauda de 1,5 s **com teto de 5 s** — sem o teto, uma
-rajada contínua adia a revalidação para sempre. O desenho na tela não espera por isso: quem
-desenha é o `useOptimistic`, como já é hoje.
+`revalidatePath("/", "layout")` continua **dentro** da ação, como em todas as outras. Foi tentador
+tirá-lo do caminho do arrasto e substituí-lo por um `router.refresh()` debounced no cliente, mas
+sem revalidação dentro da ação o Next não regenera o payload RSC — `skipPageRendering` é ligado
+quando a ação não revalidou — e o `useOptimistic` reverte para props velhas: o cartão volta
+sozinho ao lugar de origem alguns instantes depois de ser solto. Recuperar isso exigiria uma
+camada de "confirmados" acima do `useOptimistic`, que é complexidade real para economizar quatro
+consultas.
+
+O custo fica: cada solta revalida a página. O desenho na tela não espera por isso — quem desenha é
+o `useOptimistic`, como já é hoje. O que muda é só o `pendente`, que deixa de travar a tela
+inteira (ver acima).
 
 ---
 
@@ -512,32 +525,34 @@ primeira coluna dentro dele. Sem isso, "7 colunas de dia" não existe em nenhum 
 
 ### O número de colunas não é breakpoint
 
-É consequência de uma única declaração:
+Uma grade só, plana, sem `subgrid`: a calha das turmas é a coluna 1 da mesma grade, então as
+linhas alinham por construção.
 
 ```css
+.pista {
+  overflow: auto;                 /* dois eixos: é o que faz o cabeçalho e a calha grudarem */
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scroll-behavior: auto;          /* o `smooth` global animaria cada quadro da auto-rolagem */
+}
 .pista-grade {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: max(var(--dia-min), calc((100cqw - 6 * var(--gap)) / 7));
-  /* Linhas idênticas nas 7 colunas: é o que faz ler uma turma ao longo da semana.
-     Cabeçalho do dia, linha de propostas, e uma linha por equipe. `--linhas` é
+  /* `1fr` reparte quando sobra largura; `--dia-min` é o piso que dispara a rolagem.
+     É daqui que sai a degradação contínua 7 → 6 → 5 → … → 1 coluna. */
+  grid-template-columns: var(--calha) repeat(7, minmax(var(--dia-min), 1fr));
+  /* Cabeçalho do dia, linha de propostas, e uma linha por turma. `--linhas` é
      escrito pelo componente: além das 10 ativas, uma turma desativada com serviço
      na semana também ganha linha (é o que `montarRaias` já faz hoje). */
   grid-template-rows: auto auto repeat(var(--linhas, 10), minmax(var(--altura-linha, 4.5rem), auto));
 }
-.coluna-dia {
-  container: dia / inline-size;
-  display: grid;
-  grid-row: 1 / -1;
-  grid-template-rows: subgrid;   /* sem isto as raias não alinham entre dias */
-  scroll-snap-align: start;
-}
 ```
 
-Com `--dia-min: 8.5rem`, o quadro degrada continuamente 7 → 6 → 5 → 4 → 3 → 1 coluna, sem nenhuma
-media query, com `scroll-snap-type: x proximity` na pista. `subgrid` tem suporte em Chrome 117+,
-Safari 16+ e Firefox 71+ — dentro do que este painel já assume (`dvh`, `@container`, `color-mix`,
-`env(safe-area-inset-*)`).
+Com `--dia-min: 9rem` e `--calha: 9rem`, o quadro degrada continuamente sem nenhuma media query.
+Cada célula carrega `container: dia / inline-size` para a densidade responder à largura da coluna;
+células da mesma coluna têm a mesma largura, então o efeito é o de um container por coluna.
+
+Nada de `subgrid`: a grade plana entrega o mesmo alinhamento com uma dependência a menos, e é o
+mesmo padrão de cabeçalho grudado + coluna grudada que `linha-do-tempo.tsx` já provou nesta base.
 
 A pista reserva `padding-block-end` para a barra de rolagem horizontal, que em Windows/Chrome
 comeria a última linha de equipe.
