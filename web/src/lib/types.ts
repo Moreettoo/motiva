@@ -185,7 +185,5 @@ export type Painel = {
   rocadas_proximos_7d: number;
   crescimento_medio_cm_dia: number;
   crescimento_maximo_cm_dia: number;
-  custo_30d: number;
-  km_rocados_30d: number;
   trechos_acima_do_limite: number;
 };

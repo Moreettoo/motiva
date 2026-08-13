@@ -1,4 +1,4 @@
-import { Banknote, CalendarClock, OctagonAlert, Sprout, Waypoints } from "lucide-react";
+import { CalendarClock, OctagonAlert, Sprout, Waypoints } from "lucide-react";
 
 import { Indicador, type DeltaIndicador } from "@/components/ui/indicador";
 import { Minigrafico } from "@/components/viz/minigrafico";
@@ -6,7 +6,7 @@ import { fmt } from "@/lib/format";
 import type { Painel } from "@/lib/types";
 
 /**
- * A faixa de leitura do topo. Cinco mostradores, o número sempre com o maior
+ * A faixa de leitura do topo. Quatro mostradores, o número sempre com o maior
  * peso visual e o rótulo pequeno acima — a hierarquia vive no `Indicador`.
  */
 export function Indicadores({
@@ -30,7 +30,7 @@ export function Indicadores({
     <section>
       <h2 className="sr-only">Indicadores da malha</h2>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Indicador
           indice={0}
           rotulo="Trechos críticos"
@@ -78,14 +78,6 @@ export function Indicadores({
               largura={112}
             />
           }
-        />
-
-        <Indicador
-          indice={4}
-          rotulo="Custo 30 dias"
-          valor={fmt.brl(painel.custo_30d)}
-          icone={<Banknote />}
-          nota={`${fmt.km(painel.km_rocados_30d)} roçados · ${fmt.n(painel.executados_30d)} roçadas concluídas`}
         />
       </div>
     </section>

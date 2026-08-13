@@ -133,24 +133,11 @@ export const agendamentosDoTrecho = cache(async (trechoId: number): Promise<Agen
   return data as unknown as AgendamentoDetalhado[];
 });
 
-/** Execucoes recentes de toda a malha — alimenta o custo e o km roçado do painel. */
-export const execucoesRecentes = cache(async (dias = 90): Promise<Execucao[]> => {
-  const desde = somarDias(new Date(), -dias).toISOString().slice(0, 10);
-  const { data, error } = await db
-    .from("execucoes")
-    .select("*")
-    .gte("data_execucao", desde)
-    .order("data_execucao", { ascending: false });
-  if (error) erro("as execucoes recentes", error);
-  return data as Execucao[];
-});
-
 /** Numeros do topo do painel. Calculados em memoria: 50 trechos nao justificam RPC. */
 export const montarPainel = cache(async (): Promise<Painel> => {
-  const [trechos, agendamentos, execucoes] = await Promise.all([
+  const [trechos, agendamentos] = await Promise.all([
     listarTrechos(),
     listarAgendamentos(),
-    execucoesRecentes(30),
   ]);
 
   const hoje = isoHoje();
@@ -176,8 +163,6 @@ export const montarPainel = cache(async (): Promise<Painel> => {
     }).length,
     crescimento_medio_cm_dia: crescimentos.length ? sum(crescimentos) / crescimentos.length : 0,
     crescimento_maximo_cm_dia: crescimentos.length ? Math.max(...crescimentos) : 0,
-    custo_30d: sum(execucoes.map((e) => Number(e.custo_reais) || 0)),
-    km_rocados_30d: sum(execucoes.map((e) => Number(e.km_rocados) || 0)),
     trechos_acima_do_limite: trechos.filter((t) => (t.altura_atual_cm ?? 0) >= t.altura_limite_cm).length,
   };
 });
