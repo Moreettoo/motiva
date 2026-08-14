@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { Grade } from "../dados";
-import { proximoAlvo, type Alvo, type Direcao } from "./navegacao";
+import { proximoAlvo, realinharAlvo, type Alvo, type Direcao } from "./navegacao";
 
 // Os componentes importam interação de um lugar só; espalhar o conhecimento de
 // que existem dois módulos (navegação pura + hook) seria pior.
@@ -279,6 +279,27 @@ export function useArrasto({
     }
   }, []);
 
+  /* Realinha `estado.alvo` para a semana nova ao atravessar semana em pleno
+     movimento: mesmo dia da semana, mesma turma (ver `realinharAlvo`, em
+     `navegacao.ts`, para a aritmética e a razão do bug sem isto). Otimista —
+     a grade nova só existe no próximo render, então não dá para validar a
+     chave nova aqui contra dado fresco; ela é determinística (±7 dias) e
+     `recusa: null` assume que continua valendo o que valia antes de cruzar a
+     semana. Se a suposição estiver errada (por exemplo, a turma ficou
+     desativada só na semana nova), a PRÓXIMA seta já revalida contra a grade
+     fresca, através do caminho normal (`validar` mais abaixo). */
+  const realinhar = useCallback(
+    (atual: { carga: CargaArrasto; alvo: Alvo }, delta: -1 | 1) => {
+      definirEstado({
+        fase: "carregando",
+        carga: atual.carga,
+        alvo: realinharAlvo(atual.alvo, delta),
+        recusa: null,
+      });
+    },
+    [definirEstado],
+  );
+
   const aoTeclar = useCallback(
     (evento: React.KeyboardEvent<HTMLElement>, carga: CargaArrasto) => {
       // Lido do espelho, não de `estado`: `estado` recriaria este callback a
@@ -331,7 +352,9 @@ export function useArrasto({
       evento.preventDefault();
 
       if (evento.shiftKey && (direcao === "esquerda" || direcao === "direita")) {
-        aoNavegarSemana(direcao === "direita" ? 1 : -1);
+        const delta = direcao === "direita" ? 1 : -1;
+        aoNavegarSemana(delta);
+        realinhar(atual, delta);
         return;
       }
 
@@ -339,6 +362,7 @@ export function useArrasto({
 
       if (passo.tipo === "semana") {
         aoNavegarSemana(passo.delta);
+        realinhar(atual, passo.delta);
         return;
       }
       if (passo.tipo === "borda") {
@@ -358,7 +382,7 @@ export function useArrasto({
       definirEstado({ fase: "carregando", carga: atual.carga, alvo: passo.alvo, recusa });
       anunciar(recusa ?? descrever(passo.alvo, atual.carga));
     },
-    [grade, validar, aoSoltar, descrever, anunciar, aoNavegarSemana, fechar, definirEstado],
+    [grade, validar, aoSoltar, descrever, anunciar, aoNavegarSemana, fechar, definirEstado, realinhar],
   );
 
   return { estado, iniciar, aoTeclar, engolirClique, cancelar: fechar };

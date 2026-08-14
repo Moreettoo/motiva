@@ -6,7 +6,9 @@
  * da semana faz o gestor perder de vista onde o cartão está.
  */
 
-import { chaveCelula, type ChaveCelula, type Grade } from "../dados";
+import { somarDias } from "@/lib/format";
+
+import { chaveCelula, chaveDia, type ChaveCelula, type Grade } from "../dados";
 
 export type Direcao = "esquerda" | "direita" | "cima" | "baixo";
 
@@ -60,4 +62,20 @@ export function proximoAlvo(grade: Grade, atual: Alvo, direcao: Direcao): PassoN
       if (l === linhas.length - 1) return { tipo: "borda", alvo: atual };
       return { tipo: "alvo", alvo: chaveCelula(dia, linhas[l + 1].equipe.id) };
   }
+}
+
+/**
+ * Realinha o alvo para a semana nova ao atravessar semana em pleno movimento
+ * (Shift+seta, ou seta simples no fim da semana): mesmo dia da semana, mesma
+ * turma — só desloca a data em `delta * 7` dias, porque é exatamente quanto
+ * a semana desloca. "fila" não desloca: o trilho existe em qualquer semana.
+ *
+ * Sem isto, o alvo continua apontando para um dia que só existia na semana
+ * velha; a próxima seta cai em `d === -1` acima e trava em `{tipo: "borda"}`
+ * para sempre, porque o dia antigo nunca mais aparece em `grade.janela.dias`.
+ */
+export function realinharAlvo(alvo: Alvo, delta: -1 | 1): Alvo {
+  if (alvo === "fila") return alvo;
+  const { dia, equipeId } = partes(alvo);
+  return chaveCelula(chaveDia(somarDias(dia, delta * 7)), equipeId);
 }

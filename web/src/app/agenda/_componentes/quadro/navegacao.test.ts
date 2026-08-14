@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Equipe } from "@/lib/types";
 
 import { chaveCelula, montarGrade, montarJanela, type Grade } from "../dados";
-import { proximoAlvo } from "./navegacao";
+import { proximoAlvo, realinharAlvo } from "./navegacao";
 
 function equipe(id: number, nome: string): Equipe {
   return {
@@ -70,5 +70,21 @@ describe("proximoAlvo", () => {
 
   it("não sai do trilho pelo eixo vertical", () => {
     expect(proximoAlvo(grade, "fila", "baixo")).toEqual({ tipo: "borda", alvo: "fila" });
+  });
+});
+
+describe("realinharAlvo", () => {
+  it("desloca o mesmo dia da semana e a mesma turma", () => {
+    expect(realinharAlvo(chaveCelula("2026-08-12", 1), 1)).toBe(chaveCelula("2026-08-19", 1));
+    expect(realinharAlvo(chaveCelula("2026-08-12", 1), -1)).toBe(chaveCelula("2026-08-05", 1));
+  });
+
+  it("preserva a turma mesmo quando a semana muda de mês", () => {
+    expect(realinharAlvo(chaveCelula("2026-08-31", 2), 1)).toBe(chaveCelula("2026-09-07", 2));
+  });
+
+  it("não desloca o trilho — ele existe em qualquer semana", () => {
+    expect(realinharAlvo("fila", 1)).toBe("fila");
+    expect(realinharAlvo("fila", -1)).toBe("fila");
   });
 });
