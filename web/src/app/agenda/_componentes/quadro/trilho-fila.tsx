@@ -1,7 +1,5 @@
 "use client";
 
-import { useState } from "react";
-
 import { Botao } from "@/components/ui/botao";
 import { EstadoVazio } from "@/components/ui/vazio";
 import { IconeDominio } from "@/components/viz/legenda";
@@ -12,12 +10,11 @@ import type { ItemAgenda } from "../dados";
 import { CartaoServico } from "./cartao-servico";
 import type { CargaArrasto } from "./usar-arrasto";
 
-/** 62 cartões de uma vez são 62 subárvores no hit-test de cada quadro do
- *  arrasto — o teto existe para o CUSTO por quadro, não para poupar pixel. */
-const TETO = 25;
-
 export function TrilhoFila({
   itens,
+  total,
+  expandido,
+  aoExpandir,
   janelaFim,
   realcado,
   idEmVoo,
@@ -30,7 +27,18 @@ export function TrilhoFila({
   engolirClique,
   refCartao,
 }: {
+  /** Já cortado por quem chama (`TETO_TRILHO`, em `quadro-semana.tsx`) — o
+   *  corte subiu pra lá porque o roving tabindex da grade inteira
+   *  (`usar-foco-grade.ts`) precisa saber exatamente quais ids têm cartão
+   *  montado; um teto escondido aqui dentro deixava isso invisível de fora,
+   *  e um id além dele podia virar `idAtivo` sem cartão nenhum na tela para
+   *  representá-lo. */
   itens: ItemAgenda[];
+  /** Tamanho da fila INTEIRA, sem o corte — para o selo do cabeçalho e o
+   *  texto do botão "mostrar os outros". */
+  total: number;
+  expandido: boolean;
+  aoExpandir: () => void;
   janelaFim: string;
   realcado: boolean;
   idEmVoo: number | null;
@@ -46,27 +54,16 @@ export function TrilhoFila({
   engolirClique: (e: React.MouseEvent) => void;
   refCartao: (id: number) => (no: HTMLElement | null) => void;
 }) {
-  const [expandido, setExpandido] = useState(false);
-
-  // O teto corta sobre `itens` (o TOTAL), antes de separar por data — não por
-  // grupo. `itens` já vem ordenado por urgência (risco primeiro, data depois;
-  // ver `ordenarPorUrgencia`), então truncar aqui mantém os N mais urgentes
-  // do jeito que o gestor decide o que olhar primeiro. Particionar antes de
-  // truncar daria outra lista: um dia com muitos serviços "desta semana"
-  // encheria o teto sozinho e cortaria "depois" inteiro, mesmo que algum item
-  // ali tivesse risco maior que um item "desta semana" que sobrou dentro.
-  const visiveis = expandido ? itens : itens.slice(0, TETO);
-
   // Grupos por FILTRO, não por índice de corte: risco e data são eixos
   // independentes (um trecho crítico pode ter `data_sugerida` distante), então
-  // `visiveis` não é monotônica em `data` entre faixas de risco — um
+  // `itens` não é monotônica em `data` entre faixas de risco — um
   // `findIndex(item => item.data > janelaFim)` acharia a primeira ocorrência e
   // cortaria ainda DENTRO de uma faixa de risco, empurrando itens de risco
   // menor mas dentro da semana para debaixo do cabeçalho "Depois". Filtrar
-  // preserva a ordem de urgência dentro de cada grupo, porque `visiveis` já
-  // vem ordenada.
-  const destaSemana = visiveis.filter((item) => item.data <= janelaFim);
-  const depois = visiveis.filter((item) => item.data > janelaFim);
+  // preserva a ordem de urgência dentro de cada grupo, porque `itens` já
+  // vem ordenada (e já vem cortada por quem chama — ver o comentário da prop).
+  const destaSemana = itens.filter((item) => item.data <= janelaFim);
+  const depois = itens.filter((item) => item.data > janelaFim);
 
   // Fábrica de elemento, não componente: devolve `<CartaoServico>` direto, com
   // o mesmo `type` de sempre — o `memo` compara por `type` do elemento, não
@@ -94,7 +91,7 @@ export function TrilhoFila({
   return (
     <section
       data-trilho=""
-      aria-label={`Fila de decisão, ${fmt.contar(itens.length, "serviço", "serviços")} sem equipe`}
+      aria-label={`Fila de decisão, ${fmt.contar(total, "serviço", "serviços")} sem equipe`}
       className={cn(
         "flex min-h-0 w-full flex-col border-r border-border bg-surface",
         realcado && "ring-2 ring-accent ring-inset",
@@ -108,11 +105,11 @@ export function TrilhoFila({
           </p>
         </div>
         <span className="tnum shrink-0 rounded-md border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-2xs text-ink">
-          {fmt.n(itens.length)}
+          {fmt.n(total)}
         </span>
       </header>
 
-      {itens.length === 0 ? (
+      {total === 0 ? (
         <div className="p-3">
           <EstadoVazio
             icone={<IconeDominio nome="CircleCheck" />}
@@ -138,10 +135,10 @@ export function TrilhoFila({
         </ul>
       )}
 
-      {!expandido && itens.length > TETO ? (
+      {!expandido && total > itens.length ? (
         <div className="border-t border-border p-2">
-          <Botao tamanho="sm" variante="fantasma" onClick={() => setExpandido(true)}>
-            Mostrar os outros {fmt.n(itens.length - TETO)}
+          <Botao tamanho="sm" variante="fantasma" onClick={aoExpandir}>
+            Mostrar os outros {fmt.n(total - itens.length)}
           </Botao>
         </div>
       ) : null}

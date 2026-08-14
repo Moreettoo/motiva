@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
 import { RISCO } from "@/lib/dominio";
 import { IconeDominio } from "@/components/viz/legenda";
@@ -20,6 +20,11 @@ const falso = () => false;
 
 export function Sobrevoo({ estado, item }: { estado: EstadoArrasto; item: ItemAgenda | null }) {
   const montado = useSyncExternalStore(semAssinatura, verdadeiro, falso);
+  // `motion` anima por JavaScript, com valores interpolados por quadro — passa
+  // por fora das regras de `prefers-reduced-motion` em `globals.css` (que só
+  // zeram `transition-duration`/`animation-duration` do CSS). Ler o hook é o
+  // padrão desta base para todo consumidor de `motion` (ver `notificacoes.tsx`).
+  const reduzido = useReducedMotion();
   if (!montado) return null;
 
   const voando = estado.fase === "arrastando" ? estado : null;
@@ -38,7 +43,7 @@ export function Sobrevoo({ estado, item }: { estado: EstadoArrasto; item: ItemAg
             initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1.03 }}
             exit={{ opacity: 0, scale: 0.96 }}
-            transition={{ duration: 0.14, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: reduzido ? 0 : 0.14, ease: [0.22, 1, 0.36, 1] }}
             style={{
               backgroundColor: RISCO[item.risco].fundo,
               color: RISCO[item.risco].tinta,

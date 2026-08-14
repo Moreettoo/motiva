@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { AgendamentoDetalhado, Equipe } from "@/lib/types";
 
 import { montarGrade, montarItens, montarJanela, type Grade } from "../dados";
-import { decidirCartaoAtivo, idAtivoNoTrilho } from "./usar-foco-grade";
+import { decidirCartaoAtivo, idAtivoNoTrilho, idsDoQuadro, idsNasPropostas } from "./usar-foco-grade";
 
 /* ---------- fábricas mínimas: só os campos que o modelo lê ---------- */
 
@@ -61,13 +61,26 @@ function montar(ags: AgendamentoDetalhado[]): Grade {
   return montarGrade({ itens, equipes, janela, hoje });
 }
 
+/** Nos testes, sem corte de exibição — a fila visível é a fila inteira. */
+function decidir(
+  grade: Grade,
+  p: { anterior: number | null; emVoo: number | null; selecionado: number | null },
+): number | null {
+  return decidirCartaoAtivo({
+    ...p,
+    grade,
+    filaVisivel: grade.fila,
+    idsRenderizados: idsDoQuadro(grade.fila, grade),
+  });
+}
+
 describe("decidirCartaoAtivo", () => {
   it("o cartão em voo sempre vence, mesmo com selecionado e anterior diferentes", () => {
     const grade = montar([
       agendamento({ id: 1, data: "2026-08-11" }),
       agendamento({ id: 2, data: "2026-08-12", equipeId: 1 }),
     ]);
-    expect(decidirCartaoAtivo({ anterior: 2, emVoo: 1, selecionado: 2, grade })).toBe(1);
+    expect(decidir(grade, { anterior: 2, emVoo: 1, selecionado: 2 })).toBe(1);
   });
 
   it("sem cartão em voo, o selecionado vence sobre o anterior", () => {
@@ -75,7 +88,7 @@ describe("decidirCartaoAtivo", () => {
       agendamento({ id: 1, data: "2026-08-11" }),
       agendamento({ id: 2, data: "2026-08-12", equipeId: 1 }),
     ]);
-    expect(decidirCartaoAtivo({ anterior: 1, emVoo: null, selecionado: 2, grade })).toBe(2);
+    expect(decidir(grade, { anterior: 1, emVoo: null, selecionado: 2 })).toBe(2);
   });
 
   it("sem os dois, mantém o anterior (sticky) enquanto ele existir", () => {
@@ -83,7 +96,7 @@ describe("decidirCartaoAtivo", () => {
       agendamento({ id: 1, data: "2026-08-11" }),
       agendamento({ id: 2, data: "2026-08-12", equipeId: 1 }),
     ]);
-    expect(decidirCartaoAtivo({ anterior: 2, emVoo: null, selecionado: null, grade })).toBe(2);
+    expect(decidir(grade, { anterior: 2, emVoo: null, selecionado: null })).toBe(2);
   });
 
   it("cai no padrão (primeiro da fila) quando o anterior sumiu da lista", () => {
@@ -92,17 +105,17 @@ describe("decidirCartaoAtivo", () => {
       agendamento({ id: 2, data: "2026-08-12", equipeId: 1 }),
     ]);
     // id 99 não existe mais (por exemplo, foi executado e saiu da lista).
-    expect(decidirCartaoAtivo({ anterior: 99, emVoo: null, selecionado: null, grade })).toBe(1);
+    expect(decidir(grade, { anterior: 99, emVoo: null, selecionado: null })).toBe(1);
   });
 
   it("cai no primeiro item da grade quando a fila está vazia", () => {
     const grade = montar([agendamento({ id: 2, data: "2026-08-12", equipeId: 1 })]);
-    expect(decidirCartaoAtivo({ anterior: null, emVoo: null, selecionado: null, grade })).toBe(2);
+    expect(decidir(grade, { anterior: null, emVoo: null, selecionado: null })).toBe(2);
   });
 
   it("devolve null quando não há nenhum item em lugar nenhum", () => {
     const grade = montar([]);
-    expect(decidirCartaoAtivo({ anterior: null, emVoo: null, selecionado: null, grade })).toBeNull();
+    expect(decidir(grade, { anterior: null, emVoo: null, selecionado: null })).toBeNull();
   });
 
   it("não testa contra a lista inteira: um selecionado COM turma que sai da semana visível não trava a grade", () => {
@@ -110,9 +123,7 @@ describe("decidirCartaoAtivo", () => {
     // data (2026-08-12) está na janela VELHA. Simula a troca de semana
     // remontando a grade para uma janela em que esse item não aparece mais.
     const semanaVelha = montar([agendamento({ id: 2, data: "2026-08-12", equipeId: 1 })]);
-    expect(decidirCartaoAtivo({ anterior: null, emVoo: null, selecionado: 2, grade: semanaVelha })).toBe(
-      2,
-    ); // existe na semana velha — ok.
+    expect(decidir(semanaVelha, { anterior: null, emVoo: null, selecionado: 2 })).toBe(2); // existe na semana velha — ok.
 
     const itensProximaSemana = montarItens({
       agendamentos: [agendamento({ id: 3, data: "2026-08-20", equipeId: 1 })],
@@ -128,26 +139,44 @@ describe("decidirCartaoAtivo", () => {
     });
     // O id 2 (selecionado) não existe na grade nova — precisa cair no
     // padrão da grade nova (id 3), não ficar preso a um id fantasma.
-    expect(decidirCartaoAtivo({ anterior: null, emVoo: null, selecionado: 2, grade: semanaNova })).toBe(
-      3,
-    );
+    expect(decidir(semanaNova, { anterior: null, emVoo: null, selecionado: 2 })).toBe(3);
+  });
+
+  it("um id além do corte de exibição do trilho (fora de idsRenderizados) não trava a grade", () => {
+    // Simula o teto do trilho: `filaVisivel` só tem o id 2; o id 1 existe em
+    // `grade.fila` mas está "além do teto" — não deve validar como ativo.
+    const grade = montar([
+      agendamento({ id: 1, data: "2026-08-11" }),
+      agendamento({ id: 2, data: "2026-08-12" }),
+    ]);
+    const filaVisivel = [grade.fila.find((i) => i.id === 2)!];
+    const idsRenderizados = idsDoQuadro(filaVisivel, grade);
+    expect(
+      decidirCartaoAtivo({
+        anterior: 1,
+        emVoo: null,
+        selecionado: null,
+        filaVisivel,
+        grade,
+        idsRenderizados,
+      }),
+    ).toBe(2); // cai no padrão (primeiro da fila VISÍVEL), não trava em tabIndex=-1.
   });
 });
 
 describe("idAtivoNoTrilho", () => {
   it("é null quando o id não está em voo/selecionado/etc.", () => {
-    const grade = montar([agendamento({ id: 1, data: "2026-08-11" })]);
-    expect(idAtivoNoTrilho(null, grade)).toBeNull();
+    expect(idAtivoNoTrilho(null, new Set())).toBeNull();
   });
 
   it("mantém o id quando ele NÃO aparece nas propostas desta semana", () => {
     // data fora da janela visível (2026-08-10 a 2026-08-16): não vira proposta.
     const grade = montar([agendamento({ id: 1, data: "2026-09-01" })]);
-    expect(idAtivoNoTrilho(1, grade)).toBe(1);
+    expect(idAtivoNoTrilho(1, idsNasPropostas(grade))).toBe(1);
   });
 
   it("vira null quando o id É o gêmeo mostrado nas propostas desta semana", () => {
     const grade = montar([agendamento({ id: 1, data: "2026-08-11" })]);
-    expect(idAtivoNoTrilho(1, grade)).toBeNull();
+    expect(idAtivoNoTrilho(1, idsNasPropostas(grade))).toBeNull();
   });
 });

@@ -79,8 +79,51 @@ type Vivo = {
   comprometido: boolean;
   temporizador: number | null;
   quadro: number | null;
-  houveArrasto: boolean;
 };
+
+export type DecisaoSolta =
+  | { tipo: "recusa"; motivo: string }
+  | { tipo: "sem-mudanca" }
+  | { tipo: "soltar" };
+
+/**
+ * Decide o que fazer ao CONFIRMAR uma solta por teclado (Enter, ou Espaço de
+ * novo enquanto já em `"carregando"`) — pura, sem efeito colateral. Usada
+ * por `soltarOuAvisar`, dentro de `aoTeclar`.
+ *
+ * `alvo === origem` é um caso à parte de `recusa`: `validar` aceita voltar
+ * para a própria origem de propósito (não seria certo recusar enquanto o
+ * gestor só está OLHANDO ao redor com as setas), então a recusa chega
+ * `null` nesse caso — mas confirmar mesmo assim dispararia uma escrita
+ * idêntica ao estado atual, com anúncio de sucesso e um "Desfazer" para um
+ * no-op (o caminho do ponteiro já guarda contra isto, em `soltar` abaixo).
+ */
+export function decidirSolta(alvo: Alvo, origem: Alvo, recusa: string | null): DecisaoSolta {
+  if (recusa) return { tipo: "recusa", motivo: recusa };
+  if (alvo === origem) return { tipo: "sem-mudanca" };
+  return { tipo: "soltar" };
+}
+
+export type DecisaoRevalidacao = { tipo: "nada" } | { tipo: "anunciar" } | { tipo: "corrigir-e-anunciar" };
+
+/**
+ * Decide o que fazer quando a grade muda enquanto um movimento está em
+ * `"carregando"` — pura, sem efeito colateral. `chegada` sinaliza que
+ * acabamos de atravessar semana (Shift+seta ou seta simples na borda) e
+ * AINDA não anunciamos onde o cartão pousou: cruzar semana troca dia, turma
+ * e capacidade sem anunciar nada na hora (a grade nova só existe no próximo
+ * render), e sem este sinal esse anúncio nunca aconteceria quando o destino
+ * se confirma VÁLIDO — a recusa ao vivo, nesse caso, não muda (era `null`
+ * antes do cruzamento, otimista, e continua `null` depois, confirmado).
+ */
+export function decidirRevalidacao(
+  recusaAoVivo: string | null,
+  recusaFresca: string | null,
+  chegada: boolean,
+): DecisaoRevalidacao {
+  if (recusaFresca === recusaAoVivo && !chegada) return { tipo: "nada" };
+  return { tipo: recusaFresca === recusaAoVivo ? "anunciar" : "corrigir-e-anunciar" };
+}
 
 /**
  * Cancela o que um gesto deixou pendente — temporizador, rAF, o atributo que
@@ -122,9 +165,29 @@ export function useArrasto({
   // callbacks a cada quadro e derrubaria o `memo` dos ~130 cartões.
   const vivo = useRef<Vivo | null>(null);
 
+  /* Sobrevive a `fechar()` — que zera `vivo.current` (linha abaixo) ANTES de
+     o navegador sintetizar o `click` do `pointerup`. `engolirClique` roda
+     via `onClickCapture` do cartão depois desse `click`, então ler
+     `vivo.current?.houveArrasto` ali sempre achava `undefined`: a guarda
+     nunca disparava, e todo arrasto por mouse terminava com a gaveta de
+     detalhe abrindo por cima do quadro que acabou de mudar — exatamente o
+     cenário que `comprometer()` já documenta (capturar o ponteiro só ali
+     para não perder o clique). Consumido (zerado) dentro do próprio
+     `engolirClique`, não no fim do gesto: é um sinal de UM clique só, e não
+     pode vazar para o próximo. Zerado também em `iniciar` por segurança —
+     se o `click` sintético nunca chegar a disparar por algum motivo, o
+     sinal não deveria sobreviver até o PRÓXIMO gesto. */
+  const ultimoGestoArrastou = useRef(false);
+
+  /* Sinaliza uma chegada de semana pendente de anúncio (ver o efeito de
+     revalidação mais abaixo). Zerado em `fechar()`: nenhuma sessão de
+     arrasto deveria deixar um sinal pendente vazando para a próxima. */
+  const precisaAnunciarChegada = useRef(false);
+
   const fechar = useCallback(() => {
     limparRecursos(vivo.current);
     vivo.current = null;
+    precisaAnunciarChegada.current = false;
     definirEstado({ fase: "ocioso" });
   }, [definirEstado]);
 
@@ -170,7 +233,7 @@ export function useArrasto({
     document.documentElement.dataset.arrastando = "";
 
     s.comprometido = true;
-    s.houveArrasto = true;
+    ultimoGestoArrastou.current = true;
     s.quadro = requestAnimationFrame(laco);
     anunciar(`${s.carga.rotulo} pego.`);
   }, [laco, anunciar]);
@@ -185,6 +248,10 @@ export function useArrasto({
       // não comprometido) sobrevive à troca e comprometeria o ponteiro ERRADO
       // quando disparasse. Não é suporte a dois dedos — é não vazar recurso.
       limparRecursos(vivo.current);
+      // Defensivo: se o `click` sintético do gesto anterior nunca chegou a
+      // disparar `engolirClique` (que o consome), não deveria sobreviver até
+      // este gesto novo.
+      ultimoGestoArrastou.current = false;
 
       vivo.current = {
         carga,
@@ -199,7 +266,6 @@ export function useArrasto({
             ? null
             : window.setTimeout(comprometer, PRESSAO_MS),
         quadro: null,
-        houveArrasto: false,
       };
 
       definirEstado({ fase: "candidato", carga });
@@ -271,12 +337,18 @@ export function useArrasto({
     return () => limparRecursos(vivo.current);
   }, []);
 
-  /** Espalhar no botão de detalhe do cartão: engole o clique que fecha um arrasto. */
+  /** Espalhar no botão de detalhe do cartão: engole o clique que fecha um
+   *  arrasto. Lê `ultimoGestoArrastou`, não `vivo.current?.houveArrasto`:
+   *  `fechar()` já zerou `vivo.current` antes de o navegador sintetizar
+   *  este `click` (ver o comentário na declaração do ref). Consome o sinal
+   *  (zera) de qualquer forma — é de um clique só, e não pode engolir o
+   *  PRÓXIMO clique que não seja precedido de arrasto nenhum. */
   const engolirClique = useCallback((evento: React.MouseEvent) => {
-    if (vivo.current?.houveArrasto) {
+    if (ultimoGestoArrastou.current) {
       evento.preventDefault();
       evento.stopPropagation();
     }
+    ultimoGestoArrastou.current = false;
   }, []);
 
   /* Realinha `estado.alvo` para a semana nova ao atravessar semana em pleno
@@ -287,9 +359,9 @@ export function useArrasto({
      Otimista — a grade nova só existe no próximo render, então não dá para
      validar a chave nova aqui contra dado fresco; ela é determinística
      (±7 dias) e `recusa: null` assume que continua valendo o que valia antes
-     de cruzar a semana. O efeito `revalidarAoTrocarGrade`, mais abaixo,
-     corrige essa suposição assim que a grade nova chega — não é preciso
-     esperar a PRÓXIMA seta do usuário. */
+     de cruzar a semana. Marca `precisaAnunciarChegada` para o efeito de
+     revalidação (mais abaixo) saber que há uma chegada pendente de anúncio,
+     mesmo que a suposição otimista se confirme certa. */
   const realinhar = useCallback(
     (atual: { carga: CargaArrasto; alvo: Alvo }, delta: -1 | 1) => {
       definirEstado({
@@ -298,6 +370,7 @@ export function useArrasto({
         alvo: realinharAlvo(atual.alvo, delta),
         recusa: null,
       });
+      precisaAnunciarChegada.current = true;
     },
     [definirEstado],
   );
@@ -308,43 +381,33 @@ export function useArrasto({
      o Enter: `recusa` vira o anel de aceitação na célula (`realcada`) — uma
      suposição errada pinta a célula como válida quando não é (por exemplo,
      "Esse dia já passou." depois de um Shift+← comum, que quase sempre cai
-     no passado) e o erro fica escondido até a PRÓXIMA seta, que pode nunca
-     vir. Este efeito corrige assim que a grade nova chega: revalida de
-     verdade e, se o resultado mudou, atualiza o estado e anuncia — fechando
-     também o buraco de quem só ouve a tela (nenhuma das duas trocas de
-     semana anunciava nada antes desta correção).
-     Duas guardas, nessa ordem: primeiro contra o estado AO VIVO (nada a
-     corrigir se a recusa já bate com o que a tela mostra); só então contra o
-     ÚLTIMO par alvo/recusa já processado, para não repetir a MESMA correção
-     se este efeito refirar à toa — grade instável (recriada a cada render
-     sem mudar de conteúdo, por exemplo pela Tarefa 8) não deve virar spam de
-     anúncio. Checar o cache ANTES do estado ao vivo deixaria escapar uma
-     correção de verdade sempre que dois arrastos diferentes coincidissem no
-     mesmo par (alvo, recusa). */
-  const ultimoRevalidado = useRef<{ alvo: Alvo; recusa: string | null } | null>(null);
+     no passado) e o erro ficaria escondido até a PRÓXIMA seta, que pode
+     nunca vir. E mesmo quando a suposição se confirma CERTA, cruzar semana
+     não anunciava nada na região assertiva — quem só ouve a tela não sabia
+     onde o cartão foi parar.
+     Este efeito corrige os dois: revalida de verdade assim que a grade nova
+     chega e, via `decidirRevalidacao` (pura, testada), decide se corrige o
+     estado, se só anuncia a chegada (destino confirmado válido), ou se não
+     há nada a fazer. `precisaAnunciarChegada` é o único sinal de "há uma
+     chegada pendente" — SEM cache de (alvo, recusa) algum: um cache assim
+     comparava contra sessões de arrasto ANTERIORES e podia abortar uma
+     correção de verdade só por coincidência de valores entre duas travessias
+     de semana diferentes (era exatamente esse o bug de uma versão anterior
+     deste efeito). A guarda contra `estadoRef` ao vivo (dentro de
+     `decidirRevalidacao`) já basta sozinha porque `definirEstado` escreve
+     `estadoRef` de forma síncrona. */
   useEffect(() => {
     const atual = estadoRef.current;
     if (atual.fase !== "carregando") return;
 
     const recusa = validar(atual.carga, atual.alvo);
-    // Contra o estado AO VIVO primeiro, não contra o cache: se a tela já
-    // mostra a recusa certa para este alvo, não há nada para corrigir,
-    // INDEPENDENTE de qualquer sessão de arrasto anterior ter passado por
-    // este mesmo par (alvo, recusa) — checar o cache antes disto deixaria
-    // uma correção de verdade escapar só por coincidência de valores entre
-    // dois arrastos diferentes.
-    if (recusa === atual.recusa) return;
+    const decisao = decidirRevalidacao(atual.recusa, recusa, precisaAnunciarChegada.current);
+    if (decisao.tipo === "nada") return;
 
-    // Só a partir daqui existe uma correção pendente de verdade. O cache
-    // evita repeti-la se este efeito refirar para o MESMO (alvo, recusa)
-    // antes de `estadoRef` refletir a correção — grade instável (recriada a
-    // cada render sem mudar de conteúdo, por exemplo pela Tarefa 8) não deve
-    // virar spam de anúncio.
-    const anterior = ultimoRevalidado.current;
-    if (anterior && anterior.alvo === atual.alvo && anterior.recusa === recusa) return;
-    ultimoRevalidado.current = { alvo: atual.alvo, recusa };
-
-    definirEstado({ fase: "carregando", carga: atual.carga, alvo: atual.alvo, recusa });
+    precisaAnunciarChegada.current = false;
+    if (decisao.tipo === "corrigir-e-anunciar") {
+      definirEstado({ fase: "carregando", carga: atual.carga, alvo: atual.alvo, recusa });
+    }
     anunciar(recusa ?? descrever(atual.alvo, atual.carga));
   }, [grade, validar, definirEstado, anunciar, descrever]);
 
@@ -357,18 +420,18 @@ export function useArrasto({
       // Confirma a solta (Espaço de novo, ou Enter) — compartilhado pelos
       // dois porque os dois tinham o MESMO buraco: nenhum guardava contra
       // destino igual à origem (o caminho do ponteiro guarda, logo abaixo em
-      // `soltar`). `validar` aceita voltar para a própria origem de propósito
-      // (não seria certo recusar enquanto o gestor só está OLHANDO ao redor
-      // com as setas), então `recusa` fica `null` — sem este `soltarOuAvisar`,
-      // Espaço-Enter sem mover nenhuma seta disparava `aoAlocar` idêntico ao
-      // estado atual, com "alocado para…" e um "Desfazer" para um no-op.
+      // `soltar`). Sem isto, Espaço-Enter sem mover nenhuma seta disparava
+      // `aoAlocar` idêntico ao estado atual, com "alocado para…" e um
+      // "Desfazer" para um no-op. A decisão em si é `decidirSolta` (pura,
+      // testada); esta função só executa o efeito colateral correspondente.
       function soltarOuAvisar() {
         if (!atual) return;
-        if (atual.recusa) {
-          anunciar(atual.recusa);
+        const decisao = decidirSolta(atual.alvo, atual.carga.origem, atual.recusa);
+        if (decisao.tipo === "recusa") {
+          anunciar(decisao.motivo);
           return;
         }
-        if (atual.alvo === atual.carga.origem) {
+        if (decisao.tipo === "sem-mudanca") {
           anunciar("Nada mudou. O serviço já estava aqui.");
           fechar();
           return;
@@ -436,6 +499,7 @@ export function useArrasto({
           alvo: alvoNaBordaDaSemana(grade, atual.alvo, passo.delta),
           recusa: null,
         });
+        precisaAnunciarChegada.current = true;
         return;
       }
       if (passo.tipo === "borda") {

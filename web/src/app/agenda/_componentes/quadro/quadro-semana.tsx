@@ -27,6 +27,15 @@ import { TrilhoFila } from "./trilho-fila";
 import { useArrasto, type Alvo, type CargaArrasto } from "./usar-arrasto";
 import { useFocoGrade } from "./usar-foco-grade";
 
+/** Teto de cartões renderizados no trilho de uma vez — o custo é o CUSTO por
+ *  quadro do arrasto (mais uma subárvore no hit-test de cada `pointermove`),
+ *  não poupar pixel. Vivia dentro de `trilho-fila.tsx`; subiu pra cá para
+ *  `useFocoGrade` (via `filaVisivel`) enxergar exatamente quais ids têm
+ *  cartão montado — um id além do teto não tinha cartão nenhum na tela, mas
+ *  o roving tabindex não sabia disso e podia zerar a parada de Tab da grade
+ *  inteira ao apontar pra ele. */
+const TETO_TRILHO = 25;
+
 export function QuadroSemana({
   grade,
   itens,
@@ -58,8 +67,13 @@ export function QuadroSemana({
 }) {
   const [passo, setPasso] = useState("");
   const [desfecho, setDesfecho] = useState("");
+  const [filaExpandida, setFilaExpandida] = useState(false);
   const porId = useMemo(() => new Map(itens.map((i) => [i.id, i])), [itens]);
   const equipePorId = useMemo(() => new Map(equipes.map((e) => [e.id, e])), [equipes]);
+  const filaVisivel = useMemo(
+    () => (filaExpandida ? grade.fila : grade.fila.slice(0, TETO_TRILHO)),
+    [grade.fila, filaExpandida],
+  );
 
   const validar = useCallback(
     (carga: CargaArrasto, alvo: Alvo): string | null => {
@@ -144,7 +158,12 @@ export function QuadroSemana({
   // para `usar-foco-grade.ts` (Ruling 14) — é a única parte deste arquivo que
   // mexe com foco/refs de DOM, e separá-la também isola as supressões do
   // eslint que essa mexida exige.
-  const { idAtivo, idAtivoNoTrilho, refCartao } = useFocoGrade({ grade, emVoo, selecionado });
+  const { idAtivo, idAtivoNoTrilho, refCartao } = useFocoGrade({
+    grade,
+    filaVisivel,
+    emVoo,
+    selecionado,
+  });
 
   // `TrilhoFila`/`LinhaTurma` recebem `refCartao` de aridade 1 (contrato já
   // fixado nas Tarefas 5/6) — estes wrappers só fixam a REGIÃO de cada
@@ -203,7 +222,10 @@ export function QuadroSemana({
       <div className="flex min-w-0 overflow-hidden rounded-lg border border-border bg-surface">
         <div className="hidden w-60 shrink-0 overflow-y-auto lg:block scroll-thin max-h-[min(78vh,760px)]">
           <TrilhoFila
-            itens={grade.fila}
+            itens={filaVisivel}
+            total={grade.fila.length}
+            expandido={filaExpandida}
+            aoExpandir={() => setFilaExpandida(true)}
             janelaFim={grade.janela.fim}
             realcado={alvoAtual === "fila" && !recusaAtual}
             idEmVoo={emVoo}

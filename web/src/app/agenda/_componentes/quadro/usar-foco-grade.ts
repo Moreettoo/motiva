@@ -1,15 +1,15 @@
 "use client";
 
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import type { Grade } from "../dados";
+import type { Grade, ItemAgenda } from "../dados";
 
-/** Primeiro cartão do quadro inteiro (fila, senão a grade): o padrão do
- *  roving tabindex quando nada foi arrastado nem selecionado ainda, e o
+/** Primeiro cartão do quadro inteiro (fila visível, senão a grade): o padrão
+ *  do roving tabindex quando nada foi arrastado nem selecionado ainda, e o
  *  reserva quando o cartão memorizado sumiu da lista. Sem isso a grade
  *  ficaria sem NENHUM ponto de entrada por Tab na primeira visita. */
-function primeiroItemDoQuadro(grade: Grade): number | null {
-  if (grade.fila[0]) return grade.fila[0].id;
+function primeiroItemDoQuadro(filaVisivel: ItemAgenda[], grade: Grade): number | null {
+  if (filaVisivel[0]) return filaVisivel[0].id;
   for (const linha of grade.linhas) {
     for (const celula of linha.celulas) {
       if (celula.itens[0]) return celula.itens[0].id;
@@ -19,28 +19,21 @@ function primeiroItemDoQuadro(grade: Grade): number | null {
 }
 
 /**
- * ids de todo item que a grade efetivamente RENDERIZA: a fila inteira (o
- * trilho) e as células da semana visível. A lista INTEIRA de itens (de
- * qualquer semana) NÃO serve para este teste — é exatamente o oposto do que
- * este módulo existe para garantir: um id que só a lista conhece, mas que
- * nenhum cartão na tela representa, faz `idAtivo` apontar para o nada e todo
- * cartão renderizado cair em `tabIndex={-1}` — nenhuma parada de Tab na
- * grade inteira. Isso acontecia ao abrir a gaveta de um serviço COM turma e
- * trocar de semana: o selecionado sai da grade nova, mas a lista inteira
- * continuava validando-o.
+ * ids de todo item que a grade efetivamente RENDERIZA: `filaVisivel` (a
+ * fatia do trilho que quem chama decidiu mostrar agora — ver `TETO_TRILHO`
+ * em `quadro-semana.tsx`, que é quem corta a lista e por isso é quem sabe a
+ * verdade) e as células da semana visível. `grade.fila` INTEIRA não serve —
+ * era o bug original: um id que só a lista completa conhece, mas que nenhum
+ * cartão na tela representa, fazia `idAtivo` apontar para o nada e todo
+ * cartão renderizado cair em `tabIndex={-1}`.
  *
- * IMPERFEITO num sentido, aceito e não resolvido aqui: um item que está na
- * fila mas além do teto de exibição do próprio trilho (`TETO`, em
- * `trilho-fila.tsx` — estado de EXIBIÇÃO daquele componente, invisível
- * daqui) "existe" para este teste mas não tem cartão nenhum montado. Isso só
- * afetaria o caminho STICKY (nem em voo, nem selecionado, e o anterior caiu
- * além do teto só porque itens novos empurraram a fila) — um caso raro, e
- * mesmo nele o próximo Tab simplesmente não acha nada para focar, sem
- * quebrar o resto da grade.
+ * Exportada para `useFocoGrade` poder memoizar (`useMemo`) sem recalcular a
+ * cada quadro de um arrasto por ponteiro, e para o teste poder montar o
+ * conjunto sem duplicar a lógica.
  */
-function idsDoQuadro(grade: Grade): Set<number> {
+export function idsDoQuadro(filaVisivel: ItemAgenda[], grade: Grade): Set<number> {
   const ids = new Set<number>();
-  for (const item of grade.fila) ids.add(item.id);
+  for (const item of filaVisivel) ids.add(item.id);
   for (const linha of grade.linhas) {
     for (const celula of linha.celulas) {
       for (const item of celula.itens) ids.add(item.id);
@@ -52,8 +45,9 @@ function idsDoQuadro(grade: Grade): Set<number> {
 /** ids que aparecem na linha "Propostas da IA" da semana visível — sempre um
  *  subconjunto de `grade.fila` (ver `montarGrade`), mas só ESTES têm um
  *  SEGUNDO cartão de verdade na tela, além do que o trilho já mostra (ver
- *  `idAtivoNoTrilho`, abaixo). */
-function idsNasPropostas(grade: Grade): Set<number> {
+ *  `idAtivoNoTrilho`, abaixo). Exportada pelo mesmo motivo de `idsDoQuadro`:
+ *  memoização em `useFocoGrade`, montagem direta no teste. */
+export function idsNasPropostas(grade: Grade): Set<number> {
   const ids = new Set<number>();
   for (const doDia of grade.propostas.values()) {
     for (const item of doDia) ids.add(item.id);
@@ -71,23 +65,28 @@ function idsNasPropostas(grade: Grade): Set<number> {
  * último ativo (`anterior`, sticky — evita saltar quando um dado não
  * relacionado muda, por exemplo outro cartão sendo executado) > o padrão
  * (`primeiroItemDoQuadro`), usado quando os três primeiros são nulos ou o id
- * resolvido já não existe entre os cartões que a grade RENDERIZA (ver
- * `idsDoQuadro` acima — não a lista inteira de itens).
+ * resolvido já não existe entre os cartões que a grade RENDERIZA
+ * (`idsRenderizados` — não a lista inteira de itens, nem a fila inteira sem
+ * o corte de exibição do trilho).
  */
 export function decidirCartaoAtivo({
   anterior,
   emVoo,
   selecionado,
+  filaVisivel,
   grade,
+  idsRenderizados,
 }: {
   anterior: number | null;
   emVoo: number | null;
   selecionado: number | null;
+  filaVisivel: ItemAgenda[];
   grade: Grade;
+  idsRenderizados: ReadonlySet<number>;
 }): number | null {
   const alvo = emVoo ?? selecionado ?? anterior;
-  if (alvo != null && idsDoQuadro(grade).has(alvo)) return alvo;
-  return primeiroItemDoQuadro(grade);
+  if (alvo != null && idsRenderizados.has(alvo)) return alvo;
+  return primeiroItemDoQuadro(filaVisivel, grade);
 }
 
 /**
@@ -98,16 +97,18 @@ export function decidirCartaoAtivo({
  * dois gêmeos ficariam `ativo` juntos, dobrando as duas paradas de Tab do
  * cartão para quatro na grade inteira.
  *
- * As Propostas "ganham" o desempate: ao contrário do trilho (que tem um teto
- * de exibição interno — `TETO`, em `trilho-fila.tsx`, invisível daqui — e
- * pode não estar de fato renderizando o gêmeo), o recorte da semana em
+ * As Propostas "ganham" o desempate: ao contrário do trilho (que agora tem
+ * um corte de exibição decidido por fora — `filaVisivel`/`idsDoQuadro` acima
+ * — e pode não estar de fato renderizando o gêmeo), o recorte da semana em
  * `grade.propostas` não tem teto, então sabemos com certeza que aquele
- * gêmeo está montado. Favorecer o trilho arriscaria as DUAS cópias caindo em
- * `tabIndex={-1}` se o id estivesse além do teto dele.
+ * gêmeo está montado.
  */
-export function idAtivoNoTrilho(idAtivo: number | null, grade: Grade): number | null {
+export function idAtivoNoTrilho(
+  idAtivo: number | null,
+  idsPropostas: ReadonlySet<number>,
+): number | null {
   if (idAtivo == null) return null;
-  return idsNasPropostas(grade).has(idAtivo) ? null : idAtivo;
+  return idsPropostas.has(idAtivo) ? null : idAtivo;
 }
 
 /** As três regiões onde um cartão pode montar. `refCartao` chaveia por
@@ -126,13 +127,20 @@ export type RegiaoFoco = "trilho" | "propostas" | "grid";
  * grade inteira (trilho + calha). Separado de `quadro-semana.tsx` porque são
  * as únicas partes do arquivo que mexem com foco/refs de DOM — isolar isso
  * também isola as supressões do eslint que essa mexida exige.
+ *
+ * `filaVisivel` (não `grade.fila` inteira) é quem alimenta o roving tabindex
+ * do lado da fila — `quadro-semana.tsx` decide o corte de exibição do
+ * trilho e passa a fatia já pronta, para este hook enxergar exatamente o que
+ * está montado.
  */
 export function useFocoGrade({
   grade,
+  filaVisivel,
   emVoo,
   selecionado,
 }: {
   grade: Grade;
+  filaVisivel: ItemAgenda[];
   emVoo: number | null;
   selecionado: number | null;
 }): {
@@ -142,6 +150,15 @@ export function useFocoGrade({
 } {
   const refsCartoes = useRef(new Map<string, HTMLElement>());
 
+  // Disciplina "por quadro" do restante do arquivo (`previa`, `porId` etc.
+  // em `quadro-semana.tsx` já memoizam): os dois `Set` abaixo cobrem ~100
+  // ids, custo desprezível mesmo recalculado sempre, mas este hook reexecuta
+  // a ~60 quadros/segundo durante um arrasto por ponteiro, e recalcular à
+  // toa contraria a disciplina do módulo, não corrige um bug de performance
+  // real.
+  const idsRenderizados = useMemo(() => idsDoQuadro(filaVisivel, grade), [filaVisivel, grade]);
+  const idsPropostas = useMemo(() => idsNasPropostas(grade), [grade]);
+
   // Sticky por padrão: o valor guardado só muda quando `emVoo`/`selecionado`
   // apontam para outra coisa, ou quando o id guardado deixa de existir entre
   // os cartões renderizados. `null` no primeiro render dá o mesmo resultado
@@ -149,7 +166,14 @@ export function useFocoGrade({
   // (`anterior: null` também ali), então o estado nasce simples e o cálculo
   // abaixo já resolve certo na primeira passada, sem duplicar a chamada.
   const [focoId, setFocoId] = useState<number | null>(null);
-  const idAtivo = decidirCartaoAtivo({ anterior: focoId, emVoo, selecionado, grade });
+  const idAtivo = decidirCartaoAtivo({
+    anterior: focoId,
+    emVoo,
+    selecionado,
+    filaVisivel,
+    grade,
+    idsRenderizados,
+  });
   if (idAtivo !== focoId) setFocoId(idAtivo);
 
   /* O cartão remonta em outro pai depois de um movimento, então o foco se
@@ -213,5 +237,5 @@ export function useFocoGrade({
     return fn;
   }, []);
 
-  return { idAtivo, idAtivoNoTrilho: idAtivoNoTrilho(idAtivo, grade), refCartao };
+  return { idAtivo, idAtivoNoTrilho: idAtivoNoTrilho(idAtivo, idsPropostas), refCartao };
 }
