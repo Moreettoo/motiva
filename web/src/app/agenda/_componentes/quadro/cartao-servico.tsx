@@ -39,6 +39,7 @@ export const CartaoServico = memo(function CartaoServico({
   fantasma,
   selecionado,
   salvando,
+  ativo,
   desfazer,
   aoPegar,
   aoTeclar,
@@ -51,8 +52,13 @@ export const CartaoServico = memo(function CartaoServico({
   compacto?: boolean;
   /** O cartão saiu para o sobrevoo: reserva a caixa e some, sem colapsar a linha. */
   fantasma: boolean;
+  /** Este é o serviço aberto na gaveta de detalhe agora — não tem relação com o
+   *  arrasto; é o mesmo sentido de `selecionado` em `linha-do-tempo.tsx`. */
   selecionado: boolean;
   salvando: boolean;
+  /** Roving tabindex da grade: só o cartão ativo entra no Tab (os outros ~129
+   *  ficam em -1). A Tarefa 7 calcula; este componente só consome. */
+  ativo: boolean;
   desfazer: (() => void) | null;
   aoPegar: (e: React.PointerEvent<HTMLElement>, carga: CargaArrasto) => void;
   aoTeclar: (e: React.KeyboardEvent<HTMLElement>, carga: CargaArrasto) => void;
@@ -64,6 +70,7 @@ export const CartaoServico = memo(function CartaoServico({
   const encerrado = item.status === "executado" || item.status === "descartado";
   const carga = cargaDoItem(item, origem);
   const t = item.ag.trecho;
+  const tabIndex = ativo ? 0 : -1;
 
   return (
     <li
@@ -71,18 +78,12 @@ export const CartaoServico = memo(function CartaoServico({
       style={{ visibility: fantasma ? "hidden" : undefined }}
       className="min-w-0"
     >
+      {/* Container puro: nenhum papel, nenhum tabIndex, nenhum onKeyDown aqui.
+          Um <button> (abrir detalhe) dentro de um role="button" (o antigo host
+          de foco) era aninhamento interativo — indefinido entre leitores de
+          tela. Os dois controles reais agora são irmãos: a alça e o botão de
+          detalhe, nessa ordem no DOM. */}
       <div
-        ref={refCartao}
-        role="button"
-        tabIndex={-1}
-        aria-label={rotuloCompleto(item)}
-        /* Encerrado nunca entra em movimento — nem alça, nem teclado. Sem
-           onKeyDown, "serviço arrastável" e um aria-pressed de alternância
-           mentiriam sobre o que Espaço faria aqui; o aria-label já diz a
-           situação ("Situação: Executado"), então omitir basta. */
-        aria-roledescription={encerrado ? undefined : "serviço arrastável"}
-        aria-pressed={encerrado ? undefined : selecionado}
-        onKeyDown={encerrado ? undefined : (evento) => aoTeclar(evento, carga)}
         style={{
           backgroundColor: encerrado ? "var(--surface-3)" : token.fundo,
           color: encerrado ? "var(--ink-3)" : token.tinta,
@@ -98,18 +99,40 @@ export const CartaoServico = memo(function CartaoServico({
 
         {encerrado ? null : (
           <button
+            ref={refCartao}
             type="button"
-            aria-label={`Arrastar ${t.rodovia}`}
-            tabIndex={-1}
-            onPointerDown={(evento) => aoPegar(evento, carga)}
-            className="flex w-5 shrink-0 cursor-grab touch-none items-center justify-center text-current opacity-45 group-hover:opacity-80"
+            /* Rótulo com faixa de km, não só a rodovia: com 50 trechos, vários
+               cartões da mesma rodovia coexistem na tela, e "Arrastar BR-101"
+               repetido não desambigua nada na navegação por lista do leitor
+               de tela. `carga.rotulo` já é essa frase — reaproveitada. */
+            aria-label={`Arrastar ${carga.rotulo}`}
+            aria-roledescription="serviço arrastável"
+            aria-disabled={salvando || undefined}
+            tabIndex={tabIndex}
+            /* Sem handler em vez de `disabled`: um botão `disabled` sai da
+               árvore de foco, e este é o nó que `refCartao` entrega para a
+               Tarefa 7 focar programaticamente ao navegar pela grade. Se a
+               escrita ainda estiver em voo bem quando este cartão for o
+               "ativo", `disabled` faria o `.focus()` falhar em silêncio e
+               destravar o teclado do resto da grade. `aria-disabled` avisa o
+               leitor de tela sem tirar o nó do lugar. */
+            onPointerDown={salvando ? undefined : (evento) => aoPegar(evento, carga)}
+            onKeyDown={salvando ? undefined : (evento) => aoTeclar(evento, carga)}
+            className={cn(
+              "flex w-5 shrink-0 touch-none items-center justify-center text-current",
+              salvando ? "cursor-wait opacity-30" : "cursor-grab opacity-45 group-hover:opacity-80",
+            )}
           >
-            <GripVertical aria-hidden="true" className="size-3.5" />
+            <GripVertical aria-hidden="true" className={cn("size-3.5", salvando && "animate-pulse")} />
           </button>
         )}
 
         <button
+          ref={encerrado ? refCartao : undefined}
           type="button"
+          aria-label={rotuloCompleto(item)}
+          aria-pressed={selecionado}
+          tabIndex={tabIndex}
           onClick={aoAbrir.bind(null, item.id)}
           onClickCapture={engolirClique}
           className="min-w-0 flex-1 py-1.5 pr-2 text-left"
@@ -133,8 +156,6 @@ export const CartaoServico = memo(function CartaoServico({
               {fmt.km(item.km)} · {relativoEmDias(item.data)}
             </span>
           )}
-
-          <span className="sr-only">Abrir detalhe</span>
         </button>
 
         {item.diasServico > 1 ? (
