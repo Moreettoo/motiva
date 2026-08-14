@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { useState } from "react";
 
 import { Botao } from "@/components/ui/botao";
 import { EstadoVazio } from "@/components/ui/vazio";
@@ -47,11 +47,49 @@ export function TrilhoFila({
   refCartao: (id: number) => (no: HTMLElement | null) => void;
 }) {
   const [expandido, setExpandido] = useState(false);
+
+  // O teto corta sobre `itens` (o TOTAL), antes de separar por data — não por
+  // grupo. `itens` já vem ordenado por urgência (risco primeiro, data depois;
+  // ver `ordenarPorUrgencia`), então truncar aqui mantém os N mais urgentes
+  // do jeito que o gestor decide o que olhar primeiro. Particionar antes de
+  // truncar daria outra lista: um dia com muitos serviços "desta semana"
+  // encheria o teto sozinho e cortaria "depois" inteiro, mesmo que algum item
+  // ali tivesse risco maior que um item "desta semana" que sobrou dentro.
   const visiveis = expandido ? itens : itens.slice(0, TETO);
-  // -1 (nada depois da semana) e 0 (nada dentro dela) são os dois casos em que
-  // só um dos dois cabeçalhos abaixo aparece — cobertos pelas condições `!== 0`
-  // e `i === corte`, não por um `if (corte === -1)` à parte.
-  const corte = visiveis.findIndex((item) => item.data > janelaFim);
+
+  // Grupos por FILTRO, não por índice de corte: risco e data são eixos
+  // independentes (um trecho crítico pode ter `data_sugerida` distante), então
+  // `visiveis` não é monotônica em `data` entre faixas de risco — um
+  // `findIndex(item => item.data > janelaFim)` acharia a primeira ocorrência e
+  // cortaria ainda DENTRO de uma faixa de risco, empurrando itens de risco
+  // menor mas dentro da semana para debaixo do cabeçalho "Depois". Filtrar
+  // preserva a ordem de urgência dentro de cada grupo, porque `visiveis` já
+  // vem ordenada.
+  const destaSemana = visiveis.filter((item) => item.data <= janelaFim);
+  const depois = visiveis.filter((item) => item.data > janelaFim);
+
+  // Fábrica de elemento, não componente: devolve `<CartaoServico>` direto, com
+  // o mesmo `type` de sempre — o `memo` compara por `type` do elemento, não
+  // por esta closure ser recriada a cada render. Existe só para os dois `map`
+  // abaixo (por grupo) não divergirem nas mesmas 11 props que o `map` único
+  // de antes já passava.
+  const cartao = (item: ItemAgenda) => (
+    <CartaoServico
+      key={item.id}
+      item={item}
+      origem="fila"
+      fantasma={item.id === idEmVoo}
+      selecionado={item.id === selecionado}
+      salvando={salvandoIds.has(item.id)}
+      ativo={item.id === idAtivo}
+      desfazer={null}
+      aoPegar={aoPegar}
+      aoTeclar={aoTeclar}
+      aoAbrir={aoAbrir}
+      engolirClique={engolirClique}
+      refCartao={refCartao(item.id)}
+    />
+  );
 
   return (
     <section
@@ -84,32 +122,19 @@ export function TrilhoFila({
         </div>
       ) : (
         <ul className="flex min-w-0 flex-col gap-1.5 p-2">
-          {visiveis.map((item, i) => (
-            <Fragment key={item.id}>
-              {i === 0 && corte !== 0 ? (
-                <li className="px-1 pt-1 text-2xs tracking-widest text-ink-3 uppercase">
-                  Vence nesta semana
-                </li>
-              ) : null}
-              {i === corte ? (
-                <li className="px-1 pt-2 text-2xs tracking-widest text-ink-3 uppercase">Depois</li>
-              ) : null}
-              <CartaoServico
-                item={item}
-                origem="fila"
-                fantasma={item.id === idEmVoo}
-                selecionado={item.id === selecionado}
-                salvando={salvandoIds.has(item.id)}
-                ativo={item.id === idAtivo}
-                desfazer={null}
-                aoPegar={aoPegar}
-                aoTeclar={aoTeclar}
-                aoAbrir={aoAbrir}
-                engolirClique={engolirClique}
-                refCartao={refCartao(item.id)}
-              />
-            </Fragment>
-          ))}
+          {/* Cabeçalho órfão: um grupo vazio (fila inteira "desta semana", ou
+              inteira "depois") não mostra o rótulo do grupo que não tem item. */}
+          {destaSemana.length > 0 ? (
+            <li className="px-1 pt-1 text-2xs tracking-widest text-ink-3 uppercase">
+              Vence nesta semana
+            </li>
+          ) : null}
+          {destaSemana.map(cartao)}
+
+          {depois.length > 0 ? (
+            <li className="px-1 pt-2 text-2xs tracking-widest text-ink-3 uppercase">Depois</li>
+          ) : null}
+          {depois.map(cartao)}
         </ul>
       )}
 
