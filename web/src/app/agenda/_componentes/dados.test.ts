@@ -4,14 +4,18 @@ import type { AgendamentoDetalhado, Equipe } from "@/lib/types";
 
 import {
   chaveCelula,
+  contarAtrasados,
   diasDeServico,
   fatiasEm,
+  linhaAtenuada,
   montarGrade,
   montarItens,
   montarJanela,
   ocupaDia,
   previaDoMovimento,
+  resolverEquipeFoco,
   resumo28,
+  semanaDoAtrasoMaisAntigo,
   type ItemAgenda,
 } from "./dados";
 
@@ -352,5 +356,108 @@ describe("equipesComLinha compartilhada entre montarGrade e resumo28", () => {
     const faixa = resumo28(lista, "2026-08-13", [inativa]);
 
     expect(faixa.find((d) => d.dia === "2026-08-10")?.algumaExcedida).toBe(false);
+  });
+});
+
+/* ---------- destaque de equipe ---------- */
+
+describe("resolverEquipeFoco", () => {
+  const eqs = [equipe({ id: 1 }), equipe({ id: 2, ativo: false })];
+
+  it("sem valor na URL, não há destaque", () => {
+    expect(resolverEquipeFoco("", eqs)).toBeNull();
+  });
+
+  it("resolve o id quando o valor bate com uma equipe existente", () => {
+    expect(resolverEquipeFoco("1", eqs)).toBe(1);
+  });
+
+  it("equipe desativada ainda resolve — quem decide se ela aparece na semana é a grade", () => {
+    expect(resolverEquipeFoco("2", eqs)).toBe(2);
+  });
+
+  it("um valor de uma versão anterior do seletor ('sem') degrada para 'sem destaque'", () => {
+    expect(resolverEquipeFoco("sem", eqs)).toBeNull();
+  });
+
+  it("um id que não existe mais degrada para 'sem destaque', sem lançar", () => {
+    expect(resolverEquipeFoco("999", eqs)).toBeNull();
+  });
+});
+
+describe("linhaAtenuada", () => {
+  const eqs = [equipe({ id: 1, capacidade_km_dia: 6 }), equipe({ id: 2, capacidade_km_dia: 6 })];
+  const janela = montarJanela("2026-08-13");
+  const lista = itens([agendamento({ id: 1, data: "2026-08-13", equipeId: 1 })], eqs);
+  const grade = montarGrade({ itens: lista, equipes: eqs, janela, hoje: "2026-08-13" });
+
+  it("sem equipe em foco, nenhuma linha atenua", () => {
+    expect(linhaAtenuada(1, null, grade.linhas)).toBe(false);
+    expect(linhaAtenuada(2, null, grade.linhas)).toBe(false);
+  });
+
+  it("com equipe em foco, só as OUTRAS linhas atenuam", () => {
+    expect(linhaAtenuada(1, 1, grade.linhas)).toBe(false);
+    expect(linhaAtenuada(2, 1, grade.linhas)).toBe(true);
+  });
+
+  it("equipe em foco sem NENHUMA linha na semana visível: nada atenua", () => {
+    // id 999 não existe em `grade.linhas` — o caso de um link salvo apontando
+    // para uma equipe desativada sem serviço aberto na semana. Atenuar todo
+    // mundo sem ninguém para contrastar seria o oposto de "destacar".
+    expect(linhaAtenuada(1, 999, grade.linhas)).toBe(false);
+    expect(linhaAtenuada(2, 999, grade.linhas)).toBe(false);
+  });
+});
+
+/* ---------- roçadas vencidas ---------- */
+
+describe("contarAtrasados", () => {
+  it("conta vencidos com OU sem equipe atribuída", () => {
+    const eqs = [equipe({ id: 1 })];
+    const lista = itens(
+      [
+        agendamento({ id: 1, data: "2026-08-01", equipeId: 1 }), // vencido, com equipe
+        agendamento({ id: 2, data: "2026-08-01" }), // vencido, sem equipe
+        agendamento({ id: 3, data: "2026-08-20" }), // no futuro
+      ],
+      eqs,
+      "2026-08-13",
+    );
+
+    expect(contarAtrasados(lista)).toBe(2);
+  });
+
+  it("não conta executado nem descartado, mesmo com data no passado", () => {
+    const lista = itens(
+      [
+        agendamento({ id: 1, data: "2026-08-01", status: "executado" }),
+        agendamento({ id: 2, data: "2026-08-01", status: "descartado" }),
+      ],
+      [],
+      "2026-08-13",
+    );
+
+    expect(contarAtrasados(lista)).toBe(0);
+  });
+});
+
+describe("semanaDoAtrasoMaisAntigo", () => {
+  it("null sem nenhum atrasado", () => {
+    const lista = itens([agendamento({ id: 1, data: "2026-08-20" })], [], "2026-08-13");
+    expect(semanaDoAtrasoMaisAntigo(lista)).toBeNull();
+  });
+
+  it("segunda-feira da semana do atrasado com a data MAIS ANTIGA, não do mais recente", () => {
+    const lista = itens(
+      [
+        agendamento({ id: 1, data: "2026-07-30" }), // quinta — semana de 2026-07-27
+        agendamento({ id: 2, data: "2026-08-05" }), // vencido também, mas mais recente
+      ],
+      [],
+      "2026-08-13",
+    );
+
+    expect(semanaDoAtrasoMaisAntigo(lista)).toBe("2026-07-27");
   });
 });

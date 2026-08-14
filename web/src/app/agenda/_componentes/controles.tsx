@@ -71,19 +71,18 @@ export function Controles({
         })}
       </div>
 
-      {/* PENDÊNCIA (Tarefa 8, decisão C): o filtro deixou de ESCONDER cartões —
-          o quadro precisa da célula de toda equipe como destino de solta. Ele
-          ainda não DESTACA a equipe escolhida: `QuadroSemana` não tem prop
-          para isso, e criar uma pertence à Tarefa 7 (dentro de `quadro/`), não
-          a esta. Por ora o seletor só guarda a escolha na URL, sem efeito
-          visual, pronta para o dia em que o destaque for sequenciado. */}
+      {/* Destaque, não filtro: escolher uma equipe aqui não esconde nenhum
+          cartão — o quadro (`QuadroSemana`) atenua as linhas das OUTRAS
+          equipes, porque toda célula continua sendo destino válido de solta.
+          Sem opção "sem equipe": o trilho já É a visão de quem não tem
+          turma, e destacar "ninguém" não faz sentido como conceito. */}
       <Selecao
-        aria-label="Filtrar por equipe"
+        aria-label="Destacar equipe"
         value={equipe}
         onChange={(evento) => aoMudarEquipe(evento.target.value)}
         className="h-8 w-auto min-w-44 text-xs"
       >
-        <option value="">Todas as equipes</option>
+        <option value="">Nenhuma equipe em destaque</option>
         {equipes
           .filter((e) => e.ativo)
           .map((e) => (
@@ -93,9 +92,12 @@ export function Controles({
           ))}
       </Selecao>
 
+      {/* "Restaurar padrão", não "Restaurar filtros": o seletor de equipe
+          acima destaca, não filtra, e o rótulo antigo prometia esconder algo
+          que este botão nunca escondeu. */}
       {alterado ? (
         <Botao tamanho="sm" variante="fantasma" iconeEsquerda={<RotateCcw />} onClick={aoRestaurar}>
-          Restaurar filtros
+          Restaurar padrão
         </Botao>
       ) : null}
     </div>

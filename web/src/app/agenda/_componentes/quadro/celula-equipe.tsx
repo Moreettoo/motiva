@@ -13,6 +13,7 @@ export const CelulaEquipe = memo(function CelulaEquipe({
   previa,
   realcada,
   recusada,
+  atenuada,
   filhos,
 }: {
   celula: Celula;
@@ -21,6 +22,8 @@ export const CelulaEquipe = memo(function CelulaEquipe({
   previa: Ocupacao | null;
   realcada: boolean;
   recusada: boolean;
+  /** Outra equipe está em destaque (`controles.tsx`) e não é esta. */
+  atenuada: boolean;
   filhos: React.ReactNode;
 }) {
   const leitura = previa ?? celula;
@@ -37,6 +40,20 @@ export const CelulaEquipe = memo(function CelulaEquipe({
         recusada && "ring-2 ring-ink-3 ring-inset",
       )}
     >
+      {/* Atenuação de "fora de destaque": SÓ o fundo, nunca `filhos`. Os
+          cartões pintam com o par do RISCO (`token.fundo`/`token.tinta`),
+          calibrado perto do piso de contraste de 4.5:1 (ver a nota de
+          paleta no CLAUDE.md — vários pares já estão no limite); reduzir a
+          opacidade DELES arriscaria furar esse piso sem rodar de novo
+          `validate_palette.js`. Uma camada decorativa ATRÁS dos cartões
+          (`aria-hidden`, sem texto, pintada antes deles no DOM para ficar
+          por baixo) atenua o quadro sem esse risco. A hachura de excesso,
+          pintada DEPOIS, fica por cima de propósito: um alerta de
+          capacidade não deveria sumir só porque outra equipe está em foco. */}
+      {atenuada ? (
+        <span aria-hidden="true" className="pointer-events-none absolute inset-0 bg-ink opacity-10" />
+      ) : null}
+
       {leitura.excedida ? (
         <span
           aria-hidden="true"

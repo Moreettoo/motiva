@@ -1,6 +1,7 @@
 "use client";
 
 import { fmt } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 import type { ChaveCelula, LinhaEquipe, Ocupacao } from "../dados";
 import { CartaoServico } from "./cartao-servico";
@@ -10,13 +11,14 @@ import type { Alvo, CargaArrasto } from "./usar-arrasto";
 /**
  * A calha grudada com o nome da turma, mais as 7 células da semana.
  *
- * Isolada de `quadro-semana.tsx` (Ruling 14) para o arquivo principal caber
- * no teto de ~350 linhas — a lista de props é grande porque a grade é plana
- * (sem `subgrid`), então cada linha recebe tudo que suas células e cartões
+ * Isolada de `quadro-semana.tsx` para o arquivo principal caber num tamanho
+ * revisável — a lista de props é grande porque a grade é plana (sem
+ * `subgrid`), então cada linha recebe tudo que suas células e cartões
  * precisam de fora.
  */
 export function LinhaTurma({
   linha,
+  atenuada,
   previa,
   alvoAtual,
   recusaAtual,
@@ -32,6 +34,10 @@ export function LinhaTurma({
   desfazerDe,
 }: {
   linha: LinhaEquipe;
+  /** Outra equipe está em destaque (`controles.tsx`) e não é esta: a linha
+   *  inteira recebe ênfase reduzida. Nunca esconde nem desabilita — só muda
+   *  o quanto o olho é puxado para cá. */
+  atenuada: boolean;
   previa: Map<ChaveCelula, Ocupacao>;
   alvoAtual: Alvo | null;
   recusaAtual: string | null;
@@ -50,7 +56,17 @@ export function LinhaTurma({
 
   return (
     <>
-      <div className="sticky left-0 z-10 flex flex-col justify-center border-r border-b border-border bg-surface px-2 py-1.5">
+      {/* `opacity-60` no BLOCO inteiro, texto incluso: ink/surface tem folga
+          grande de contraste (é o mesmo tratamento que `CabecalhoDia` já usa
+          para o dia passado), diferente do par de cores do RISCO nos
+          cartões — ver o comentário em `CelulaEquipe` sobre por que aquele
+          caso é tratado diferente. */}
+      <div
+        className={cn(
+          "sticky left-0 z-10 flex flex-col justify-center border-r border-b border-border bg-surface px-2 py-1.5",
+          atenuada && "opacity-60",
+        )}
+      >
         <p className="truncate text-2xs font-medium text-ink" title={eq.nome}>
           {eq.nome}
         </p>
@@ -68,6 +84,7 @@ export function LinhaTurma({
           previa={previa.get(celula.chave) ?? null}
           realcada={alvoAtual === celula.chave && !recusaAtual}
           recusada={alvoAtual === celula.chave && recusaAtual != null}
+          atenuada={atenuada}
           filhos={celula.itens.map((item) => (
             <CartaoServico
               key={item.id}

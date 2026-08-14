@@ -185,6 +185,14 @@ export function useArrasto({
      chegar. */
   const ultimoGestoArrastou = useRef(false);
 
+  /* id do `setTimeout` que `fechar()` agenda para zerar `ultimoGestoArrastou`
+     (ver abaixo). Guardado para poder CANCELAR: sem isto, um timer do gesto
+     ANTERIOR ainda pendente dispara depois de `comprometer()` do gesto
+     SEGUINTE já ter armado a flag de novo, apagando-a no meio do segundo
+     arrasto — e o clique terminal desse segundo gesto volta a abrir a
+     gaveta, que é exatamente o bug que a flag existe para impedir. */
+  const temporizadorLimpezaClique = useRef<number | null>(null);
+
   /* Sinaliza uma chegada de semana pendente de anúncio (ver o efeito de
      revalidação mais abaixo). Zerado em `fechar()`: nenhuma sessão de
      arrasto deveria deixar um sinal pendente vazando para a próxima. */
@@ -200,8 +208,12 @@ export function useArrasto({
     // a chance de lê-lo, reabrindo o bug original. `setTimeout(…, 0)`
     // empurra a limpeza para depois dessa tarefa: sobrevive ao `click` deste
     // gesto, mas não vaza para o PRÓXIMO clique legítimo.
-    window.setTimeout(() => {
+    if (temporizadorLimpezaClique.current != null) {
+      window.clearTimeout(temporizadorLimpezaClique.current);
+    }
+    temporizadorLimpezaClique.current = window.setTimeout(() => {
       ultimoGestoArrastou.current = false;
+      temporizadorLimpezaClique.current = null;
     }, 0);
     definirEstado({ fase: "ocioso" });
   }, [definirEstado]);
@@ -265,8 +277,14 @@ export function useArrasto({
       limparRecursos(vivo.current);
       // Defensivo: se o `click` sintético do gesto anterior nunca chegou a
       // disparar `engolirClique` (que o consome), não deveria sobreviver até
-      // este gesto novo.
+      // este gesto novo. Cancela também o `setTimeout` de `fechar()` que
+      // zeraria isto de novo mais tarde — ver o comentário na declaração de
+      // `temporizadorLimpezaClique` para o cenário que isto evita.
       ultimoGestoArrastou.current = false;
+      if (temporizadorLimpezaClique.current != null) {
+        window.clearTimeout(temporizadorLimpezaClique.current);
+        temporizadorLimpezaClique.current = null;
+      }
 
       vivo.current = {
         carga,
@@ -348,8 +366,16 @@ export function useArrasto({
   // preso no `<html>`, travando cursor e seleção para a próxima página.
   // Separado do efeito acima porque aquele reexecuta a cada troca de callback;
   // cancelar o arrasto nesse momento derrubaria um gesto em andamento à toa.
+  // O `setTimeout` de `fechar()` (`temporizadorLimpezaClique`) entra aqui pelo
+  // mesmo motivo: sem cancelar, ele ainda dispara depois do desmonte e escreve
+  // num ref que sobrevive à troca de página, mas que ninguém mais lê.
   useEffect(() => {
-    return () => limparRecursos(vivo.current);
+    return () => {
+      limparRecursos(vivo.current);
+      if (temporizadorLimpezaClique.current != null) {
+        window.clearTimeout(temporizadorLimpezaClique.current);
+      }
+    };
   }, []);
 
   /** Espalhar no botão de detalhe do cartão: engole o clique que fecha um

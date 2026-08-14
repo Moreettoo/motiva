@@ -30,10 +30,13 @@ import {
 import { Controles } from "./controles";
 import {
   chaveDia,
+  contarAtrasados,
   montarGrade,
   montarItens,
   montarJanela,
+  resolverEquipeFoco,
   resumo28,
+  semanaDoAtrasoMaisAntigo,
   type ItemAgenda,
   type TrechoResumo,
 } from "./dados";
@@ -189,12 +192,20 @@ export function PlanejamentoAgenda({
   const diasDaJanela = useMemo(() => new Set(janela.dias), [janela]);
 
   // O filtro de equipe deixou de ESCONDER: filtrar removeria células que
-  // precisam existir como destino de solta. O destaque visual (equipe em
-  // foco) fica pendente — ver `controles.tsx`.
+  // precisam existir como destino de solta. `equipeFoco` (abaixo) é o
+  // destaque visual que ocupa o lugar do filtro — ver `QuadroSemana`.
   const visiveis = useMemo(
     () => itens.filter((item) => status.includes(item.status)),
     [itens, status],
   );
+
+  const equipeFoco = useMemo(() => resolverEquipeFoco(equipe, equipes), [equipe, equipes]);
+
+  // Da malha INTEIRA (`itens`), não de `visiveis`/`grade`: um serviço vencido
+  // que já tem equipe não passa pelo trilho nem pela janela de 28 dias, e o
+  // filtro de status ativo não deveria decidir se esse alerta existe.
+  const totalAtrasados = useMemo(() => contarAtrasados(itens), [itens]);
+  const semanaAtraso = useMemo(() => semanaDoAtrasoMaisAntigo(itens), [itens]);
 
   const grade = useMemo(
     () => montarGrade({ itens: visiveis, equipes, janela, hoje }),
@@ -401,6 +412,9 @@ export function PlanejamentoAgenda({
         equipes={equipes}
         hoje={hoje}
         semana={ancora}
+        equipeFoco={equipeFoco}
+        totalAtrasados={totalAtrasados}
+        semanaAtraso={semanaAtraso}
         selecionado={selecionado}
         salvandoIds={salvandoIds}
         desfazerPorId={desfazerPorId}

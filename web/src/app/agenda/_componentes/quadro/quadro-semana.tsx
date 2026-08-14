@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, OctagonAlert } from "lucide-react";
 
 import { Botao, BotaoIcone } from "@/components/ui/botao";
 import { IconeDominio, Legenda } from "@/components/viz/legenda";
@@ -11,6 +11,7 @@ import type { Equipe } from "@/lib/types";
 
 import {
   chaveDia,
+  linhaAtenuada,
   previaDoMovimento,
   type ChaveCelula,
   type Grade,
@@ -42,6 +43,9 @@ export function QuadroSemana({
   equipes,
   hoje,
   semana,
+  equipeFoco,
+  totalAtrasados,
+  semanaAtraso,
   selecionado,
   salvandoIds,
   desfazerPorId,
@@ -56,6 +60,16 @@ export function QuadroSemana({
   equipes: Equipe[];
   hoje: string;
   semana: string;
+  /** id da equipe em destaque (seletor de `controles.tsx`), ou `null` sem
+   *  destaque. Escalar de propósito: desce até `CelulaEquipe` (memo) e não
+   *  pode virar objeto/função recriada a cada render, sob pena de derrubar o
+   *  memo dos ~130 cartões durante o `pointermove` do arrasto. */
+  equipeFoco: number | null;
+  /** Da malha inteira, não só da semana visível — ver o comentário em
+   *  `planejamento.tsx`. */
+  totalAtrasados: number;
+  /** Segunda-feira da semana do atrasado mais antigo; `null` sem nenhum. */
+  semanaAtraso: string | null;
   selecionado: number | null;
   salvandoIds: ReadonlySet<number>;
   desfazerPorId: ReadonlyMap<number, () => void>;
@@ -67,9 +81,28 @@ export function QuadroSemana({
 }) {
   const [passo, setPasso] = useState("");
   const [desfecho, setDesfecho] = useState("");
+  const [anuncioDestaque, setAnuncioDestaque] = useState("");
   const [filaExpandida, setFilaExpandida] = useState(false);
   const porId = useMemo(() => new Map(itens.map((i) => [i.id, i])), [itens]);
   const equipePorId = useMemo(() => new Map(equipes.map((e) => [e.id, e])), [equipes]);
+  const equipeFocoNome = equipeFoco != null ? (equipePorId.get(equipeFoco)?.nome ?? null) : null;
+
+  // Quem não vê a tela não percebe a opacidade das linhas atenuadas — só o
+  // aria-live abaixo conta essa história. Pula o PRIMEIRO commit (a guarda de
+  // `montado`) para não anunciar "destaque removido" assim que a página abre
+  // sem nenhum filtro na URL, que não é uma MUDANÇA, é o estado inicial.
+  const montado = useRef(false);
+  useEffect(() => {
+    if (!montado.current) {
+      montado.current = true;
+      return;
+    }
+    setAnuncioDestaque(
+      equipeFocoNome
+        ? `${equipeFocoNome} em destaque. As demais equipes aparecem atenuadas no quadro.`
+        : "Destaque de equipe removido.",
+    );
+  }, [equipeFocoNome]);
   const filaVisivel = useMemo(
     () => (filaExpandida ? grade.fila : grade.fila.slice(0, TETO_TRILHO)),
     [grade.fila, filaExpandida],
@@ -155,9 +188,9 @@ export function QuadroSemana({
   }, [grade, itemEmVoo, alvoAtual, recusaAtual, equipes]);
 
   // Roving tabindex (`idAtivo`) + restauração de foco pós-remonte: extraído
-  // para `usar-foco-grade.ts` (Ruling 14) — é a única parte deste arquivo que
-  // mexe com foco/refs de DOM, e separá-la também isola as supressões do
-  // eslint que essa mexida exige.
+  // para `usar-foco-grade.ts` porque é a única parte deste arquivo que mexe
+  // com foco/refs de DOM, e separá-la também isola as supressões do eslint
+  // que essa mexida exige.
   const { idAtivo, idAtivoNoTrilho, refCartao } = useFocoGrade({
     grade,
     filaVisivel,
@@ -165,10 +198,10 @@ export function QuadroSemana({
     selecionado,
   });
 
-  // `TrilhoFila`/`LinhaTurma` recebem `refCartao` de aridade 1 (contrato já
-  // fixado nas Tarefas 5/6) — estes wrappers só fixam a REGIÃO de cada
-  // chamador. Estáveis porque `refCartao` (o hook) é estável; o cache real
-  // mora nele, chaveado por (região, id) — ver `usar-foco-grade.ts`.
+  // `TrilhoFila`/`LinhaTurma` recebem `refCartao` de aridade 1 — a região de
+  // cada chamador é fixa, então só falta fechar o id por chamada. Estáveis
+  // porque `refCartao` (o hook) é estável; o cache real mora nele, chaveado
+  // por (região, id) — ver `usar-foco-grade.ts`.
   const refCartaoTrilho = useCallback((id: number) => refCartao("trilho", id), [refCartao]);
   const refCartaoGrid = useCallback((id: number) => refCartao("grid", id), [refCartao]);
 
@@ -177,8 +210,19 @@ export function QuadroSemana({
     [desfazerPorId],
   );
 
+  const idTitulo = useId();
+
   return (
-    <section aria-label="Quadro da semana" className="flex min-w-0 flex-col gap-3">
+    <section aria-labelledby={idTitulo} className="flex min-w-0 flex-col gap-3">
+      {/* `linha-do-tempo.tsx`/`fila-decisao.tsx` (apagados) tinham cada um o
+          próprio `<h2>`; sem eles a página pulava de `<h1>` direto para o
+          `<h3>` do trilho — um vão que só quem navega por cabeçalhos sente.
+          `sr-only` porque o cabeçalho visual já é a navegação de semana logo
+          abaixo; o texto existe para a árvore de heading, não para a tela. */}
+      <h2 id={idTitulo} className="sr-only">
+        Quadro da semana
+      </h2>
+
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <BotaoIcone rotulo="Semana anterior" tamanho="sm" onClick={() => navegarSemana(-1)}>
@@ -197,6 +241,18 @@ export function QuadroSemana({
           >
             Hoje
           </Botao>
+
+          {totalAtrasados > 0 && semanaAtraso ? (
+            <Botao
+              tamanho="sm"
+              variante="fantasma"
+              className="text-critical-ink hover:text-critical-ink"
+              iconeEsquerda={<OctagonAlert />}
+              onClick={() => aoNavegar(semanaAtraso)}
+            >
+              {fmt.contar(totalAtrasados, "vencido")} · ir para a semana
+            </Botao>
+          ) : null}
         </div>
 
         <div className="flex min-w-0 flex-col items-start gap-2">
@@ -294,6 +350,7 @@ export function QuadroSemana({
               <LinhaTurma
                 key={linha.equipe.id}
                 linha={linha}
+                atenuada={linhaAtenuada(linha.equipe.id, equipeFoco, grade.linhas)}
                 previa={previa}
                 alvoAtual={alvoAtual}
                 recusaAtual={recusaAtual}
@@ -320,6 +377,9 @@ export function QuadroSemana({
       </p>
       <p aria-live="polite" aria-atomic="true" className="sr-only">
         {desfecho}
+      </p>
+      <p aria-live="polite" aria-atomic="true" className="sr-only">
+        {anuncioDestaque}
       </p>
     </section>
   );

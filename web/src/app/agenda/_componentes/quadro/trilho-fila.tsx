@@ -42,9 +42,9 @@ export function TrilhoFila({
   janelaFim: string;
   realcado: boolean;
   idEmVoo: number | null;
-  /** Roving tabindex da GRADE INTEIRA (trilho + calha), não só deste trilho: a
-   *  Tarefa 7 sabe qual cartão está ativo entre os ~130 da tela e manda o id
-   *  pronto para comparar. `null` enquanto nada tem foco ainda. */
+  /** Roving tabindex da GRADE INTEIRA (trilho + calha), não só deste trilho:
+   *  `usar-foco-grade.ts` sabe qual cartão está ativo entre os ~130 da tela e
+   *  manda o id pronto para comparar. `null` enquanto nada tem foco ainda. */
   idAtivo: number | null;
   selecionado: number | null;
   salvandoIds: ReadonlySet<number>;

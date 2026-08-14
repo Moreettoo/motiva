@@ -1,8 +1,9 @@
 "use client";
 
 import { memo } from "react";
-import { GripVertical, Undo2 } from "lucide-react";
+import { GripVertical, OctagonAlert, Undo2 } from "lucide-react";
 
+import { Chip } from "@/components/ui/chip";
 import { IconeDominio } from "@/components/viz/legenda";
 import { RISCO, STATUS } from "@/lib/dominio";
 import { fmt, relativoEmDias } from "@/lib/format";
@@ -22,14 +23,19 @@ export function cargaDoItem(item: ItemAgenda, origem: Alvo): CargaArrasto {
 
 function rotuloCompleto(item: ItemAgenda): string {
   const t = item.ag.trecho;
-  return [
+  const partes = [
     `${t.rodovia}, ${fmt.faixaKm(Number(t.km_inicio), Number(t.km_fim))}, ${t.uf}`,
     `Roçada para ${fmt.dataMedia(item.data)}`,
     `Situação: ${STATUS[item.status].rotulo}`,
     `Risco: ${RISCO[item.risco].rotulo}`,
     `Estimativa: ${textoServico(item.diasServico)}`,
     item.equipeNome ? `Equipe: ${item.equipeNome}` : "Sem equipe atribuída",
-  ].join(". ");
+  ];
+  // O botão tem `aria-label` explícito: qualquer texto visível dentro dele
+  // (o chip "Vencida", por exemplo) é IGNORADO no cálculo do nome acessível.
+  // Por isso o aviso de atraso entra aqui, não só no chip visual abaixo.
+  if (item.atrasado) partes.push("Data vencida");
+  return partes.join(". ");
 }
 
 export const CartaoServico = memo(function CartaoServico({
@@ -53,11 +59,13 @@ export const CartaoServico = memo(function CartaoServico({
   /** O cartão saiu para o sobrevoo: reserva a caixa e some, sem colapsar a linha. */
   fantasma: boolean;
   /** Este é o serviço aberto na gaveta de detalhe agora — não tem relação com o
-   *  arrasto; é o mesmo sentido de `selecionado` em `linha-do-tempo.tsx`. */
+   *  arrasto. Pinta o anel de seleção do cartão; quem decide qual id está
+   *  selecionado é `painel-agendamento.tsx`, este componente só reflete. */
   selecionado: boolean;
   salvando: boolean;
   /** Roving tabindex da grade: só o cartão ativo entra no Tab (os outros ~129
-   *  ficam em -1). A Tarefa 7 calcula; este componente só consome. */
+   *  ficam em -1). Calculado em `usar-foco-grade.ts`; este componente só
+   *  consome o resultado pronto. */
   ativo: boolean;
   desfazer: (() => void) | null;
   aoPegar: (e: React.PointerEvent<HTMLElement>, carga: CargaArrasto) => void;
@@ -110,12 +118,12 @@ export const CartaoServico = memo(function CartaoServico({
             aria-disabled={salvando || undefined}
             tabIndex={tabIndex}
             /* Sem handler em vez de `disabled`: um botão `disabled` sai da
-               árvore de foco, e este é o nó que `refCartao` entrega para a
-               Tarefa 7 focar programaticamente ao navegar pela grade. Se a
-               escrita ainda estiver em voo bem quando este cartão for o
-               "ativo", `disabled` faria o `.focus()` falhar em silêncio e
-               destravar o teclado do resto da grade. `aria-disabled` avisa o
-               leitor de tela sem tirar o nó do lugar. */
+               árvore de foco, e este é o nó que `refCartao` entrega para o
+               roving tabindex (`usar-foco-grade.ts`) focar programaticamente
+               ao navegar pela grade. Se a escrita ainda estiver em voo bem
+               quando este cartão for o "ativo", `disabled` faria o `.focus()`
+               falhar em silêncio e destravar o teclado do resto da grade.
+               `aria-disabled` avisa o leitor de tela sem tirar o nó do lugar. */
             onPointerDown={salvando ? undefined : (evento) => aoPegar(evento, carga)}
             onKeyDown={salvando ? undefined : (evento) => aoTeclar(evento, carga)}
             className={cn(
@@ -143,6 +151,13 @@ export const CartaoServico = memo(function CartaoServico({
               className="size-3.5 shrink-0"
             />
             <span className="block truncate text-2xs font-medium">{t.rodovia}</span>
+            {/* Compacto (linha "Propostas da IA") não tem altura sobrando para
+                o chip de baixo: só o ícone, decorativo — `rotuloCompleto`
+                acima já carrega "Data vencida" no nome acessível do botão,
+                então nada se perde para quem usa leitor de tela. */}
+            {compacto && item.atrasado ? (
+              <OctagonAlert aria-hidden="true" className="size-3 shrink-0 text-critical-ink" />
+            ) : null}
           </span>
 
           {compacto ? null : (
@@ -154,6 +169,14 @@ export const CartaoServico = memo(function CartaoServico({
           {compacto ? null : (
             <span className="chip-km tnum mt-0.5 block truncate font-mono text-2xs opacity-70">
               {fmt.km(item.km)} · {relativoEmDias(item.data)}
+            </span>
+          )}
+
+          {compacto || !item.atrasado ? null : (
+            <span className="mt-1 block">
+              <Chip tom="critical" tamanho="sm" icone={<OctagonAlert />}>
+                Data vencida
+              </Chip>
             </span>
           )}
         </button>

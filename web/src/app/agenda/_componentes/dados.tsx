@@ -447,10 +447,49 @@ export function ordenarPorUrgencia(a: ItemAgenda, b: ItemAgenda): number {
   return ordemRisco(a.risco) - ordemRisco(b.risco) || a.data.localeCompare(b.data) || a.id - b.id;
 }
 
+/** Quantos agendamentos em aberto já passaram da data sugerida — COM ou sem
+ *  equipe atribuída. `grade.fila` só carrega os sem equipe e `montarGrade`/
+ *  `resumo28` só enxergam a janela visível; nenhum dos dois serve para este
+ *  número, que precisa da malha INTEIRA para não esconder um serviço vencido
+ *  que já tem turma e caiu fora da semana ou dos 28 dias em exibição. */
+export function contarAtrasados(itens: ItemAgenda[]): number {
+  return itens.filter((i) => i.atrasado).length;
+}
+
+/** Segunda-feira da semana do agendamento vencido mais ANTIGO — para onde o
+ *  resumo leva o gestor ao clicar. `null` sem nenhum atrasado: um número sem
+ *  link para abrir informa um problema que a pessoa não consegue investigar. */
+export function semanaDoAtrasoMaisAntigo(itens: ItemAgenda[]): string | null {
+  const atrasados = itens.filter((i) => i.atrasado);
+  if (atrasados.length === 0) return null;
+  const maisAntigo = atrasados.reduce((a, b) => (a.data < b.data ? a : b));
+  return chaveDia(inicioDaSemana(maisAntigo.data));
+}
+
 export type FiltroEquipe = string;
 
-export function combinaEquipe(item: ItemAgenda, filtro: FiltroEquipe): boolean {
-  if (!filtro) return true;
-  if (filtro === "sem") return item.equipeId == null;
-  return String(item.equipeId) === filtro;
+/** Resolve o `?equipe=` da URL para o id que o quadro deve DESTACAR, ou
+ *  `null` sem destaque. Nunca lança: um valor de uma versão anterior do
+ *  seletor ("sem", de quando a equipe ainda filtrava por esconder) ou um id
+ *  de equipe que não existe mais degrada em silêncio para "sem destaque", em
+ *  vez de deixar a URL num estado inválido para quem tiver o link salvo. */
+export function resolverEquipeFoco(filtro: FiltroEquipe, equipes: Equipe[]): number | null {
+  if (!filtro) return null;
+  return equipes.find((e) => String(e.id) === filtro)?.id ?? null;
+}
+
+/** Verdadeiro quando a linha da equipe `equipeId` deve ficar visualmente
+ *  atenuada: alguma equipe está em destaque (`focoEquipeId`) e não é esta.
+ *  Quando a equipe em destaque não tem NENHUMA linha na semana visível — link
+ *  salvo apontando para uma equipe desativada sem serviço aberto agora, por
+ *  exemplo — nada atenua: apagar a semana inteira sem nenhuma linha para
+ *  contrastar seria o oposto de "destacar". */
+export function linhaAtenuada(
+  equipeId: number,
+  focoEquipeId: number | null,
+  linhas: LinhaEquipe[],
+): boolean {
+  if (focoEquipeId == null) return false;
+  if (!linhas.some((l) => l.equipe.id === focoEquipeId)) return false;
+  return equipeId !== focoEquipeId;
 }
