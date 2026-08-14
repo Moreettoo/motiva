@@ -4,37 +4,30 @@ import { RotateCcw } from "lucide-react";
 
 import { Botao } from "@/components/ui/botao";
 import { Selecao } from "@/components/ui/campo";
-import { Segmentado } from "@/components/ui/segmentado";
 import { IconeDominio } from "@/components/viz/legenda";
 import { STATUS } from "@/lib/dominio";
 import { fmt } from "@/lib/format";
 import { STATUS_AGENDAMENTO, type Equipe, type StatusAgendamento } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-import { PERIODOS, ROTULO_PERIODO, type FiltroEquipe, type Periodo } from "./dados";
+import type { FiltroEquipe } from "./dados";
 
 export function Controles({
-  periodo,
-  aoMudarPeriodo,
   status,
   aoMudarStatus,
   equipe,
   aoMudarEquipe,
   equipes,
   porStatus,
-  porPeriodo,
   alterado,
   aoRestaurar,
 }: {
-  periodo: Periodo;
-  aoMudarPeriodo: (valor: Periodo) => void;
   status: StatusAgendamento[];
   aoMudarStatus: (valor: StatusAgendamento[]) => void;
   equipe: FiltroEquipe;
   aoMudarEquipe: (valor: FiltroEquipe) => void;
   equipes: Equipe[];
   porStatus: Record<StatusAgendamento, number>;
-  porPeriodo: Record<Periodo, number>;
   alterado: boolean;
   aoRestaurar: () => void;
 }) {
@@ -46,17 +39,6 @@ export function Controles({
 
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-      <Segmentado
-        rotulo="Período do plano"
-        valor={periodo}
-        aoMudar={aoMudarPeriodo}
-        opcoes={PERIODOS.map((p) => ({
-          valor: p,
-          rotulo: ROTULO_PERIODO[p],
-          contagem: porPeriodo[p],
-        }))}
-      />
-
       <div
         role="group"
         aria-label="Filtrar por status do agendamento"
@@ -89,6 +71,12 @@ export function Controles({
         })}
       </div>
 
+      {/* PENDÊNCIA (Tarefa 8, decisão C): o filtro deixou de ESCONDER cartões —
+          o quadro precisa da célula de toda equipe como destino de solta. Ele
+          ainda não DESTACA a equipe escolhida: `QuadroSemana` não tem prop
+          para isso, e criar uma pertence à Tarefa 7 (dentro de `quadro/`), não
+          a esta. Por ora o seletor só guarda a escolha na URL, sem efeito
+          visual, pronta para o dia em que o destaque for sequenciado. */}
       <Selecao
         aria-label="Filtrar por equipe"
         value={equipe}
@@ -96,7 +84,6 @@ export function Controles({
         className="h-8 w-auto min-w-44 text-xs"
       >
         <option value="">Todas as equipes</option>
-        <option value="sem">Sem equipe atribuída</option>
         {equipes
           .filter((e) => e.ativo)
           .map((e) => (

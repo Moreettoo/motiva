@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useOptimistic, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
 import {
   parseAsArrayOf,
   parseAsInteger,
@@ -9,10 +9,16 @@ import {
   useQueryState,
 } from "nuqs";
 
-import { Aviso } from "@/components/ui/aviso";
 import { useNotificacao } from "@/components/ui/notificacoes";
-import { atribuirEquipe, mudarStatusAgendamento, remarcarAgendamento } from "@/lib/acoes";
-import { fmt } from "@/lib/format";
+import {
+  alocarAgendamento,
+  atribuirEquipe,
+  desfazerAlocacao,
+  devolverParaFila,
+  mudarStatusAgendamento,
+  remarcarAgendamento,
+} from "@/lib/acoes";
+import { fmt, inicioDaSemana, parseData } from "@/lib/format";
 import {
   STATUS_AGENDAMENTO,
   type AgendamentoDetalhado,
@@ -23,21 +29,16 @@ import {
 
 import { Controles } from "./controles";
 import {
-  PERIODOS,
-  PERIODO_PADRAO,
-  combinaEquipe,
+  chaveDia,
+  montarGrade,
   montarItens,
   montarJanela,
-  montarRaias,
-  ordenarPorUrgencia,
-  type CargaEquipe,
+  resumo28,
   type ItemAgenda,
-  type Periodo,
   type TrechoResumo,
 } from "./dados";
-import { FilaDecisao } from "./fila-decisao";
-import { LinhaDoTempo } from "./linha-do-tempo";
 import { PainelAgendamento } from "./painel-agendamento";
+import { QuadroSemana } from "./quadro/quadro-semana";
 import { ResumoJanela } from "./resumo";
 
 const STATUS_PADRAO: StatusAgendamento[] = ["sugerido", "aprovado"];
@@ -53,32 +54,44 @@ type Ajuste = {
   equipe?: { id: number; nome: string; base_uf: UF } | null;
 };
 
+/** `null` = silencioso: o movimento do cartão já é a confirmação e a região
+ *  `aria-live` do quadro narra o desfecho — dois canais contando o mesmo
+ *  evento é ruído. O toast de ERRO (em `executar`) continua incondicional. */
+type Aviso = { titulo: string; descricao?: string };
+
+/** `?semana=` é entrada de URL, não confiável. Lixo de formato (`abc`) faz
+ *  `parseData` devolver `Invalid Date`; uma data que só PARECE real (29/02 fora
+ *  de bissexto, dia 31 num mês de 30) o JS normaliza em silêncio para outro
+ *  dia — por isso o teste de ida-e-volta via `chaveDia`, não só `Number.isNaN`. */
+function semanaValida(s: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = parseData(s);
+  return !Number.isNaN(d.getTime()) && chaveDia(d) === s;
+}
+
 export function PlanejamentoAgenda({
   agendamentos,
   equipes,
   trechos,
-  cargas,
   hoje,
 }: {
   agendamentos: AgendamentoDetalhado[];
   equipes: Equipe[];
   trechos: TrechoResumo[];
-  cargas: CargaEquipe[];
   hoje: string;
 }) {
-  const [periodo, setPeriodo] = useQueryState(
-    "periodo",
-    parseAsStringLiteral(PERIODOS).withDefault(PERIODO_PADRAO),
-  );
   const [status, setStatus] = useQueryState(
     "status",
     parseAsArrayOf(parseAsStringLiteral(STATUS_AGENDAMENTO)).withDefault(STATUS_PADRAO),
   );
   const [equipe, setEquipe] = useQueryState("equipe", parseAsString.withDefault(""));
   const [selecionado, setSelecionado] = useQueryState("ag", parseAsInteger);
+  const [semana, setSemana] = useQueryState("semana", parseAsString.withDefault(""));
+
+  const ancora = semanaValida(semana) ? semana : chaveDia(inicioDaSemana(hoje));
 
   const { mostrar } = useNotificacao();
-  const [pendente, iniciar] = useTransition();
+  const [, iniciar] = useTransition();
 
   const [lista, ajustar] = useOptimistic(
     agendamentos,
@@ -97,20 +110,71 @@ export function PlanejamentoAgenda({
       ),
   );
 
+  // Substitui o `pendente` global de antes: com ~62 serviços na fila, travar a
+  // tela inteira a cada solta seria sentido em todo arrasto. Um id por vez.
+  const [salvandoIds, setSalvandoIds] = useState<ReadonlySet<number>>(new Set());
+  const [desfazerPorId, setDesfazerPorId] = useState<ReadonlyMap<number, () => void>>(new Map());
+
+  // O desfazer mora no cartão por 8s (ver `registrarDesfazer`). Sem cancelar o
+  // timer no desmonte, sair da Agenda dentro da janela dispara `setState` num
+  // componente que já saiu da árvore.
+  const timers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
+  useEffect(() => {
+    const mapa = timers.current;
+    return () => {
+      for (const t of mapa.values()) clearTimeout(t);
+    };
+  }, []);
+
+  const limparDesfazer = useCallback((id: number) => {
+    setDesfazerPorId((atual) => {
+      if (!atual.has(id)) return atual; // sem isto, cada limpeza remonta a grade à toa
+      const novo = new Map(atual);
+      novo.delete(id);
+      return novo;
+    });
+    const t = timers.current.get(id);
+    if (t) {
+      clearTimeout(t);
+      timers.current.delete(id);
+    }
+  }, []);
+
+  const registrarDesfazer = useCallback(
+    (id: number, acao: () => void) => {
+      limparDesfazer(id); // cancela um desfazer anterior do MESMO item, se houver
+      setDesfazerPorId((atual) => new Map(atual).set(id, acao));
+      timers.current.set(
+        id,
+        setTimeout(() => limparDesfazer(id), 8000),
+      );
+    },
+    [limparDesfazer],
+  );
+
   const executar = useCallback(
-    (ajuste: Ajuste, acao: () => Promise<Resposta>, titulo: string, descricao?: string) => {
+    (ajuste: Ajuste, acao: () => Promise<Resposta>, id: number, aviso: Aviso | null) => {
+      setSalvandoIds((atual) => new Set(atual).add(id));
       iniciar(async () => {
         ajustar(ajuste);
         const resultado = await acao();
 
-        if (resultado.ok) mostrar({ tom: "good", titulo, descricao });
-        else
+        if (resultado.ok) {
+          if (aviso) mostrar({ tom: "good", ...aviso });
+        } else {
           mostrar({
             tom: "critical",
             titulo: "A alteração não foi salva",
             descricao: resultado.erro,
             duracao: 0,
           });
+        }
+
+        setSalvandoIds((atual) => {
+          const novo = new Set(atual);
+          novo.delete(id);
+          return novo;
+        });
       });
     },
     [ajustar, mostrar],
@@ -121,37 +185,32 @@ export function PlanejamentoAgenda({
     [lista, trechos, equipes, hoje],
   );
 
-  const janela = useMemo(() => montarJanela(periodo, hoje), [periodo, hoje]);
+  const janela = useMemo(() => montarJanela(ancora), [ancora]);
   const diasDaJanela = useMemo(() => new Set(janela.dias), [janela]);
 
+  // O filtro de equipe deixou de ESCONDER: filtrar removeria células que
+  // precisam existir como destino de solta. O destaque visual (equipe em
+  // foco) fica pendente — ver `controles.tsx`.
   const visiveis = useMemo(
-    () => itens.filter((item) => status.includes(item.status) && combinaEquipe(item, equipe)),
-    [itens, status, equipe],
+    () => itens.filter((item) => status.includes(item.status)),
+    [itens, status],
   );
 
-  const raias = useMemo(
-    () => montarRaias({ itens: visiveis, equipes, janela, filtroEquipe: equipe, cargas }),
-    [visiveis, equipes, janela, equipe, cargas],
+  const grade = useMemo(
+    () => montarGrade({ itens: visiveis, equipes, janela, hoje }),
+    [visiveis, equipes, janela, hoje],
   );
+
+  const resumo28dias = useMemo(() => resumo28(itens, ancora, equipes), [itens, ancora, equipes]);
 
   const naJanela = useMemo(
-    () => visiveis.filter((item) => diasDaJanela.has(item.data)),
-    [visiveis, diasDaJanela],
+    () => itens.filter((item) => diasDaJanela.has(item.data)),
+    [itens, diasDaJanela],
   );
 
   const planejadas = useMemo(
     () => naJanela.filter((item) => item.status === "sugerido" || item.status === "aprovado"),
     [naJanela],
-  );
-
-  const fila = useMemo(
-    () =>
-      itens
-        .filter(
-          (item) => item.status === "sugerido" && item.equipeId == null && item.data <= janela.fim,
-        )
-        .sort(ordenarPorUrgencia),
-    [itens, janela.fim],
   );
 
   const porStatus = useMemo(() => {
@@ -160,22 +219,11 @@ export function PlanejamentoAgenda({
       number
     >;
     for (const item of itens) {
-      if (combinaEquipe(item, equipe) && diasDaJanela.has(item.data)) contagem[item.status] += 1;
+      if (diasDaJanela.has(item.data)) contagem[item.status] += 1;
     }
     return contagem;
-  }, [itens, equipe, diasDaJanela]);
+  }, [itens, diasDaJanela]);
 
-  const porPeriodo = useMemo(() => {
-    const contagem = { semana: 0, quinzena: 0, mes: 0 } as Record<Periodo, number>;
-    for (const p of PERIODOS) {
-      const dias = new Set(montarJanela(p, hoje).dias);
-      contagem[p] = visiveis.filter((item) => dias.has(item.data)).length;
-    }
-    return contagem;
-  }, [visiveis, hoje]);
-
-  const vencidas = useMemo(() => itens.filter((item) => item.atrasado), [itens]);
-  const sobrecarregadas = raias.filter((r) => r.diasExcedidos.length > 0);
   const criticosSemData = useMemo(() => {
     const comAgendamentoAberto = new Set(
       itens
@@ -195,7 +243,7 @@ export function PlanejamentoAgenda({
   ).size;
 
   const alterado =
-    periodo !== PERIODO_PADRAO ||
+    semana !== "" ||
     equipe !== "" ||
     status.length !== STATUS_PADRAO.length ||
     STATUS_PADRAO.some((s) => !status.includes(s));
@@ -208,12 +256,10 @@ export function PlanejamentoAgenda({
       descartado: "Sugestão descartada",
     };
 
-    executar(
-      { id: item.id, status: novo },
-      () => mudarStatusAgendamento(item.id, novo),
-      rotulos[novo],
-      `${item.ag.trecho.rodovia} · ${fmt.dataMedia(item.data)}`,
-    );
+    executar({ id: item.id, status: novo }, () => mudarStatusAgendamento(item.id, novo), item.id, {
+      titulo: rotulos[novo],
+      descricao: `${item.ag.trecho.rodovia} · ${fmt.dataMedia(item.data)}`,
+    });
   }
 
   function atribuir(item: ItemAgenda, novaEquipe: Equipe | null) {
@@ -225,8 +271,11 @@ export function PlanejamentoAgenda({
           : null,
       },
       () => atribuirEquipe(item.id, novaEquipe?.id ?? null),
-      novaEquipe ? "Equipe atribuída" : "Equipe removida",
-      novaEquipe ? `${novaEquipe.nome} · ${item.ag.trecho.rodovia}` : item.ag.trecho.rodovia,
+      item.id,
+      {
+        titulo: novaEquipe ? "Equipe atribuída" : "Equipe removida",
+        descricao: novaEquipe ? `${novaEquipe.nome} · ${item.ag.trecho.rodovia}` : item.ag.trecho.rodovia,
+      },
     );
   }
 
@@ -240,16 +289,86 @@ export function PlanejamentoAgenda({
       return;
     }
 
-    executar(
-      { id: item.id, data_sugerida: data },
-      () => remarcarAgendamento(item.id, data),
-      "Roçada remarcada",
-      `${item.ag.trecho.rodovia} · ${fmt.dataMedia(data)}`,
-    );
+    executar({ id: item.id, data_sugerida: data }, () => remarcarAgendamento(item.id, data), item.id, {
+      titulo: "Roçada remarcada",
+      descricao: `${item.ag.trecho.rodovia} · ${fmt.dataMedia(data)}`,
+    });
   }
 
+  // Arrastar de uma turma para outra e desfazer precisa devolver a equipe
+  // ANTERIOR, não `null`: com `null` fixo, a tela perderia a turma enquanto
+  // `desfazerAlocacao` restaura a antiga no banco — tela e banco divergiriam
+  // até o próximo `revalidatePath`.
+  const alocar = useCallback(
+    (item: ItemAgenda, dia: string, equipe: Equipe) => {
+      const anterior = { data: item.data, equipeId: item.equipeId };
+      const equipeAnterior =
+        anterior.equipeId != null ? (equipes.find((e) => e.id === anterior.equipeId) ?? null) : null;
+
+      executar(
+        {
+          id: item.id,
+          data_sugerida: dia,
+          equipe: { id: equipe.id, nome: equipe.nome, base_uf: equipe.base_uf },
+        },
+        () => alocarAgendamento(item.id, dia, equipe.id),
+        item.id,
+        null, // silencioso — ver o comentário do tipo `Aviso`
+      );
+
+      registrarDesfazer(item.id, () =>
+        executar(
+          {
+            id: item.id,
+            data_sugerida: anterior.data,
+            equipe: equipeAnterior
+              ? { id: equipeAnterior.id, nome: equipeAnterior.nome, base_uf: equipeAnterior.base_uf }
+              : null,
+          },
+          () => desfazerAlocacao(item.id, anterior.data, anterior.equipeId),
+          item.id,
+          { titulo: "Alocação desfeita", descricao: item.ag.trecho.rodovia },
+        ),
+      );
+    },
+    [equipes, executar, registrarDesfazer],
+  );
+
+  const devolver = useCallback(
+    (item: ItemAgenda) => {
+      const anterior = { data: item.data, equipeId: item.equipeId };
+      const equipeAnterior =
+        anterior.equipeId != null ? (equipes.find((e) => e.id === anterior.equipeId) ?? null) : null;
+
+      executar({ id: item.id, equipe: null }, () => devolverParaFila(item.id), item.id, null);
+
+      registrarDesfazer(item.id, () =>
+        executar(
+          {
+            id: item.id,
+            data_sugerida: anterior.data,
+            equipe: equipeAnterior
+              ? { id: equipeAnterior.id, nome: equipeAnterior.nome, base_uf: equipeAnterior.base_uf }
+              : null,
+          },
+          () => desfazerAlocacao(item.id, anterior.data, anterior.equipeId),
+          item.id,
+          { titulo: "Devolução desfeita", descricao: item.ag.trecho.rodovia },
+        ),
+      );
+    },
+    [equipes, executar, registrarDesfazer],
+  );
+
+  const aoNavegar = useCallback(
+    (nova: string) => setSemana(nova === chaveDia(inicioDaSemana(hoje)) ? null : nova),
+    [setSemana, hoje],
+  );
+
+  const aoSelecionar = useCallback((id: number) => setSelecionado(id), [setSelecionado]);
+
   function restaurar() {
-    setPeriodo(null);
+    setSemana(null);
     setStatus(null);
     setEquipe(null);
   }
@@ -257,21 +376,17 @@ export function PlanejamentoAgenda({
   return (
     <div className="flex min-w-0 flex-col gap-6">
       <Controles
-        periodo={periodo}
-        aoMudarPeriodo={(valor) => setPeriodo(valor)}
         status={status}
         aoMudarStatus={(valor) => setStatus(valor)}
         equipe={equipe}
         aoMudarEquipe={(valor) => setEquipe(valor || null)}
         equipes={equipes}
         porStatus={porStatus}
-        porPeriodo={porPeriodo}
         alterado={alterado}
         aoRestaurar={restaurar}
       />
 
       <ResumoJanela
-        periodo={periodo}
         janela={janela}
         rocadas={planejadas.length}
         km={planejadas.reduce((total, item) => total + item.km, 0)}
@@ -280,76 +395,27 @@ export function PlanejamentoAgenda({
         criticosSemData={criticosSemData}
       />
 
-      {vencidas.length > 0 || sobrecarregadas.length > 0 ? (
-        <div className="flex flex-col gap-3">
-          {vencidas.length > 0 ? (
-            <Aviso
-              tom="warning"
-              titulo={
-                vencidas.length === 1
-                  ? "1 roçada em aberto está com a data vencida"
-                  : `${fmt.n(vencidas.length)} roçadas em aberto estão com a data vencida`
-              }
-            >
-              <p>
-                A data sugerida já passou e o serviço continua em aberto. Remarque na fila de
-                decisão ou aprove para a equipe entrar em campo.
-              </p>
-            </Aviso>
-          ) : null}
-
-          {sobrecarregadas.length > 0 ? (
-            <Aviso
-              tom="critical"
-              titulo={
-                sobrecarregadas.length === 1
-                  ? "1 equipe tem dia acima da capacidade"
-                  : `${fmt.n(sobrecarregadas.length)} equipes têm dia acima da capacidade`
-              }
-            >
-              <p>
-                {sobrecarregadas
-                  .map((r) => `${r.equipe?.nome ?? "Sem equipe"} (${fmt.n(r.diasExcedidos.length)})`)
-                  .join(", ")}
-                . O dia estourado aparece hachurado na régua. Remarque um dos serviços ou passe para
-                outra equipe.
-              </p>
-            </Aviso>
-          ) : null}
-        </div>
-      ) : null}
-
-      <div className="grid grid-cols-1 min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="min-w-0">
-          <LinhaDoTempo
-            raias={raias}
-            janela={janela}
-            periodo={periodo}
-            hoje={hoje}
-            selecionado={selecionado}
-            aoSelecionar={(id) => setSelecionado(id)}
-            mostrandoEncerrados={status.includes("executado") || status.includes("descartado")}
-          />
-        </div>
-
-        <FilaDecisao
-          itens={fila}
-          equipes={equipes}
-          hoje={hoje}
-          pendente={pendente}
-          aoAbrir={(id) => setSelecionado(id)}
-          aoAprovar={(item) => mudarStatus(item, "aprovado")}
-          aoAtribuir={atribuir}
-          aoRemarcar={remarcar}
-          aoDescartar={(item) => mudarStatus(item, "descartado")}
-        />
-      </div>
+      <QuadroSemana
+        grade={grade}
+        itens={itens}
+        equipes={equipes}
+        hoje={hoje}
+        semana={ancora}
+        selecionado={selecionado}
+        salvandoIds={salvandoIds}
+        desfazerPorId={desfazerPorId}
+        resumo28dias={resumo28dias}
+        aoNavegar={aoNavegar}
+        aoSelecionar={aoSelecionar}
+        aoAlocar={alocar}
+        aoDevolver={devolver}
+      />
 
       <PainelAgendamento
         agendamento={emFoco}
         trecho={emFoco ? trechos.find((t) => t.id === emFoco.ag.trecho.id) : undefined}
         equipes={equipes}
-        pendente={pendente}
+        pendente={emFoco != null && salvandoIds.has(emFoco.id)}
         aoFechar={() => setSelecionado(null)}
         aoMudarStatus={mudarStatus}
         aoAtribuir={atribuir}

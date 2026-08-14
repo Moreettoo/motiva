@@ -2,27 +2,26 @@ import type { Metadata } from "next";
 
 import { CabecalhoPagina, MetricaCabecalho } from "@/components/shell/cabecalho-pagina";
 import { fmt, isoHoje } from "@/lib/format";
-import { cargaDasEquipes, listarAgendamentos, listarEquipes, listarTrechos } from "@/lib/queries";
+import { listarAgendamentos, listarEquipes, listarTrechos } from "@/lib/queries";
 
-import type { CargaEquipe, TrechoResumo } from "./_componentes/dados";
+import type { TrechoResumo } from "./_componentes/dados";
 import { PlanejamentoAgenda } from "./_componentes/planejamento";
 
 export const metadata: Metadata = {
   title: "Agenda",
   description:
-    "Plano de roçada das próximas semanas: linha do tempo por equipe, carga diária e fila de decisão.",
+    "Quadro semanal arrastável de roçada: aloque equipes por dia, veja a capacidade da semana e o mapa dos próximos 28 dias.",
 };
 
 export default async function PaginaAgenda() {
-  const [agendamentos, equipes, carga, trechos] = await Promise.all([
+  const [agendamentos, equipes, trechos] = await Promise.all([
     listarAgendamentos(),
     listarEquipes(),
-    cargaDasEquipes(),
     listarTrechos(),
   ]);
 
-  // `hoje` sai do servidor: se cada cliente calculasse o seu, o "hoje" da régua
-  // divergiria do carimbo do banco na virada do dia e a hidratação quebraria.
+  // `hoje` sai do servidor: se cada cliente calculasse o seu, o "hoje" do
+  // quadro divergiria do carimbo do banco na virada do dia e a hidratação quebraria.
   const hoje = isoHoje();
 
   const resumoTrechos: TrechoResumo[] = trechos.map((t) => ({
@@ -33,13 +32,6 @@ export default async function PaginaAgenda() {
     altura_atual_cm: t.altura_atual_cm,
     altura_limite_cm: Number(t.altura_limite_cm),
     crescimento_cm_dia: t.crescimento_cm_dia,
-  }));
-
-  const cargas: CargaEquipe[] = carga.map((c) => ({
-    equipeId: c.equipe.id,
-    ocupacao: c.ocupacao,
-    km: c.km,
-    agendamentos: c.agendamentos,
   }));
 
   const emAberto = agendamentos.filter((a) => a.status === "sugerido" || a.status === "aprovado");
@@ -66,7 +58,6 @@ export default async function PaginaAgenda() {
         agendamentos={agendamentos}
         equipes={equipes}
         trechos={resumoTrechos}
-        cargas={cargas}
         hoje={hoje}
       />
     </div>

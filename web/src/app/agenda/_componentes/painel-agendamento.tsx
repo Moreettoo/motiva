@@ -12,8 +12,7 @@ import { ESPECIE, TOM_BARRA_POR_RISCO, rotuloPrazo } from "@/lib/dominio";
 import { fmt } from "@/lib/format";
 import type { Equipe, StatusAgendamento } from "@/lib/types";
 
-import type { ItemAgenda, TrechoResumo } from "./dados";
-import { textoServico } from "./linha-do-tempo";
+import { textoServico, type ItemAgenda, type TrechoResumo } from "./dados";
 
 type AcoesPainel = {
   pendente: boolean;

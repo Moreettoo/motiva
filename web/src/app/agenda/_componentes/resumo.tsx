@@ -5,14 +5,13 @@ import type { LucideIcon } from "lucide-react";
 import { fmt } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-import { ROTULO_PERIODO, type Janela, type Periodo } from "./dados";
+import type { Janela } from "./dados";
 
 /**
- * Faixa de leitura da janela escolhida. O rótulo fica pequeno e acima; o número
- * carrega o peso — é um mostrador de instrumento, não um cartão.
+ * Faixa fina de leitura da semana visível. O rótulo fica pequeno e acima; o
+ * número carrega o peso — é um mostrador de instrumento, não um cartão.
  */
 export function ResumoJanela({
-  periodo,
   janela,
   rocadas,
   km,
@@ -20,7 +19,6 @@ export function ResumoJanela({
   equipesAtivas,
   criticosSemData,
 }: {
-  periodo: Periodo;
   janela: Janela;
   rocadas: number;
   km: number;
@@ -30,7 +28,7 @@ export function ResumoJanela({
 }) {
   return (
     <section
-      aria-label={`Resumo do período · ${ROTULO_PERIODO[periodo]}`}
+      aria-label={`Resumo da semana de ${fmt.dataCurta(janela.inicio)} a ${fmt.dataMedia(janela.fim)}`}
       className="grid grid-cols-2 rounded-lg border border-border bg-surface lg:grid-cols-4"
     >
       <Numero
@@ -55,8 +53,8 @@ export function ResumoJanela({
         unidade={`de ${fmt.n(equipesAtivas)}`}
         nota={
           equipesMobilizadas < equipesAtivas
-            ? `${fmt.n(equipesAtivas - equipesMobilizadas)} sem serviço na janela`
-            : "Todas com serviço na janela"
+            ? `${fmt.n(equipesAtivas - equipesMobilizadas)} sem serviço na semana`
+            : "Todas com serviço na semana"
         }
         icone={Users}
         className="border-t border-border lg:border-t-0 lg:border-l"
@@ -106,14 +104,14 @@ function Numero({
         </span>
         <Icone
           aria-hidden="true"
-          className={cn("size-4 shrink-0", alerta ? "text-critical-ink" : "text-ink-3")}
+          className={cn("size-3.5 shrink-0", alerta ? "text-critical-ink" : "text-ink-3")}
         />
       </div>
 
-      <p className="mt-2 flex min-w-0 items-baseline gap-1.5">
+      <p className="mt-1.5 flex min-w-0 items-baseline gap-1.5">
         <span
           className={cn(
-            "tnum truncate text-2xl leading-none font-semibold",
+            "tnum truncate text-xl leading-none font-semibold",
             alerta ? "text-critical-ink" : "text-ink",
           )}
         >
@@ -122,17 +120,17 @@ function Numero({
         {unidade ? <span className="shrink-0 text-xs text-ink-3">{unidade}</span> : null}
       </p>
 
-      <p className="mt-1.5 line-clamp-2 text-2xs text-ink-3">{nota}</p>
+      <p className="mt-1 line-clamp-1 text-2xs text-ink-3">{nota}</p>
     </>
   );
 
-  if (!href) return <div className={cn("min-w-0 p-4", className)}>{conteudo}</div>;
+  if (!href) return <div className={cn("min-w-0 p-3", className)}>{conteudo}</div>;
 
   return (
     <Link
       href={href}
       className={cn(
-        "group relative min-w-0 overflow-hidden p-4",
+        "group relative min-w-0 overflow-hidden p-3",
         "transition-[background-color] duration-200 ease-[var(--ease-out-quint)] hover:bg-surface-2",
         className,
       )}
