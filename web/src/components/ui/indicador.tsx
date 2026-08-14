@@ -24,7 +24,8 @@ const DIRECAO_TEXTO = {
   estavel: "estável",
 } as const;
 
-function Delta({ delta }: { delta: DeltaIndicador }) {
+/** Exportado: o verso do card "Crescimento médio" reaproveita esta mesma leitura por espécie. */
+export function Delta({ delta }: { delta: DeltaIndicador }) {
   const Seta = SETAS[delta.direcao];
   const tinta =
     delta.bom == null ? "text-ink-2" : delta.bom ? "text-good-ink" : "text-critical-ink";

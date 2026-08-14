@@ -19,7 +19,7 @@ const PISTA: Caixa = { top: 200, left: 100, right: 1100, bottom: 900 };
 /** Cabeçalho do dia: `sticky top-0`, ~52px, colado no topo da pista. */
 const CABECALHO: Caixa = { top: 200, left: 244, right: 372, bottom: 252 };
 
-/** Calha da turma: `sticky left-0`, 144px (`--calha: 9rem`), colada à esquerda. */
+/** Calha da equipe: `sticky left-0`, 144px (`--calha: 9rem`), colada à esquerda. */
 const CALHA: Caixa = { top: 252, left: 100, right: 244, bottom: 324 };
 
 const ZERO: Insets = { topo: 0, baixo: 0, esquerda: 0, direita: 0 };
@@ -63,7 +63,7 @@ describe("decidirRevalidacao", () => {
     });
     // Recusa mudou por um motivo QUALQUER (não só cruzamento de semana) —
     // corrige de qualquer forma.
-    expect(decidirRevalidacao(null, "Essa turma está desativada e não recebe serviço novo.", false)).toEqual(
+    expect(decidirRevalidacao(null, "Essa equipe está desativada e não recebe serviço novo.", false)).toEqual(
       { tipo: "corrigir-e-anunciar" },
     );
   });
@@ -277,7 +277,7 @@ describe("velocidadeDeRolagem", () => {
   it("os números medidos a 1920px: o centro da primeira linha visível fica parado e o cabeçalho rola a toda velocidade", () => {
     // Medido no DOM real com a `.quadro-pista` rolada: caixa crua em top=555 e
     // o cabeçalho do dia grudado com 49px de altura, então a área útil começa em
-    // 604 e a primeira linha de turma visível ocupa [604, 676] (`--altura-linha`,
+    // 604 e a primeira linha de equipe visível ocupa [604, 676] (`--altura-linha`,
     // 72px). A pista tem `max-h-[min(78vh,760px)]` e nenhum obstáculo embaixo,
     // então a área útil termina na caixa crua, em 1315.
     // `velocidadeDeRolagem` não conhece coordenada absoluta — recebe as duas

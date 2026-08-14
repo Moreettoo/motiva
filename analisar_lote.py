@@ -17,7 +17,7 @@ Precisa das variaveis de ambiente:
 import os
 import sys
 import json
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 try:
     from dotenv import load_dotenv
@@ -41,6 +41,37 @@ MODELO_LLM = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
 # so analisa com a LLM os trechos que estao a menos de X dias do limite.
 # economiza credito: trecho a 90 dias de distancia nao precisa de decisao hoje.
 LIMIAR_DIAS = int(os.getenv("LIMIAR_DIAS", "45"))
+
+# ... e FECHA o agendamento aberto do trecho que passou de Y dias.
+#
+# Por que dois numeros e nao um. Ate 2026-08-14 o limiar valia numa direcao so:
+# nada nunca fechava um agendamento cujo trecho tinha deixado de precisar dele.
+# O estoque que sobrou disso era metade da agenda — 53 de 106 agendamentos em
+# aberto eram de trecho a mais de 45 dias do limite, um deles a 2196 dias, e 27
+# dos 47 "vencidos" da tela vinham dai. A migracao
+# `fechar_agendamentos_de_trecho_sem_necessidade` limpou o estoque; esta regra e
+# o que impede ele de voltar.
+#
+# A BANDA de 10 dias entre criar e fechar e histerese, nao folga arbitraria. Com
+# o mesmo numero nas duas pontas, um trecho oscilando entre 44 e 46 dias por
+# causa de uma medicao nova abriria e fecharia agendamento TODO DIA, gerando uma
+# linha `descartado` por dia por trecho. Na faixa 46-55 o lote nao cria e nao
+# fecha: deixa quieto o que ja existe.
+LIMIAR_FECHAR_DIAS = int(os.getenv("LIMIAR_FECHAR_DIAS", "55"))
+
+# Sao Paulo e UTC-3 fixo desde o fim do horario de verao em 2019, entao um
+# offset constante basta e nao depende de `tzdata` estar instalado (no Windows
+# o `zoneinfo` nao acha o banco de fusos sem o pacote).
+#
+# `date.today()` nao serve para comparar com `data_sugerida`: o GitHub Actions
+# roda em UTC, e das 21h a meia-noite de Brasilia o relogio do runner ja virou o
+# dia — um agendamento aprovado para HOJE seria lido como vencido e descartado
+# sem ter vencido. Mesmo cuidado que `isoHoje()` toma no painel (ver CLAUDE.md).
+FUSO_BR = timezone(timedelta(hours=-3))
+
+
+def hoje_brasilia() -> date:
+    return datetime.now(FUSO_BR).date()
 
 # Quando o painel enfileira a reanalise de um trecho so, o workflow passa o id
 # por aqui. Vazio (o caso do agendamento diario) significa a malha inteira.
@@ -231,7 +262,10 @@ def buscar_clima(lat, lon, dias=16):
 
 def prever(clima, especie, uf, lat, altura):
     v = {**clima, "latitude": lat, "altura_inicial_cm": altura,
-         "mes": date.today().month,
+         # Brasilia, pelo mesmo motivo do resto do script: na virada de mes, das
+         # 21h a meia-noite, o runner em UTC ja esta no mes seguinte e o modelo
+         # receberia a sazonalidade errada.
+         "mes": hoje_brasilia().month,
          "especie_cod": MAPAS["especie"].get(especie, 0),
          "uf_cod": MAPAS["uf"].get(uf, 0)}
     return float(MODELO.predict([[float(v[f]) for f in FEATURES]])[0])
@@ -287,6 +321,41 @@ def decidir(ctx):
 
 
 # ----------------------------------------------------------------------
+def fechar_obsoletos(trecho_id, hoje):
+    """Descarta os agendamentos em aberto de um trecho que nao precisa mais.
+
+    Fecha o que a MAQUINA criou (`sugerido`) e o que esta factualmente morto
+    (`aprovado` cuja data passou sem virar execucao — aquele plano nao
+    aconteceu). NAO toca em `aprovado` com data futura: alguem decidiu aquilo
+    com a informacao de entao, e desfazer decisao humana em silencio nao e
+    trabalho de lote. Esses ficam na agenda com o selo "nao e mais necessario"
+    e um descarte de um clique, que e onde a decisao pertence.
+
+    Devolve quantos fechou, para o resumo do fim contar a historia inteira.
+    """
+    abertos = (sb.table("agendamentos")
+               .select("id,status,data_sugerida")
+               .eq("trecho_id", trecho_id)
+               .in_("status", ["sugerido", "aprovado"])
+               .execute().data)
+
+    limite = hoje.isoformat()
+    ids = [a["id"] for a in abertos
+           if a["status"] == "sugerido" or a["data_sugerida"] < limite]
+    if not ids:
+        return 0
+
+    # `atualizado_em` explicito e em ISO: mandar a string "now()" faria o
+    # PostgREST enviar texto que o Postgres nao aceita como timestamp.
+    (sb.table("agendamentos")
+     .update({"status": "descartado",
+              "atualizado_em": datetime.now(timezone.utc).isoformat()})
+     .in_("id", ids)
+     .execute())
+    return len(ids)
+
+
+# ----------------------------------------------------------------------
 def main():
     consulta = sb.table("trechos").select("*").order("id")
     if TRECHO_ID is not None:
@@ -297,13 +366,18 @@ def main():
         print(f"Trecho {TRECHO_ID} nao existe. Nada a fazer.")
         return
 
+    # Um "hoje" so para a rodada inteira, e em Brasilia. Calculado uma vez para
+    # nao existir a chance de duas linhas do mesmo laco cairem em dias
+    # diferentes se a rodada atravessar a meia-noite.
+    hoje = hoje_brasilia()
+
     print(f"Analisando {len(trechos)} trechos  |  schema={DB_SCHEMA}  "
-          f"modelo={MODELO_LLM}  "
-          f"limiar={'ignorado (trecho unico)' if TRECHO_ID is not None else str(LIMIAR_DIAS) + 'd'}\n")
+          f"modelo={MODELO_LLM}  |  hoje={hoje.isoformat()}  "
+          f"cria<={LIMIAR_DIAS}d fecha>{LIMIAR_FECHAR_DIAS}d\n")
 
     zonas, clima_por_zona = montar_zonas(trechos)
 
-    gravados, pulados, erros = 0, 0, []
+    gravados, pulados, descartados, erros = 0, 0, 0, []
 
     for t in trechos:
         nome = f'{t["rodovia"]} km {t["km_inicio"]}-{t["km_fim"]}'
@@ -316,7 +390,11 @@ def main():
                 continue
 
             altura_med = float(m[0]["altura_cm"])
-            desde = (date.today() - date.fromisoformat(m[0]["data"])).days
+            # `hoje` (Brasilia), nao `date.today()` (relogio do runner, que e
+            # UTC no GitHub Actions): a extrapolacao da altura, a data que a LLM
+            # recebe e a comparacao de vencimento em `fechar_obsoletos` precisam
+            # ser o MESMO dia, ou a rodada da noite se contradiz sozinha.
+            desde = (hoje - date.fromisoformat(m[0]["data"])).days
 
             clima = clima_por_zona.get(zona_do_trecho(t, zonas)[0])
             if clima is None:
@@ -342,12 +420,73 @@ def main():
                 "chuva_total_mm": round(clima["precipitacao_total_mm"], 2),
             }).execute()
 
-            # Economia: so chama a LLM se o trecho estiver proximo do limite.
-            # Nao vale quando alguem pediu ESTE trecho no painel: o pedido ja e
-            # a intencao de gastar a chamada, mesmo com folga de prazo.
-            if TRECHO_ID is None and dias is not None and dias > LIMIAR_DIAS:
+            # Duas perguntas, nesta ordem: o trecho PRECISA de roçada agendada?
+            # E, se nao precisa, ha agendamento aberto para fechar?
+            #
+            # `folgado` cobre os DOIS jeitos de nao precisar, e o segundo era um
+            # cano de ruido aberto. `dias > LIMIAR_FECHAR_DIAS` e o caso obvio.
+            # `dias is None` e o trecho que NAO CRESCE (`cm_dia <= 0.001`, ver o
+            # calculo acima): a condicao antiga exigia `dias is not None`, entao
+            # ele escapava por baixo e ganhava chamada de LLM e agendamento novo
+            # todo dia — e com `dias_ate_limite` nulo a view o carimba `baixa`,
+            # que e exatamente o cartao que nao deveria existir.
+            folgado = dias is None or dias > LIMIAR_FECHAR_DIAS
+            precisa = dias is not None and dias <= LIMIAR_DIAS
+
+            # A regra vale para o trecho pedido no painel tambem, e isto e uma
+            # REVERSAO deliberada do que estava escrito aqui ("o pedido ja e a
+            # intencao de gastar a chamada, mesmo com folga de prazo"). Aquilo
+            # valia quando criar era inofensivo. Agora nao e: a chamada
+            # produziria um agendamento que a propria regra fecha na rodada
+            # seguinte, e no meio do caminho o cartao aparece na agenda. Uma
+            # reanalise de trecho folgado grava a previsao nova, fecha o que
+            # sobrou e nao inventa serviço — que e a resposta certa para
+            # "reanalisei e nao precisa".
+            if folgado:
+                fechados = fechar_obsoletos(t["id"], hoje)
+                descartados += fechados
+                prazo = "sem crescimento" if dias is None else f"{dias}d ate o limite"
+                extra = f"  ->  {fechados} agendamento(s) fechado(s)" if fechados else ""
                 print(f"  [ok, sem LLM]  {nome:44s} {cm_dia:.3f} cm/dia  "
+                      f"{prazo}{extra}")
+                pulados += 1
+                continue
+
+            # Banda de histerese (46-55 dias): nao cria e nao fecha. O trecho
+            # esta perto o bastante para o agendamento que ja existe continuar
+            # fazendo sentido, e longe o bastante para nao merecer um novo.
+            if not precisa:
+                print(f"  [ok, na banda] {nome:44s} {cm_dia:.3f} cm/dia  "
                       f"{dias}d ate o limite")
+                pulados += 1
+                continue
+
+            # UM agendamento aberto por trecho. Antes o lote inseria uma linha
+            # NOVA a cada rodada, sem nunca olhar se ja havia uma aberta: um
+            # trecho que fica critico por duas semanas acumulava catorze
+            # agendamentos, e a agenda desenhava TODOS — catorze cartoes
+            # identicos lado a lado, que na tela se leem como defeito de
+            # renderizacao, nao como dado. A migracao
+            # `um_agendamento_aberto_por_trecho` limpou 42 linhas de excesso em
+            # 62; e este bloco que impede a pilha de voltar.
+            #
+            # A fronteira e a mesma de `fechar_obsoletos`: o lote manda no que o
+            # lote criou. `sugerido` e dele, entao ATUALIZA em vez de duplicar —
+            # a previsao de hoje e melhor que a de ontem, e o gestor continua
+            # vendo uma sugestao so, com a data mais recente. `aprovado` e de
+            # quem aprovou: grava a previsao nova (ja gravada acima) e NAO mexe
+            # na data. Remarcar por baixo do gestor uma roçada que ele aprovou
+            # seria mudar o plano sem avisar.
+            aberto = (sb.table("agendamentos")
+                      .select("id,status")
+                      .eq("trecho_id", t["id"])
+                      .in_("status", ["sugerido", "aprovado"])
+                      .order("criado_em", desc=True).order("id", desc=True)
+                      .limit(1).execute().data)
+
+            if aberto and aberto[0]["status"] == "aprovado":
+                print(f"  [aprovado]     {nome:44s} {cm_dia:.3f} cm/dia  "
+                      f"{dias}d ate o limite  ->  data mantida")
                 pulados += 1
                 continue
 
@@ -363,29 +502,42 @@ def main():
                 "temperatura_media_prevista_c": round(clima["temperatura_media_c"], 1),
                 "chuva_total_prevista_mm": round(clima["precipitacao_total_mm"], 1),
                 "observacoes_do_trecho": t.get("observacoes") or "sem observacoes",
-                "data_de_hoje": date.today().isoformat(),
+                "data_de_hoje": hoje.isoformat(),
             })
 
-            sb.table("agendamentos").insert({
-                "trecho_id": t["id"],
+            campos = {
                 "previsao_id": prev.data[0]["id"],
                 "data_sugerida": dec["data_sugerida"],
                 "prioridade": dec["prioridade"],
                 "justificativa": dec["justificativa"],
                 "fatores": dec["fatores"],
                 "modelo_usado": MODELO_LLM,
-            }).execute()
+            }
+
+            if aberto:
+                # `sugerido` que ja existe: atualiza no lugar. `equipe_id` fica
+                # de fora de `campos` de proposito — se alguem ja tinha alocado
+                # uma equipe a esta sugestao, sobrescrever seria apagar trabalho
+                # humano por causa de uma previsao nova.
+                (sb.table("agendamentos")
+                 .update({**campos, "atualizado_em": datetime.now(timezone.utc).isoformat()})
+                 .eq("id", aberto[0]["id"])
+                 .execute())
+                acao = "atualizado"
+            else:
+                sb.table("agendamentos").insert({"trecho_id": t["id"], **campos}).execute()
+                acao = "roçar"
 
             gravados += 1
             print(f"  [{dec['prioridade'].upper():8}] {nome:44s} "
-                  f"{cm_dia:.3f} cm/dia  ->  roçar {dec['data_sugerida']}")
+                  f"{cm_dia:.3f} cm/dia  ->  {acao} {dec['data_sugerida']}")
 
         except Exception as e:
             erros.append((nome, f"{type(e).__name__}: {e}"))
             print(f"  [ERRO]     {nome}: {type(e).__name__}: {e}")
 
     print(f"\nAgendamentos gravados: {gravados} | sem necessidade: {pulados} "
-          f"| erros: {len(erros)}")
+          f"| fechados por folga: {descartados} | erros: {len(erros)}")
     print(f"Consultas ao Open-Meteo: {len(clima_por_zona)} "
           f"(uma por zona, para {len(trechos)} trechos)")
     if erros:

@@ -1,18 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
+import { CalendarPlus } from "lucide-react";
 import {
   parseAsArrayOf,
+  parseAsBoolean,
   parseAsInteger,
   parseAsString,
   parseAsStringLiteral,
   useQueryState,
 } from "nuqs";
 
+import { Botao } from "@/components/ui/botao";
 import { useNotificacao } from "@/components/ui/notificacoes";
 import {
   alocarAgendamento,
   atribuirEquipe,
+  criarRocadaManual,
   desfazerAlocacao,
   devolverParaFila,
   mudarStatusAgendamento,
@@ -41,8 +45,8 @@ import {
   type TrechoResumo,
 } from "./dados";
 import { PainelAgendamento } from "./painel-agendamento";
+import { PainelNovaRocada, type EntradaNovaRocada } from "./painel-nova-rocada";
 import { QuadroSemana } from "./quadro/quadro-semana";
-import { ResumoJanela } from "./resumo";
 
 const STATUS_PADRAO: StatusAgendamento[] = ["sugerido", "aprovado"];
 
@@ -97,6 +101,14 @@ export function PlanejamentoAgenda({
   const [selecionado, setSelecionado] = useQueryState("ag", parseAsInteger);
   const [semana, setSemana] = useQueryState("semana", parseAsString.withDefault(""));
 
+  /* A gaveta de criação na URL, como toda seleção desta tela: `?nova=true` é
+     link compartilhável ("abre aí e agenda essa"), sobrevive ao voltar do
+     navegador, e fecha por Esc pela mesma porta das outras gavetas. */
+  const [criandoRocada, setCriandoRocada] = useQueryState(
+    "nova",
+    parseAsBoolean.withDefault(false),
+  );
+
   // Normalizada para a segunda-feira, não usada crua. `montarJanela` já abre na
   // segunda de qualquer âncora, então a GRADE ficava certa com um `?semana=`
   // apontando para uma quinta — mas duas outras coisas ficavam erradas: a
@@ -140,6 +152,14 @@ export function PlanejamentoAgenda({
   // Substitui o `pendente` global de antes: com ~62 serviços na fila, travar a
   // tela inteira a cada solta seria sentido em todo arrasto. Um id por vez.
   const [salvandoIds, setSalvandoIds] = useState<ReadonlySet<number>>(new Set());
+
+  /* A criação não entra em `salvandoIds` nem em `anelErroPorId`: os dois são
+     chaveados por id de agendamento, e o que está sendo criado ainda não tem
+     um. Pelo mesmo motivo ela não passa por `executar` — não há `Ajuste`
+     otimista possível sobre uma linha que não existe na lista, e o desfecho
+     dela é outro (fecha a gaveta, navega, seleciona). */
+  const [salvandoNova, setSalvandoNova] = useState(false);
+  const [erroNova, setErroNova] = useState<string | null>(null);
   const [desfazerPorId, setDesfazerPorId] = useState<ReadonlyMap<number, () => void>>(new Map());
 
   // Passo 3 da reversão (spec §4): o cartão que voltou para a origem pisca um
@@ -324,11 +344,12 @@ export function PlanejamentoAgenda({
    * escolhas são deliberadas.
    *
    * SEGUE O FILTRO (`visiveis`) todo número que o gestor pode CONFERIR contando
-   * cartões no quadro. Grade, cabeçalho do dia, mini-mapa de 28 dias e a faixa
-   * `ResumoJanela` são recortes do MESMO conjunto exibidos lado a lado; se um
-   * contasse `itens` e o outro `visiveis`, com o filtro em "aprovado" a tela
-   * mostraria dois números diferentes para o mesmo dia a centímetros de
-   * distância — que é a contradição que `dados.tsx` existe para impedir.
+   * cartões no quadro. Grade, cabeçalho do dia, mini-mapa de 28 dias e a
+   * legenda numérica do cabeçalho (`rocadasNaSemana`/`kmNaSemana`) são recortes
+   * do MESMO conjunto exibidos lado a lado; se um contasse `itens` e o outro
+   * `visiveis`, com o filtro em "aprovado" a tela mostraria dois números
+   * diferentes para o mesmo dia a centímetros de distância — que é a
+   * contradição que `dados.tsx` existe para impedir.
    *
    * NÃO SEGUE O FILTRO (`itens`/`trechos`) todo número que ALERTA sobre algo
    * fora da visão atual: vencidos (`totalAtrasados`, `semanaAtraso`) e críticos
@@ -376,16 +397,20 @@ export function PlanejamentoAgenda({
     [visiveis, ancora, equipes],
   );
 
-  // Idem: a faixa `ResumoJanela` resume a semana que o quadro DESENHA, então
-  // "Roçadas planejadas" e "Km previstos" saem de `visiveis`.
+  /* A legenda numérica do cabeçalho ("N roçadas · N km") resume a semana que o
+     quadro DESENHA — todo status que o filtro deixou passar, não só o que está
+     em aberto.
+     Havia aqui um segundo recorte, `planejadas`, que ficava só com
+     sugerido/aprovado. Fazia sentido enquanto o quadro também só desenhava
+     esses dois; com "Executado" ligado, o cabeçalho anunciava "0 roçadas · 0,0
+     km" sobre uma semana com oito cartões visíveis — dois números para o mesmo
+     conjunto, a trinta centímetros um do outro, que é a contradição que
+     `dados.tsx` existe para impedir. Este é o grupo CONFERÍVEL da regra dos dois
+     grupos (ver abaixo): a pessoa checa contando cartões, então tem de contar o
+     que ela vê. */
   const naJanela = useMemo(
     () => visiveis.filter((item) => diasDaJanela.has(item.data)),
     [visiveis, diasDaJanela],
-  );
-
-  const planejadas = useMemo(
-    () => naJanela.filter((item) => item.status === "sugerido" || item.status === "aprovado"),
-    [naJanela],
   );
 
   // Grupo "NÃO SEGUE O FILTRO" da regra acima, e pelo mesmo motivo dos
@@ -400,7 +425,7 @@ export function PlanejamentoAgenda({
 
   // O escopo do filtro, não o da semana. Contava só `diasDaJanela` e descrevia
   // um conjunto que o botão não governa: o filtro alimenta `visiveis`, e
-  // `visiveis` alimenta também o TRILHO (todos os ~62 sem turma, de todo o
+  // `visiveis` alimenta também o TRILHO (todos os ~62 sem equipe, de todo o
   // horizonte) e os 28 dias do mini-mapa. Desmarcar "sugerido" tirava dezenas de
   // cartões do trilho enquanto o chip ao lado dizia "6". `controles.tsx` diz
   // "toda a malha" em texto visível e no nome acessível de cada botão, porque um
@@ -430,10 +455,6 @@ export function PlanejamentoAgenda({
     () => itens.find((item) => item.id === selecionado) ?? null,
     [itens, selecionado],
   );
-
-  const mobilizadas = new Set(
-    planejadas.map((item) => item.equipeId).filter((id) => id != null),
-  ).size;
 
   // Compara a ÂNCORA, não o valor CRU da URL. `?semana=` chega até aqui por
   // duas portas que não mudam a tela: uma data válida fora da segunda-feira
@@ -495,8 +516,8 @@ export function PlanejamentoAgenda({
     });
   }
 
-  // Arrastar de uma turma para outra e desfazer precisa devolver a equipe
-  // ANTERIOR, não `null`: com `null` fixo, a tela perderia a turma enquanto
+  // Arrastar de uma equipe para outra e desfazer precisa devolver a equipe
+  // ANTERIOR, não `null`: com `null` fixo, a tela perderia a equipe enquanto
   // `desfazerAlocacao` restaura a antiga no banco — tela e banco divergiriam
   // até o próximo `revalidatePath`.
   //
@@ -585,6 +606,80 @@ export function PlanejamentoAgenda({
     [setSemana, ancoraPadrao],
   );
 
+  // Abrir e fechar limpam a recusa anterior: a mensagem descreve UMA tentativa,
+  // e reabrir a gaveta com o erro da tentativa passada acusa um formulário que
+  // acabou de ser zerado.
+  const abrirNova = useCallback(() => {
+    setErroNova(null);
+    setCriandoRocada(true);
+  }, [setCriandoRocada]);
+
+  const fecharNova = useCallback(() => {
+    setErroNova(null);
+    setCriandoRocada(null);
+  }, [setCriandoRocada]);
+
+  /**
+   * Cria a roçada manual e leva o gestor até ela.
+   *
+   * Os três passos do sucesso são um só movimento, e nenhum é enfeite: fecha a
+   * gaveta, NAVEGA para a semana da data escolhida e SELECIONA o cartão novo.
+   * Sem os dois últimos, agendar para daqui a três semanas — o caso normal —
+   * terminaria com a tela exatamente como estava, e a única prova de que algo
+   * aconteceu seria um toast que some em segundos.
+   *
+   * Sem otimista: o cartão só existe depois que o banco devolve o id, então o
+   * botão fica em `carregando` até lá. É o preço honesto de uma criação, e
+   * diferente do arrasto, em que o movimento do cartão já é a confirmação.
+   */
+  const criarNova = useCallback(
+    (entrada: EntradaNovaRocada) => {
+      setSalvandoNova(true);
+      setErroNova(null);
+
+      iniciar(async () => {
+        try {
+          const resultado = await criarRocadaManual(entrada);
+
+          if (!resultado.ok) {
+            // Os dois canais, como no `executar`: o toast persistente atravessa
+            // a tela e o `Aviso` fica ao lado do formulário que causou a recusa.
+            setErroNova(resultado.erro);
+            mostrar({
+              tom: "critical",
+              titulo: "A roçada não foi criada",
+              descricao: resultado.erro,
+              duracao: 0,
+            });
+            return;
+          }
+
+          const rodovia = trechos.find((t) => t.id === entrada.trechoId)?.rodovia ?? "Trecho";
+          setCriandoRocada(null);
+          aoNavegar(chaveDia(inicioDaSemana(resultado.dados.data)));
+          setSelecionado(resultado.dados.id);
+          mostrar({
+            tom: "good",
+            titulo: "Roçada agendada",
+            descricao: `${rodovia} · ${fmt.dataMedia(resultado.dados.data)}`,
+          });
+        } catch {
+          const recado = "A conexão com o servidor falhou. Confira a rede e tente de novo.";
+          setErroNova(recado);
+          mostrar({
+            tom: "critical",
+            titulo: "A roçada não foi criada",
+            descricao: recado,
+            duracao: 0,
+          });
+        } finally {
+          setSalvandoNova(false);
+        }
+      });
+    },
+    [mostrar, trechos, setCriandoRocada, aoNavegar, setSelecionado],
+  );
+
   // "Atrasado" só existe em `sugerido`/`aprovado` (ver `dados.tsx`), e o
   // contador vem da malha INTEIRA, não do filtro de status ativo — de
   // propósito, para o filtro não decidir se o alerta existe (ver a REGRA dos
@@ -616,26 +711,6 @@ export function PlanejamentoAgenda({
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
-      <Controles
-        status={status}
-        aoMudarStatus={(valor) => setStatus(valor)}
-        equipe={equipe}
-        aoMudarEquipe={(valor) => setEquipe(valor || null)}
-        equipes={equipes}
-        porStatusNaMalha={porStatusNaMalha}
-        alterado={alterado}
-        aoRestaurar={restaurar}
-      />
-
-      <ResumoJanela
-        janela={janela}
-        rocadas={planejadas.length}
-        km={planejadas.reduce((total, item) => total + item.km, 0)}
-        equipesMobilizadas={mobilizadas}
-        equipesAtivas={equipes.filter((e) => e.ativo).length}
-        criticosSemData={criticosSemData}
-      />
-
       <QuadroSemana
         grade={grade}
         itens={itens}
@@ -643,6 +718,36 @@ export function PlanejamentoAgenda({
         hoje={hoje}
         semana={ancora}
         equipeFoco={equipeFoco}
+        rocadasNaSemana={naJanela.length}
+        kmNaSemana={naJanela.reduce((total, item) => total + item.km, 0)}
+        criticosSemData={criticosSemData}
+        /* Os controles descem montados, e não como props do quadro: o quadro
+           reserva o canto do cabeçalho para eles e não sabe o que eles fazem.
+           O filtro chega até aqui já aplicado, em `visiveis`. */
+        controles={
+          <Controles
+            status={status}
+            aoMudarStatus={(valor) => setStatus(valor)}
+            equipe={equipe}
+            aoMudarEquipe={(valor) => setEquipe(valor || null)}
+            equipes={equipes}
+            porStatusNaMalha={porStatusNaMalha}
+            alterado={alterado}
+            aoRestaurar={restaurar}
+          />
+        }
+        /* Mesmo contrato dos controles, e por isso ao lado deles: o quadro
+           reserva o canto e não sabe o que o botão faz. */
+        acoes={
+          <Botao
+            tamanho="sm"
+            variante="secundario"
+            iconeEsquerda={<CalendarPlus />}
+            onClick={abrirNova}
+          >
+            Nova roçada
+          </Botao>
+        }
         totalAtrasados={totalAtrasados}
         semanaAtraso={semanaAtraso}
         servicosNaSemanaSemFiltro={servicosNaSemanaSemFiltro}
@@ -668,6 +773,21 @@ export function PlanejamentoAgenda({
         aoMudarStatus={mudarStatus}
         aoAtribuir={atribuir}
         aoRemarcar={remarcar}
+      />
+
+      <PainelNovaRocada
+        aberta={criandoRocada}
+        aoFechar={fecharNova}
+        trechos={trechos}
+        equipes={equipes}
+        /* `itens`, e não `visiveis`: a prévia de carga e a lista de trechos já
+           agendados são fatos da malha, e o filtro de status não pode decidir
+           se uma equipe está cheia nem se um trecho já tem roçada marcada. */
+        itens={itens}
+        hoje={hoje}
+        pendente={salvandoNova}
+        erroServidor={erroNova}
+        aoCriar={criarNova}
       />
     </div>
   );

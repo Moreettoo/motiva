@@ -79,7 +79,7 @@ function roladores(alvo: Element | null): HTMLElement[] {
    `direita`. Onde ele vai, no quadro da semana:
 
      cabeçalho do dia    `sticky top-0`, ~52px   → data-obstaculo="topo"
-     calha da turma      `sticky left-0`, 144px  → data-obstaculo="esquerda"
+     calha da equipe      `sticky left-0`, 144px  → data-obstaculo="esquerda"
      cabeçalho da fila   `sticky top-0`          → data-obstaculo="topo"
      canto do quadro     gruda nos dois eixos    → data-obstaculo="topo esquerda"
 
@@ -307,7 +307,7 @@ export type DecisaoRevalidacao = { tipo: "nada" } | { tipo: "anunciar" } | { tip
  * Decide o que fazer quando a grade muda enquanto um movimento está em
  * `"carregando"` — pura, sem efeito colateral. `chegada` sinaliza que
  * acabamos de atravessar semana (Shift+seta ou seta simples na borda) e
- * AINDA não anunciamos onde o cartão pousou: cruzar semana troca dia, turma
+ * AINDA não anunciamos onde o cartão pousou: cruzar semana troca dia, equipe
  * e capacidade sem anunciar nada na hora (a grade nova só existe no próximo
  * render), e sem este sinal esse anúncio nunca aconteceria quando o destino
  * se confirma VÁLIDO — a recusa ao vivo, nesse caso, não muda (era `null`
@@ -755,7 +755,7 @@ export function useArrasto({
   /* Realinha `estado.alvo` para a semana nova ao atravessar semana em pleno
      movimento por SHIFT+seta (que significa "uma semana"; a seta simples no
      fim/início da semana significa "um dia" e usa `alvoNaBordaDaSemana` mais
-     abaixo, não isto): mesmo dia da semana, mesma turma (ver `realinharAlvo`,
+     abaixo, não isto): mesmo dia da semana, mesma equipe (ver `realinharAlvo`,
      em `navegacao.ts`, para a aritmética e a razão do bug sem isto).
      Otimista — a grade nova só existe no próximo render, então não dá para
      validar a chave nova aqui contra dado fresco; ela é determinística
@@ -950,7 +950,7 @@ export function useArrasto({
  * DUAS METADES, e é de propósito que elas não compartilham mais um número só.
  *
  * 1. Distância NEGATIVA — o ponteiro está atrás de um obstáculo grudado (o
- *    cabeçalho do dia, a calha da turma) ou fora do rolador. Rola na velocidade
+ *    cabeçalho do dia, a calha da equipe) ou fora do rolador. Rola na velocidade
  *    máxima, sem rampa: é o caso inequívoco, porque quem aponta para o grudado
  *    está apontando para a célula que ele esconde, e trazê-la à tela é a única
  *    resposta possível. O teto em `VELOCIDADE_MAX` (o `min(1, …)` abaixo) segura

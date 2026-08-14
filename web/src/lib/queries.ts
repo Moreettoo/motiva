@@ -101,7 +101,7 @@ export const execucoesDoTrecho = cache(async (trechoId: number): Promise<Execuca
 
 const SELECT_AGENDAMENTO = `
   id, trecho_id, previsao_id, data_sugerida, prioridade, justificativa, fatores,
-  status, modelo_usado, equipe_id, atualizado_em, criado_em,
+  status, origem, modelo_usado, equipe_id, atualizado_em, criado_em,
   trecho:trechos!inner ( id, rodovia, km_inicio, km_fim, uf, sentido, especie, tipo_pista, altura_limite_cm, latitude, longitude ),
   equipe:equipes ( id, nome, base_uf ),
   previsao:previsoes ( crescimento_cm_dia, altura_atual_cm, dias_ate_limite, chuva_total_mm, temperatura_media_c )

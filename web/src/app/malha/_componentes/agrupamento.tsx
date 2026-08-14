@@ -1,8 +1,9 @@
 "use client";
 
-import type { CSSProperties } from "react";
-import { SquareStack } from "lucide-react";
+import { useId, useSyncExternalStore, type CSSProperties } from "react";
+import { ChevronDown, CircleCheck, SquareStack } from "lucide-react";
 
+import { Botao } from "@/components/ui/botao";
 import { Cartao, CartaoCabecalho, CartaoCorpo, CartaoRodape } from "@/components/ui/cartao";
 import { Chip, ChipRisco } from "@/components/ui/chip";
 import { Leitura } from "@/components/ui/leitura";
@@ -37,6 +38,9 @@ export type Agrupamento = {
   saidasEvitadas: number;
   economiaKm: number;
   piorRisco: Risco;
+  /** Preenchido quando todos os trechos do grupo já compartilham a mesma data
+   *  e a mesma equipe — a sugestão de juntar numa saída só já foi atendida. */
+  resolvido: { data: string; equipeNome: string } | null;
 };
 
 type Candidato = {
@@ -48,6 +52,23 @@ type Candidato = {
  *  para domingo no Brasil e quebraria a semana ao meio. */
 function chaveDia(d: Date): string {
   return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
+/**
+ * O grupo só está de fato resolvido quando TODOS os trechos convergiram para a
+ * mesma data e a mesma equipe — datas iguais com equipes diferentes (ou
+ * vice-versa) ainda são duas saídas na prática, e o alerta continua valendo.
+ */
+function calcularResolvido(trechos: TrechoStatus[]): Agrupamento["resolvido"] {
+  const [primeiro, ...resto] = trechos;
+  if (!primeiro.data_sugerida || primeiro.equipe_id == null) return null;
+
+  const convergiu = resto.every(
+    (t) => t.data_sugerida === primeiro.data_sugerida && t.equipe_id === primeiro.equipe_id,
+  );
+  if (!convergiu) return null;
+
+  return { data: primeiro.data_sugerida, equipeNome: primeiro.equipe_nome ?? "equipe atribuída" };
 }
 
 function montar(candidatos: Candidato[]): Agrupamento {
@@ -73,6 +94,7 @@ function montar(candidatos: Candidato[]): Agrupamento {
     // volta multiplicado pelas saídas que deixaram de existir.
     economiaKm: saidasEvitadas * 2 * vaoKm,
     piorRisco: piorRiscoDe(trechos),
+    resolvido: calcularResolvido(trechos),
   };
 }
 
@@ -149,6 +171,10 @@ export function detectarAgrupamentos(trechos: TrechoStatus[], hoje: Date): Agrup
 
   return agrupamentos.sort(
     (a, b) =>
+      // Pendente antes de resolvido, sempre — o alerta é sobre o que ainda
+      // falta agir, e um grupo já resolvido não compete por atenção mesmo
+      // quando o risco que o trouxe pra cá era pior que o de um pendente.
+      Number(a.resolvido != null) - Number(b.resolvido != null) ||
       ordemRisco(a.piorRisco) - ordemRisco(b.piorRisco) ||
       a.semana.getTime() - b.semana.getTime() ||
       a.rodovia.localeCompare(b.rodovia, "pt-BR"),
@@ -156,6 +182,52 @@ export function detectarAgrupamentos(trechos: TrechoStatus[], hoje: Date): Agrup
 }
 
 /* ========================================================================== */
+
+/* O colapso do card mora no localStorage, não na URL: diferente dos filtros
+   da malha, não é algo que um gestor precise mandar por link para a equipe —
+   é preferência de tela, e sem persistência o card voltaria expandido a cada
+   carregamento de /malha.
+
+   Lido via `useSyncExternalStore` (mesma ideia de `alternador-tema.tsx`, sem
+   o listener entre abas — não é crítico aqui) em vez de `useState` +
+   `useEffect`: escrever no state dentro de um efeito de leitura cascateia
+   um render extra que o lint de hooks já rejeita, e a marcação do servidor
+   (sempre expandido, já que não há localStorage lá) precisa continuar batendo
+   com o primeiro quadro do cliente para não estourar a hidratação. */
+const CHAVE_COLAPSO = "solo-agrupamento-colapsado";
+const ouvintesColapso = new Set<() => void>();
+let colapsoCache: boolean | null = null;
+
+function lerColapsoSalvo(): boolean {
+  if (colapsoCache === null) {
+    try {
+      colapsoCache = localStorage.getItem(CHAVE_COLAPSO) === "1";
+    } catch {
+      colapsoCache = false;
+    }
+  }
+  return colapsoCache;
+}
+
+function gravarColapsoSalvo(colapsado: boolean) {
+  colapsoCache = colapsado;
+  try {
+    localStorage.setItem(CHAVE_COLAPSO, colapsado ? "1" : "0");
+  } catch {
+    // Sem persistência a escolha vale só para esta sessão.
+  }
+  for (const ouvinte of ouvintesColapso) ouvinte();
+}
+
+function assinarColapso(avisar: () => void) {
+  ouvintesColapso.add(avisar);
+  return () => ouvintesColapso.delete(avisar);
+}
+
+/** Marcação do servidor: sempre expandido, porque não há localStorage lá. */
+function colapsoNoServidor(): boolean {
+  return false;
+}
 
 export function BlocoAgrupamento({
   agrupamentos,
@@ -166,7 +238,16 @@ export function BlocoAgrupamento({
   selecionado: number | null;
   aoSelecionar: (id: number) => void;
 }) {
+  const idCorpo = useId();
+  const colapsado = useSyncExternalStore(assinarColapso, lerColapsoSalvo, colapsoNoServidor);
+
+  function alternar() {
+    gravarColapsoSalvo(!colapsado);
+  }
+
   if (agrupamentos.length === 0) return null;
+
+  const pendentes = agrupamentos.filter((g) => g.resolvido == null).length;
 
   return (
     <Cartao>
@@ -175,102 +256,147 @@ export function BlocoAgrupamento({
         icone={<SquareStack />}
         titulo="Agrupamento por proximidade"
         descricao={`Trechos da mesma rodovia que vencem na mesma semana e ficam a menos de ${RAIO_KM} km um do outro. Juntar numa saída só evita repetir o deslocamento.`}
+        acoes={
+          <>
+            {pendentes > 0 ? (
+              <Chip tom="neutro" tamanho="sm">
+                {pendentes} {pendentes === 1 ? "pendente" : "pendentes"}
+              </Chip>
+            ) : (
+              <Chip tom="good" tamanho="sm" icone={<CircleCheck />}>
+                Tudo agendado junto
+              </Chip>
+            )}
+
+            <Botao
+              tamanho="sm"
+              variante="fantasma"
+              aria-expanded={!colapsado}
+              aria-controls={idCorpo}
+              iconeEsquerda={
+                <ChevronDown
+                  className={cn(
+                    "transition-transform duration-200 ease-[var(--ease-out-quint)]",
+                    !colapsado && "rotate-180",
+                  )}
+                />
+              }
+              onClick={alternar}
+            >
+              {colapsado ? "Expandir" : "Minimizar"}
+            </Botao>
+          </>
+        }
       />
 
-      <CartaoCorpo>
-        <ul className="flex flex-col gap-4">
-          {agrupamentos.map((grupo, i) => {
-            const fimDaSemana = somarDias(grupo.semana, 6);
+      {colapsado ? null : (
+        <div id={idCorpo} className="fade">
+          <CartaoCorpo>
+            <ul className="flex flex-col gap-4">
+              {agrupamentos.map((grupo, i) => {
+                const fimDaSemana = somarDias(grupo.semana, 6);
 
-            return (
-              <li
-                key={grupo.chave}
-                style={{ "--i": Math.min(i, 8) } as CSSProperties}
-                className="rise border-t border-border pt-4 first:border-t-0 first:pt-0"
-              >
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                  <ChipRisco risco={grupo.piorRisco} tamanho="sm" />
-                  <span className="min-w-0 truncate text-sm font-medium text-ink">
-                    {grupo.rodovia}
-                  </span>
-                  <Chip tom="neutro">{grupo.uf}</Chip>
-                  <span className="tnum font-mono text-xs text-ink-2">
-                    {fmt.faixaKm(grupo.kmInicio, grupo.kmFim)}
-                  </span>
-                  <span className="text-xs text-ink-3">
-                    semana de {fmt.dataCurta(grupo.semana)} a {fmt.dataCurta(fimDaSemana)}
-                  </span>
-                </div>
+                return (
+                  <li
+                    key={grupo.chave}
+                    style={{ "--i": Math.min(i, 8) } as CSSProperties}
+                    className="rise border-t border-border pt-4 first:border-t-0 first:pt-0"
+                  >
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                      <ChipRisco risco={grupo.piorRisco} tamanho="sm" />
+                      <span className="min-w-0 truncate text-sm font-medium text-ink">
+                        {grupo.rodovia}
+                      </span>
+                      <Chip tom="neutro">{grupo.uf}</Chip>
+                      <span className="tnum font-mono text-xs text-ink-2">
+                        {fmt.faixaKm(grupo.kmInicio, grupo.kmFim)}
+                      </span>
+                      <span className="text-xs text-ink-3">
+                        semana de {fmt.dataCurta(grupo.semana)} a {fmt.dataCurta(fimDaSemana)}
+                      </span>
+                    </div>
 
-                <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
-                  <Leitura rotulo="Vão" valor={fmt.km(grupo.vaoKm)} nota="primeiro ao último" />
-                  <Leitura
-                    rotulo="A roçar"
-                    valor={fmt.km(grupo.extensaoKm)}
-                    nota={`${grupo.trechos.length} trechos`}
-                  />
-                  <Leitura
-                    rotulo="Saídas"
-                    valor={`${grupo.trechos.length} → 1`}
-                    nota={`${grupo.saidasEvitadas} ${grupo.saidasEvitadas === 1 ? "evitada" : "evitadas"}`}
-                  />
-                  <Leitura
-                    rotulo="Deslocamento evitado"
-                    valor={`≈ ${fmt.km(grupo.economiaKm)}`}
-                    nota="estimativa"
-                  />
-                </div>
+                    {grupo.resolvido ? (
+                      <div className="mt-2">
+                        <Chip tom="good" tamanho="sm" icone={<CircleCheck />}>
+                          Já agendado junto — {fmt.dataMedia(grupo.resolvido.data)} ·{" "}
+                          {grupo.resolvido.equipeNome}
+                        </Chip>
+                      </div>
+                    ) : null}
 
-                <ul className="mt-3 flex flex-wrap gap-1.5">
-                  {grupo.trechos.map((t) => {
-                    const ativo = t.id === selecionado;
+                    <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
+                      <Leitura rotulo="Vão" valor={fmt.km(grupo.vaoKm)} nota="primeiro ao último" />
+                      <Leitura
+                        rotulo="A roçar"
+                        valor={fmt.km(grupo.extensaoKm)}
+                        nota={`${grupo.trechos.length} trechos`}
+                      />
+                      <Leitura
+                        rotulo="Saídas"
+                        valor={`${grupo.trechos.length} → 1`}
+                        nota={`${grupo.saidasEvitadas} ${grupo.saidasEvitadas === 1 ? "evitada" : "evitadas"}`}
+                      />
+                      <Leitura
+                        rotulo="Deslocamento evitado"
+                        valor={`≈ ${fmt.km(grupo.economiaKm)}`}
+                        nota="estimativa"
+                      />
+                    </div>
 
-                    return (
-                      <li key={t.id}>
-                        <button
-                          type="button"
-                          aria-pressed={ativo}
-                          onClick={() => aoSelecionar(t.id)}
-                          className={cn(
-                            "inline-flex h-7 max-w-full items-center gap-1.5 rounded-full border px-2.5",
-                            "tnum font-mono text-2xs whitespace-nowrap",
-                            "transition-[background-color,border-color,color] duration-150 ease-[var(--ease-out-quint)]",
-                            ativo
-                              ? "border-accent bg-accent-soft text-accent"
-                              : "border-border bg-surface-2 text-ink-2 hover:border-border-strong hover:text-ink",
-                          )}
-                        >
-                          <span
-                            aria-hidden="true"
-                            className="inline-flex shrink-0"
-                            style={{ color: RISCO[t.risco].tinta }}
-                          >
-                            <IconeDominio nome={RISCO[t.risco].icone} className="size-3" />
-                          </span>
-                          <span className="truncate">
-                            {fmt.faixaKm(Number(t.km_inicio), Number(t.km_fim))}
-                          </span>
-                          <span className="sr-only">
-                            {" "}
-                            — risco {RISCO[t.risco].rotulo.toLowerCase()}. Abrir detalhe do trecho.
-                          </span>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </li>
-            );
-          })}
-        </ul>
-      </CartaoCorpo>
+                    <ul className="mt-3 flex flex-wrap gap-1.5">
+                      {grupo.trechos.map((t) => {
+                        const ativo = t.id === selecionado;
 
-      <CartaoRodape>
-        <p className="min-w-0 break-words">
-          Estimativa de deslocamento: cada saída separada percorreria o vão do agrupamento na ida e
-          na volta. A distância até a base da equipe não entra na conta.
-        </p>
-      </CartaoRodape>
+                        return (
+                          <li key={t.id}>
+                            <button
+                              type="button"
+                              aria-pressed={ativo}
+                              onClick={() => aoSelecionar(t.id)}
+                              className={cn(
+                                "inline-flex h-7 max-w-full items-center gap-1.5 rounded-full border px-2.5",
+                                "tnum font-mono text-2xs whitespace-nowrap",
+                                "transition-[background-color,border-color,color] duration-150 ease-[var(--ease-out-quint)]",
+                                ativo
+                                  ? "border-accent bg-accent-soft text-accent"
+                                  : "border-border bg-surface-2 text-ink-2 hover:border-border-strong hover:text-ink",
+                              )}
+                            >
+                              <span
+                                aria-hidden="true"
+                                className="inline-flex shrink-0"
+                                style={{ color: RISCO[t.risco].tinta }}
+                              >
+                                <IconeDominio nome={RISCO[t.risco].icone} className="size-3" />
+                              </span>
+                              <span className="truncate">
+                                {fmt.faixaKm(Number(t.km_inicio), Number(t.km_fim))}
+                              </span>
+                              <span className="sr-only">
+                                {" "}
+                                — risco {RISCO[t.risco].rotulo.toLowerCase()}. Abrir detalhe do
+                                trecho.
+                              </span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </li>
+                );
+              })}
+            </ul>
+          </CartaoCorpo>
+
+          <CartaoRodape>
+            <p className="min-w-0 break-words">
+              Estimativa de deslocamento: cada saída separada percorreria o vão do agrupamento na
+              ida e na volta. A distância até a base da equipe não entra na conta.
+            </p>
+          </CartaoRodape>
+        </div>
+      )}
     </Cartao>
   );
 }

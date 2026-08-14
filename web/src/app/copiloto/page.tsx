@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 
-import { CabecalhoPagina, MetricaCabecalho } from "@/components/shell/cabecalho-pagina";
-import { fmt } from "@/lib/format";
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { lacunasDeDados, listarAgendamentos, listarTrechos, montarPainel } from "@/lib/queries";
 
 import { Conversa } from "./_componentes/conversa";
 import { FichaModelo } from "./_componentes/ficha-modelo";
 import { QualidadeDados } from "./_componentes/qualidade-dados";
 import { montarSugestoes } from "./_componentes/sugestoes";
+import { TransparenciaSistema } from "./_componentes/transparencia-sistema";
 
 export const metadata: Metadata = {
   title: "Copiloto",
@@ -36,41 +36,25 @@ export default async function PaginaCopiloto() {
       .sort((a, b) => b.criado_em.localeCompare(a.criado_em))
       .find((a) => a.modelo_usado)?.modelo_usado ?? null;
 
-  const comprometidos = new Set(
-    [...lacunas.semPrevisao, ...lacunas.semMedicao, ...lacunas.medicaoVelha].map((t) => t.id),
-  );
-  const cobertura = painel.trechos_total
-    ? ((painel.trechos_total - comprometidos.size) / painel.trechos_total) * 100
-    : 0;
-
-  // A tela é de leitura: acima de ~1120px a coluna da conversa pararia de
-  // crescer e sobraria um vão morto entre ela e a lateral de transparência.
+  // O cabeçalho mantém a largura cheia (título + ícone de transparência) e
+  // altura de conteúdo (`shrink-0`); a conversa, sem mais coluna lateral ao
+  // lado, cresce (`flex-1`) até o rodapé da tela — é o `Shell` que já mede
+  // essa altura, essa página só precisa pedir pra usá-la.
   return (
-    <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-6 lg:gap-8">
+    <div className="mx-auto flex h-full min-h-0 w-full max-w-[1120px] flex-1 flex-col gap-6 lg:gap-8">
       <CabecalhoPagina
         titulo="Copiloto"
         destaque
-        metricas={
-          <>
-            <MetricaCabecalho rotulo="Malha" valor={fmt.n(painel.trechos_total)} unidade="trechos" />
-            <MetricaCabecalho
-              rotulo="Janela do copiloto"
-              valor={fmt.n(escopo)}
-              unidade="agendamentos"
-            />
-            <MetricaCabecalho rotulo="Leitura confiável" valor={fmt.pct(cobertura)} />
-          </>
+        className="shrink-0"
+        acoes={
+          <TransparenciaSistema>
+            <QualidadeDados lacunas={lacunas} total={painel.trechos_total} />
+            <FichaModelo modeloLlm={modeloLlm} />
+          </TransparenciaSistema>
         }
       />
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_23rem] xl:gap-8">
-        <Conversa sugestoes={sugestoes} escopo={escopo} />
-
-        <aside aria-label="Transparência do sistema" className="flex min-w-0 flex-col gap-6">
-          <QualidadeDados lacunas={lacunas} total={painel.trechos_total} />
-          <FichaModelo modeloLlm={modeloLlm} />
-        </aside>
-      </div>
+      <Conversa sugestoes={sugestoes} escopo={escopo} />
     </div>
   );
 }

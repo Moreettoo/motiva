@@ -1,14 +1,20 @@
 "use client";
 
 import { useId, useState } from "react";
-import { Check, CircleSlash, Flag, OctagonAlert, Undo2 } from "lucide-react";
+import { Check, CircleSlash, Flag, OctagonAlert, Pencil, Undo2 } from "lucide-react";
 
 import { BarraProgresso } from "@/components/ui/barra-progresso";
 import { Botao } from "@/components/ui/botao";
 import { Campo, Entrada, Selecao } from "@/components/ui/campo";
 import { Chip, ChipRisco, ChipStatus } from "@/components/ui/chip";
 import { PainelLateral } from "@/components/ui/painel-lateral";
-import { ESPECIE, TOM_BARRA_POR_RISCO, rotuloPrazo } from "@/lib/dominio";
+import {
+  DIAS_FOLGA_DISPENSA,
+  ESPECIE,
+  TOM_BARRA_POR_RISCO,
+  erroFaltaEquipe,
+  rotuloPrazo,
+} from "@/lib/dominio";
 import { fmt } from "@/lib/format";
 import type { Equipe, StatusAgendamento } from "@/lib/types";
 
@@ -82,6 +88,8 @@ function Gaveta({
   const previsao = item.ag.previsao;
   const ocupacao = trecho?.ocupacao_pct ?? null;
   const emAberto = item.status === "sugerido" || item.status === "aprovado";
+  const bloqueioAprovacao = erroFaltaEquipe(item.equipeId, "aprovado");
+  const bloqueioConclusao = erroFaltaEquipe(item.equipeId, "executado");
 
   return (
     <PainelLateral
@@ -96,7 +104,8 @@ function Gaveta({
             <Botao
               variante="primario"
               tamanho="sm"
-              disabled={pendente}
+              disabled={pendente || bloqueioAprovacao != null}
+              title={bloqueioAprovacao ?? undefined}
               iconeEsquerda={<Check />}
               onClick={() => aoMudarStatus(item, "aprovado")}
             >
@@ -108,7 +117,8 @@ function Gaveta({
             <Botao
               variante="primario"
               tamanho="sm"
-              disabled={pendente}
+              disabled={pendente || bloqueioConclusao != null}
+              title={bloqueioConclusao ?? undefined}
               iconeEsquerda={<Flag />}
               onClick={() => aoMudarStatus(item, "executado")}
             >
@@ -166,12 +176,42 @@ function Gaveta({
       <div className="flex flex-wrap items-center gap-2">
         <ChipRisco risco={item.risco} />
         <ChipStatus status={item.status} />
+        {/* Só o manual se anuncia. "Da IA" é o padrão desta tela — 198 das 199
+            linhas —, e carimbar o padrão em todo cartão é ruído; o que muda a
+            leitura é a exceção. O chip também é o que explica por que a seção
+            de baixo diz "Motivo do agendamento" e não "Justificativa da IA". */}
+        {item.manual ? (
+          <Chip tom="neutro" icone={<Pencil />}>
+            Agendada na mão
+          </Chip>
+        ) : null}
         {item.atrasado ? (
           <Chip tom="critical" icone={<OctagonAlert />}>
             Data vencida
           </Chip>
         ) : null}
+        {/* Os dois chips convivem aqui, ao contrário do cartão, que escolhe um:
+            a gaveta tem largura para os dois e é onde a decisão acontece. */}
+        {item.dispensavel ? (
+          <Chip tom="neutro" icone={<CircleSlash />}>
+            Não é mais necessária
+          </Chip>
+        ) : null}
       </div>
+
+      {/* A explicação de por que o selo apareceu, com o botão logo abaixo no
+          rodapé. O lote descarta sozinho o que ele mesmo sugeriu e o que já
+          venceu sem execução; um `aprovado` com data futura chega até aqui de
+          propósito, porque desfazer uma decisão humana em silêncio não é
+          trabalho de lote. */}
+      {item.dispensavel ? (
+        <p className="mt-3 rounded-md border border-border bg-surface-2 p-3 text-xs text-ink-2">
+          A previsão mudou desde que esta roçada foi marcada: o trecho tem mais
+          de {DIAS_FOLGA_DISPENSA} dias de folga até o limite de altura. Se ela
+          não for mais fazer sentido, descarte no rodapé — o lote não faz isso
+          sozinho com uma data que alguém aprovou.
+        </p>
+      ) : null}
 
       <p aria-live="polite" className="sr-only">
         {confirmando ? "Confirme o descarte no rodapé do painel." : ""}
@@ -250,8 +290,12 @@ function Gaveta({
       </section>
 
       <section className="mt-6">
+        {/* A mesma coluna do banco (`justificativa`) com dois donos possíveis.
+            Chamar de "Justificativa da IA" um texto que um gestor escreveu à
+            mão seria atribuir a decisão a quem não a tomou — na tela em que
+            alguém vai reler essa decisão daqui a três semanas. */}
         <h3 className="text-2xs font-medium tracking-widest text-ink-3 uppercase">
-          Justificativa da IA
+          {item.manual ? "Motivo do agendamento" : "Justificativa da IA"}
         </h3>
         <p className="mt-2 text-sm break-words text-ink-2">{item.ag.justificativa}</p>
 
@@ -274,7 +318,13 @@ function Gaveta({
         <h3 className="text-2xs font-medium tracking-widest text-ink-3 uppercase">Ajustar plano</h3>
 
         <div className="mt-3 flex flex-col gap-4">
-          <Campo rotulo="Equipe responsável" id={idEquipe}>
+          <Campo
+            rotulo="Equipe responsável"
+            id={idEquipe}
+            dica={
+              (item.status === "sugerido" ? bloqueioAprovacao : bloqueioConclusao) ?? undefined
+            }
+          >
             <Selecao
               value={item.equipeId == null ? "" : String(item.equipeId)}
               disabled={pendente}

@@ -7,7 +7,7 @@
  * como nullable.
  */
 
-export const UFS = ["MG", "MS", "PR", "RJ", "SP"] as const;
+export const UFS = ["MG", "MS", "PR", "RJ", "RS", "SC", "SP"] as const;
 export type UF = (typeof UFS)[number];
 
 export const ESPECIES = ["batatais", "braquiaria", "esmeralda"] as const;
@@ -18,6 +18,18 @@ export type Prioridade = (typeof PRIORIDADES)[number];
 
 export const STATUS_AGENDAMENTO = ["sugerido", "aprovado", "executado", "descartado"] as const;
 export type StatusAgendamento = (typeof STATUS_AGENDAMENTO)[number];
+
+/**
+ * Quem criou o agendamento: o lote diario (`ia`) ou um gestor no painel
+ * (`manual`).
+ *
+ * Coluna propria e nao deducao a partir de `modelo_usado`/`previsao_id` nulos:
+ * "nao sei qual modelo" e "nao houve modelo" sao fatos diferentes, e so o
+ * segundo autoriza o painel a trocar "Justificativa da IA" por "Motivo do
+ * agendamento" e a suprimir o selo de dispensavel.
+ */
+export const ORIGENS = ["ia", "manual"] as const;
+export type Origem = (typeof ORIGENS)[number];
 
 /** Risco derivado do prazo pela view, nao do texto da LLM. */
 export type Risco = Prioridade;
@@ -71,6 +83,11 @@ export type TrechoStatus = {
   justificativa: string | null;
   fatores: string[] | null;
   agendamento_status: StatusAgendamento | null;
+  /** Quem criou o agendamento aberto deste trecho. `null` quando nao ha nenhum
+   *  — e por isso nao e `Origem` puro, ao contrario da coluna da tabela. As
+   *  telas que mostram `justificativa` a partir da view precisam dele para nao
+   *  chamar de "Decisao da IA" um texto que um gestor digitou. */
+  agendamento_origem: Origem | null;
   equipe_id: number | null;
   equipe_nome: string | null;
 
@@ -107,6 +124,7 @@ export type Agendamento = {
   justificativa: string;
   fatores: string[] | null;
   status: StatusAgendamento;
+  origem: Origem;
   modelo_usado: string | null;
   equipe_id: number | null;
   atualizado_em: string | null;

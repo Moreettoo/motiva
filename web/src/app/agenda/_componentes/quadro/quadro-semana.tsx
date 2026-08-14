@@ -1,19 +1,17 @@
 "use client";
 
 import { useCallback, useId, useMemo, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, FilterX, OctagonAlert, RotateCcw } from "lucide-react";
+import { CalendarDays, FilterX, RotateCcw } from "lucide-react";
 
-import { Botao, BotaoIcone } from "@/components/ui/botao";
+import { Botao } from "@/components/ui/botao";
 import { EstadoVazio } from "@/components/ui/vazio";
-import { IconeDominio, Legenda } from "@/components/viz/legenda";
-import { ORDEM_RISCO, RISCO } from "@/lib/dominio";
 import { fmt, inicioDaSemana, somarDias } from "@/lib/format";
 import type { Equipe } from "@/lib/types";
-import { cn } from "@/lib/utils";
 
 import {
   chaveDia,
-  linhaAtenuada,
+  destaqueVisivel,
+  linhaDestacada,
   previaDoMovimento,
   type ChaveCelula,
   type Grade,
@@ -22,10 +20,9 @@ import {
   type ResumoDia,
 } from "../dados";
 import { CabecalhoDia } from "./cabecalho-dia";
-import { CartaoServico } from "./cartao-servico";
+import { CabecalhoQuadro } from "./cabecalho-quadro";
 import { LinhaTurma } from "./linha-turma";
 import { MiniMapa } from "./mini-mapa";
-import { alvoPropostas, ehAlvoPropostas } from "./navegacao";
 import { Sobrevoo } from "./sobrevoo";
 import { TrilhoResponsivo, useTrilhoEstreito } from "./trilho-responsivo";
 import { useArrasto, type Alvo, type CargaArrasto } from "./usar-arrasto";
@@ -48,16 +45,10 @@ const TETO_TRILHO = 25;
  *  um invisível colado no código não sobrevive a uma revisão nem a um `grep`. */
 const MARCA_RENOVACAO = "\u200B";
 
-/** Id que NENHUMA equipe tem \u2014 `ia.equipes.id` \u00E9 `serial`, sempre positivo.
- *  Existe para perguntar a `linhaAtenuada` (dados.tsx) s\u00F3 a metade da regra que
- *  n\u00E3o depende da linha \u2014 "h\u00E1 destaque, e ele tem linha nesta semana?" \u2014 sem
- *  reescrever essa pergunta aqui. Ver o memo `atenuadas`, mais abaixo. */
-const EQUIPE_INEXISTENTE = -1;
-
 /**
- * Quantos cart\u00F5es a PISTA monta: a linha de "Propostas da IA" mais as c\u00E9lulas
- * das linhas de turma \u2014 exatamente os dois `map` que este componente renderiza
- * (o do trilho n\u00E3o conta, ele \u00E9 outro tab stop e vive fora da pista).
+ * Quantos cart\u00F5es a PISTA monta: as c\u00E9lulas das linhas de equipe \u2014 exatamente o
+ * `map` que este componente renderiza (o do trilho n\u00E3o conta, ele \u00E9 outro tab
+ * stop e vive fora da pista).
  *
  * \u00C9 contagem de N\u00D3 MONTADO, n\u00E3o regra de dom\u00EDnio, e \u00E9 por isso que mora aqui em
  * vez de `dados.tsx`: quem responde "o quadro est\u00E1 vazio?" \u00E9 quem desenha o
@@ -71,18 +62,17 @@ const EQUIPE_INEXISTENTE = -1;
  */
 function contarCartoesDaPista(grade: Grade): number {
   let total = 0;
-  for (const lista of grade.propostas.values()) total += lista.length;
   for (const linha of grade.linhas) for (const celula of linha.celulas) total += celula.itens.length;
   return total;
 }
 
 /* Adjacência que precisa ficar dita, senão as duas derivam em silêncio:
-   `idsDoQuadro` (em `usar-foco-grade.ts`) percorre exatamente estas mesmas duas
-   fontes, e `idsDoQuadro(grade).size === 0` é equivalente a
+   `idsDoQuadro` (em `usar-foco-grade.ts`) percorre exatamente esta mesma fonte,
+   e `idsDoQuadro(grade).size === 0` é equivalente a
    `contarCartoesDaPista(grade) === 0`. Não são a mesma função porque respondem a
    perguntas diferentes — lá é o universo de elegibilidade do roving tabindex,
    aqui é quantos nós este componente monta —, e só coincidem no zero. Quem
-   mudar as fontes de uma tem que mudar as da outra: divergindo, a rede de Tab
+   mudar a fonte de uma tem que mudar a da outra: divergindo, a rede de Tab
    aparece com cartão na tela, ou fica escondida sem nenhum. */
 
 /**
@@ -118,20 +108,23 @@ function renovarAnuncio(anterior: string, texto: string): string {
 }
 
 /**
- * A frase que descreve o destaque de equipe. Fala "equipe", não "turma", de
- * propósito: ela narra o controle do nível da PÁGINA ("Destacar equipe", em
- * `controles.tsx`) que a pessoa acabou de mexer, e não o rótulo de dentro do
- * quadro — ver o comentário do canto da grade, mais abaixo.
+ * A frase que descreve o destaque de equipe.
  *
  * Pura, e é ela que serve de "valor anterior" da guarda de mudança: comparar a
  * frase pronta responde exatamente à pergunta que interessa — a narração seria
  * diferente? — sem inventar uma chave composta que precise de separador.
+ *
+ * O texto mudou junto com o tratamento visual. Ele dizia "as demais equipes
+ * aparecem atenuadas no quadro", descrevendo uma veladura que, medida, não
+ * produzia diferença perceptível no tema escuro (1,03:1 mesmo a 20% de preto).
+ * Descrever para quem não vê a tela um efeito que quem vê também não via era
+ * errado nas duas pontas; agora ele narra o realce que de fato acontece.
  */
 function textoDoDestaque(nome: string | null, visivelNaSemana: boolean): string {
   if (!nome) return "Destaque de equipe removido.";
   return visivelNaSemana
-    ? `${nome} em destaque. As demais equipes aparecem atenuadas no quadro.`
-    : `${nome} em destaque. Nenhum serviço desta equipe nesta semana — nada atenuado.`;
+    ? `${nome} em destaque. A linha dela aparece realçada no quadro.`
+    : `${nome} em destaque. Nenhum serviço desta equipe nesta semana — nada a realçar.`;
 }
 
 export function QuadroSemana({
@@ -141,6 +134,11 @@ export function QuadroSemana({
   hoje,
   semana,
   equipeFoco,
+  rocadasNaSemana,
+  kmNaSemana,
+  criticosSemData,
+  controles,
+  acoes,
   totalAtrasados,
   semanaAtraso,
   servicosNaSemanaSemFiltro,
@@ -166,6 +164,24 @@ export function QuadroSemana({
    *  pode virar objeto/função recriada a cada render, sob pena de derrubar o
    *  memo dos ~130 cartões durante o `pointermove` do arrasto. */
   equipeFoco: number | null;
+  /** Serviços em aberto com data na semana visível, e a soma de km deles — a
+   *  legenda numérica do cabeçalho. Vêm de fora, e não de `grade`, porque a
+   *  grade só conhece o que TEM equipe desde que a linha "Propostas da IA"
+   *  saiu: derivar daqui contaria menos do que o quadro representa. Escalares,
+   *  como `equipeFoco`, para não derrubar o `memo` dos cartões. */
+  rocadasNaSemana: number;
+  kmNaSemana: number;
+  /** Trechos de risco crítico sem NENHUM agendamento em aberto. Da malha
+   *  inteira, como `totalAtrasados`, e pelo mesmo motivo: o filtro escolhe o
+   *  que olhar e não pode decidir se o problema existe. */
+  criticosSemData: number;
+  /** `<Controles>`, montado por `planejamento.tsx` — o quadro só reserva o
+   *  canto do cabeçalho para ele. Nó e não props porque nada aqui depende do
+   *  que os controles fazem; eles governam o filtro, que chega já aplicado. */
+  controles: React.ReactNode;
+  /** O botão de criar roçada manual, montado por `planejamento.tsx`. Mesmo
+   *  contrato de `controles`: o quadro só reserva o canto do cabeçalho. */
+  acoes: React.ReactNode;
   /** Da malha inteira, não só da semana visível — ver o comentário em
    *  `planejamento.tsx`. */
   totalAtrasados: number;
@@ -238,36 +254,22 @@ export function QuadroSemana({
   const equipePorId = useMemo(() => new Map(equipes.map((e) => [e.id, e])), [equipes]);
   const equipeFocoNome = equipeFoco != null ? (equipePorId.get(equipeFoco)?.nome ?? null) : null;
 
-  /* A regra do destaque é a de `linhaAtenuada` (dados.tsx) — a função TESTADA.
-     Este arquivo reimplementava a mesma regra à mão em dois lugares (um memo de
-     "o foco tem linha nesta semana" e a expressão que decidia `atenuada` por
-     linha) enquanto a função não tinha consumidor de produção nenhum: duas
-     cópias que concordavam, e a que rodava não era a coberta por teste.
+  /* O destaque marca UMA linha, e antes apagava as outras nove.
+     `linhaDestacada` (dados.tsx) é a função testada, e agora não precisa varrer
+     `linhas` — ela compara dois ids —, então a chamada mora direto no `map` das
+     linhas, sem memo e sem o O(n²) que a versão anterior obrigava. Cada
+     `<LinhaTurma>` continua recebendo só um booleano.
 
-     Um memo com o conjunto pronto, e não uma chamada solta dentro do `map` das
-     linhas: `linhaAtenuada` varre `linhas` por dentro para responder "a equipe
-     em foco aparece nesta semana?", então chamá-la por linha é O(n²) — e há
-     render a cada quadro do `pointermove`. Cada `<LinhaTurma>` continua
-     recebendo só um booleano, como antes.
+     `destaqueTemLinha` é outra pergunta, e continua precisando das linhas: é o
+     que a região viva usa para distinguir "realcei e você vai ver" de "esta
+     equipe não tem serviço nesta semana". Não é "alguma linha está destacada" —
+     com uma linha só, e ela sendo a em foco, o destaque está na tela. */
+  const destaqueTemLinha = useMemo(
+    () => destaqueVisivel(equipeFoco, grade.linhas),
+    [equipeFoco, grade.linhas],
+  );
 
-     `destaqueTemLinha` é a MESMA pergunta, feita à MESMA função: com um id que
-     nenhuma equipe tem, o último termo da regra (`equipeId !== focoEquipeId`) é
-     sempre verdadeiro e sobra exatamente "existe destaque E ele tem linha
-     aqui". Não é `atenuadas.size > 0`: com uma linha só, e ela sendo a em foco,
-     nada atenua e o destaque ainda assim está na tela — o anúncio diria que a
-     equipe não tem serviço na semana quando ela tem. */
-  const { atenuadas, destaqueTemLinha } = useMemo(() => {
-    const conjunto = new Set<number>();
-    for (const linha of grade.linhas) {
-      if (linhaAtenuada(linha.equipe.id, equipeFoco, grade.linhas)) conjunto.add(linha.equipe.id);
-    }
-    return {
-      atenuadas: conjunto,
-      destaqueTemLinha: linhaAtenuada(EQUIPE_INEXISTENTE, equipeFoco, grade.linhas),
-    };
-  }, [equipeFoco, grade.linhas]);
-
-  /* Quem não vê a tela não percebe a opacidade das linhas atenuadas — só a
+  /* Quem não vê a tela não percebe o realce da linha — só a
      região viva conta essa história. Ela depende de `destaqueTemLinha`, não
      só do nome: trocar de SEMANA com o MESMO destaque ativo pode fazer a equipe
      em foco ganhar ou perder a linha, e a narração precisa reavaliar nesse
@@ -309,15 +311,14 @@ export function QuadroSemana({
           ? "Este serviço já está na fila."
           : null;
       }
-      // Pseudo-alvo da linha "Propostas da IA" (ver `alvoPropostas`, em
-      // `navegacao.ts`): nunca um destino real, `grade.porCelula` não o
-      // conhece. A regra 4 da spec (§1) proíbe marcar um dia sem equipe —
-      // esta é a frase literal que ela pede.
-      if (ehAlvoPropostas(alvo)) return "Escolha uma equipe — um dia só é marcado com turma.";
+      // A regra 4 da spec (§1) — "um dia só é marcado com equipe" — não precisa
+      // mais de recusa nenhuma: com a linha "Propostas da IA" fora do quadro,
+      // toda coluna de todo dia pertence à raia de UMA equipe, e não existe
+      // região onde soltar signifique marcar um dia sem escolher quem vai.
       const celula = grade.porCelula.get(alvo);
       if (!celula) return "Essa célula não existe mais. Recarregue a página.";
       if (celula.dia < hoje) return "Esse dia já passou.";
-      if (!celula.aceitaSolta) return "Essa turma está desativada e não recebe serviço novo.";
+      if (!celula.aceitaSolta) return "Essa equipe está desativada e não recebe serviço novo.";
       return null;
     },
     [grade, hoje, porId],
@@ -325,7 +326,7 @@ export function QuadroSemana({
 
   const descrever = useCallback(
     (alvo: Alvo, carga: CargaArrasto): string => {
-      if (alvo === "fila") return "Fila de decisão. Soltar aqui tira a turma.";
+      if (alvo === "fila") return "Fila de decisão. Soltar aqui tira a equipe.";
       const celula = grade.porCelula.get(alvo);
       if (!celula) return "";
       const equipe = equipePorId.get(celula.equipeId);
@@ -333,7 +334,7 @@ export function QuadroSemana({
       const previa = item ? previaDoMovimento(grade, item, alvo, equipes).get(alvo) : null;
       const leitura = previa ?? celula;
 
-      return `${fmt.dataLonga(celula.dia)}. ${equipe?.nome ?? "Turma"}. ${fmt.km(leitura.km)} de ${fmt.km(celula.capacidade)} no dia.${leitura.excedida ? " Acima da capacidade." : ""}`;
+      return `${fmt.dataLonga(celula.dia)}. ${equipe?.nome ?? "Equipe"}. ${fmt.km(leitura.km)} de ${fmt.km(celula.capacidade)} no dia.${leitura.excedida ? " Acima da capacidade." : ""}`;
     },
     [grade, equipePorId, equipes, porId],
   );
@@ -364,6 +365,11 @@ export function QuadroSemana({
     [aoNavegar, semana],
   );
 
+  const irParaHoje = useCallback(
+    () => aoNavegar(chaveDia(inicioDaSemana(hoje))),
+    [aoNavegar, hoje],
+  );
+
   const { estado, iniciar, aoTeclar, engolirClique } = useArrasto({
     grade,
     validar,
@@ -390,7 +396,7 @@ export function QuadroSemana({
   // para `usar-foco-grade.ts` porque é a única parte deste arquivo que mexe
   // com foco/refs de DOM, e separá-la também isola as supressões do eslint
   // que essa mexida exige.
-  const { idAtivo, idAtivoNoTrilho, refCartao, aoFocar } = useFocoGrade({
+  const { idAtivo, idAtivoTrilho, refCartao, aoFocar } = useFocoGrade({
     grade,
     filaVisivel,
     emVoo,
@@ -443,7 +449,7 @@ export function QuadroSemana({
      gestor desmarca dois chips, vê a semana branca e conclui que não há serviço
      nenhum para planejar. Se a pista está vazia e a semana TEM serviço, ele está
      todo fora do filtro — não há terceira explicação, porque serviço em aberto
-     com data na janela sempre ganha lugar (célula, se tem turma; propostas, se
+     com data na janela sempre ganha lugar (célula, se tem equipe; propostas, se
      não tem).
 
      A segunda frase fala em "data nesta semana", não em "serviço nesta semana",
@@ -466,7 +472,7 @@ export function QuadroSemana({
             icone: <CalendarDays />,
             titulo: "Nenhum serviço com data nesta semana.",
             descricao:
-              "Arraste um cartão da fila de decisão para um dia e uma turma, ou navegue para outra semana.",
+              "Arraste um cartão da fila de decisão para um dia e uma equipe, ou navegue para outra semana.",
           };
 
   const idTitulo = useId();
@@ -482,60 +488,25 @@ export function QuadroSemana({
         Quadro da semana
       </h2>
 
-      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <BotaoIcone rotulo="Semana anterior" tamanho="sm" onClick={() => navegarSemana(-1)}>
-            <ChevronLeft />
-          </BotaoIcone>
-          {/* Sem `aria-live`, de propósito: esta faixa é o RÓTULO do controle que
-              a própria pessoa acabou de acionar (‹, ›, Hoje, ou uma coluna do
-              mini-mapa), o foco permanece no botão e o passo do movimento já
-              narra a chegada. Viva, ela só competia com as duas regiões do fim do
-              arquivo — um Shift+seta durante um movimento por teclado disparava
-              três anúncios de uma vez. */}
-          <p className="tnum min-w-0 font-mono text-sm text-ink">
-            {fmt.dataCurta(grade.janela.inicio)} – {fmt.dataMedia(grade.janela.fim)}
-          </p>
-          <BotaoIcone rotulo="Próxima semana" tamanho="sm" onClick={() => navegarSemana(1)}>
-            <ChevronRight />
-          </BotaoIcone>
-          <Botao
-            tamanho="sm"
-            variante="fantasma"
-            onClick={() => aoNavegar(chaveDia(inicioDaSemana(hoje)))}
-          >
-            Hoje
-          </Botao>
-
-          {totalAtrasados > 0 && semanaAtraso ? (
-            <Botao
-              tamanho="sm"
-              variante="perigo"
-              iconeEsquerda={<OctagonAlert />}
-              onClick={aoIrParaAtrasados}
-            >
-              {fmt.contar(totalAtrasados, "vencido")} · ir para a semana
-            </Botao>
-          ) : null}
-        </div>
-
-        <div className="flex min-w-0 flex-col items-start gap-2">
-          <Legenda
-            itens={ORDEM_RISCO.map((risco) => ({
-              rotulo: RISCO[risco].rotulo,
-              cor: RISCO[risco].cor,
-              icone: <IconeDominio nome={RISCO[risco].icone} />,
-            }))}
-          />
-          <p className="text-2xs text-ink-3">
-            Hachura vermelha marca o dia em que a equipe passa da capacidade.
-          </p>
-        </div>
-      </div>
+      <CabecalhoQuadro
+        janela={grade.janela}
+        hoje={hoje}
+        rocadas={rocadasNaSemana}
+        km={kmNaSemana}
+        totalAtrasados={totalAtrasados}
+        semanaAtraso={semanaAtraso}
+        criticosSemData={criticosSemData}
+        controles={controles}
+        acoes={acoes}
+        aoNavegarSemana={navegarSemana}
+        aoIrParaHoje={irParaHoje}
+        aoIrParaAtrasados={aoIrParaAtrasados}
+      />
 
       <MiniMapa
         resumos={resumo28dias}
         janela={grade.janela.dias}
+        hoje={hoje}
         aoEscolherSemana={(dia) => aoNavegar(chaveDia(inicioDaSemana(dia)))}
       />
 
@@ -550,7 +521,7 @@ export function QuadroSemana({
           janelaFim={grade.janela.fim}
           realcado={alvoAtual === "fila" && !recusaAtual}
           idEmVoo={emVoo}
-          idAtivo={idAtivoNoTrilho}
+          idAtivo={idAtivoTrilho}
           selecionado={selecionado}
           salvandoIds={salvandoIds}
           anelErroPorId={anelErroPorId}
@@ -581,85 +552,25 @@ export function QuadroSemana({
                 não é mais alto que um cabeçalho nem mais largo que uma calha —
                 marcá-lo não mudaria um pixel dos insets. */}
             <div className="sticky top-0 left-0 z-30 border-r border-b border-border bg-surface px-2 py-1.5">
-              {/* "Turma", não "Equipe": dentro do quadro o rótulo de interface é
-                  TURMA — é o que dizem a calha ao lado (`sem turma`), os textos de
+              {/* "Equipe", não "Equipe": dentro do quadro o rótulo de interface é
+                  EQUIPE — é o que dizem a calha ao lado (`sem equipe`), os textos de
                   recusa e a ajuda do trilho, e duas palavras para a mesma coisa na
                   MESMA faixa de cabeçalho não têm defesa. "Equipe" continua sendo
                   o nome da ENTIDADE no código (`Equipe`, `equipeId`, `ia.equipes`)
                   e o rótulo dos controles no nível da PÁGINA ("Destacar equipe",
                   "Equipes mobilizadas"), que não são parte do quadro. */}
-              <span className="block text-2xs tracking-widest text-ink-3 uppercase">Turma</span>
+              <span className="block text-2xs tracking-widest text-ink-3 uppercase">Equipe</span>
             </div>
 
             {grade.janela.dias.map((dia, i) => (
               <CabecalhoDia key={dia} dia={dia} hoje={hoje} resumo={grade.porDia[i]} />
             ))}
 
-            {/* `data-obstaculo="esquerda"`: esta calha é `sticky left-0` na mesma
-                coluna de 144px, DENTRO da `.quadro-pista`, então come a faixa
-                esquerda da área em que se solta um cartão — mesma convenção do
-                cabeçalho do dia e da calha da turma (ver `usar-arrasto.ts`).
-                Marcar aqui também, e não só em `linha-turma.tsx`, não é
-                redundância: quando nenhuma turma ganha linha na semana (filtro de
-                equipes, ou toda turma desativada e sem serviço na janela — ver
-                `equipesComLinha`), esta é a ÚNICA calha na tela, e sem o atributo
-                os 144px ficariam sem inset. */}
-            <div
-              data-obstaculo="esquerda"
-              className="sticky left-0 z-10 border-r border-b border-border bg-surface px-2 py-1.5"
-            >
-              <span className="block text-2xs font-medium text-ink-2">Propostas da IA</span>
-              <span className="block text-2xs text-ink-3">sem turma</span>
-            </div>
-
-            {grade.janela.dias.map((dia) => {
-              // A linha de Propostas nunca aceita solta (regra 4, spec §1):
-              // soltar aqui marcaria um dia sem equipe. `data-celula-recusada`
-              // deixa o hit-test do ponteiro reconhecer a região SEM que ela
-              // vire um alvo válido — o mesmo atributo que `CelulaEquipe` usa
-              // para célula passada/turma desativada, ver `usar-arrasto.ts`.
-              const alvo = alvoPropostas(dia);
-              const recusadaAqui = alvoAtual === alvo && recusaAtual != null;
-              return (
-                <div
-                  key={`prop-${dia}`}
-                  data-celula-recusada={alvo}
-                  className={cn(
-                    "border-b border-l border-grid p-1.5",
-                    recusadaAqui && "ring-2 ring-ink-3 ring-inset cursor-not-allowed",
-                  )}
-                >
-                  <ul className="flex min-w-0 flex-col gap-1">
-                    {(grade.propostas.get(dia) ?? []).map((item) => (
-                      <CartaoServico
-                        key={item.id}
-                        item={item}
-                        origem="fila"
-                        compacto
-                        fantasma={item.id === emVoo}
-                        selecionado={item.id === selecionado}
-                        salvando={salvandoIds.has(item.id)}
-                        anelErro={anelErroPorId.get(item.id) ?? 0}
-                        ativo={item.id === idAtivo}
-                        desfazer={null}
-                        aoPegar={iniciar}
-                        aoTeclar={aoTeclar}
-                        aoAbrir={aoSelecionar}
-                        engolirClique={engolirClique}
-                        refCartao={refCartao("propostas", item.id)}
-                        aoFocar={aoFocar("propostas", item.id)}
-                      />
-                    ))}
-                  </ul>
-                </div>
-              );
-            })}
-
             {grade.linhas.map((linha) => (
               <LinhaTurma
                 key={linha.equipe.id}
                 linha={linha}
-                atenuada={atenuadas.has(linha.equipe.id)}
+                destacada={linhaDestacada(linha.equipe.id, equipeFoco)}
                 previa={previa}
                 alvoAtual={alvoAtual}
                 recusaAtual={recusaAtual}
@@ -729,9 +640,9 @@ export function QuadroSemana({
 
           O preço de uma região só é que o último a escrever vence DENTRO de um
           mesmo commit, e isso custa algo em UM caso: se uma solta muda o destaque
-          no mesmo evento — o destaque aponta para uma turma desativada e o serviço
+          no mesmo evento — o destaque aponta para uma equipe desativada e o serviço
           movido era o último dela na semana, o único jeito de `destaqueTemLinha`
-          virar, já que turma ativa sempre tem linha — a frase do destaque cobre a
+          virar, já que equipe ativa sempre tem linha — a frase do destaque cobre a
           do desfecho, porque a guarda do destaque roda no render que a própria
           solta provocou. Aceitável: a frase que sobra descreve a consequência da
           mesma ação ("nenhum serviço desta equipe nesta semana"), e o cartão

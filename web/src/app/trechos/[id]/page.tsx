@@ -100,7 +100,14 @@ export default async function PaginaTrecho({ params }: { params: Promise<{ id: s
         <CabecalhoPagina
           className="mt-3"
           titulo={trecho.rodovia}
-          descricao="Por que a IA decidiu esta data, e o que sustenta a decisão."
+          /* A promessa do subtítulo tem de bater com o card lá embaixo: numa
+             roçada marcada na mão não houve IA nenhuma decidindo a data, e o
+             card já diz isso — o topo da página não pode prometer o contrário. */
+          descricao={
+            agendamentoAtual?.origem === "manual"
+              ? "Por que esta roçada foi marcada na mão, e o que sustenta a decisão."
+              : "Por que a IA decidiu esta data, e o que sustenta a decisão."
+          }
           metricas={
             <>
               <MetricaCabecalho

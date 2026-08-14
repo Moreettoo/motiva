@@ -5,8 +5,6 @@ import type { Equipe } from "@/lib/types";
 import { chaveCelula, montarGrade, montarJanela, type Grade } from "../dados";
 import {
   alvoNaBordaDaSemana,
-  alvoPropostas,
-  ehAlvoPropostas,
   proximoAlvo,
   realinharAlvo,
   sufixoDeBorda,
@@ -18,7 +16,7 @@ function equipe(id: number, nome: string): Equipe {
   } as Equipe;
 }
 
-// Duas turmas, ordenadas por base_uf e depois nome: "Alfa" antes de "Beta".
+// Duas equipes, ordenadas por base_uf e depois nome: "Alfa" antes de "Beta".
 const equipes = [equipe(1, "Alfa"), equipe(2, "Beta")];
 const grade: Grade = montarGrade({
   itens: [],
@@ -39,7 +37,7 @@ describe("proximoAlvo", () => {
     });
   });
 
-  it("anda de turma com cima e baixo", () => {
+  it("anda de equipe com cima e baixo", () => {
     expect(proximoAlvo(grade, chaveCelula("2026-08-12", 1), "baixo")).toEqual({
       tipo: "alvo",
       alvo: chaveCelula("2026-08-12", 2),
@@ -127,12 +125,12 @@ describe("sufixoDeBorda", () => {
 });
 
 describe("realinharAlvo", () => {
-  it("desloca o mesmo dia da semana e a mesma turma", () => {
+  it("desloca o mesmo dia da semana e a mesma equipe", () => {
     expect(realinharAlvo(chaveCelula("2026-08-12", 1), 1)).toBe(chaveCelula("2026-08-19", 1));
     expect(realinharAlvo(chaveCelula("2026-08-12", 1), -1)).toBe(chaveCelula("2026-08-05", 1));
   });
 
-  it("preserva a turma mesmo quando a semana muda de mês", () => {
+  it("preserva a equipe mesmo quando a semana muda de mês", () => {
     expect(realinharAlvo(chaveCelula("2026-08-31", 2), 1)).toBe(chaveCelula("2026-09-07", 2));
   });
 
@@ -156,7 +154,7 @@ describe("alvoNaBordaDaSemana", () => {
     );
   });
 
-  it("preserva a turma", () => {
+  it("preserva a equipe", () => {
     expect(alvoNaBordaDaSemana(grade, chaveCelula("2026-08-16", 2), 1)).toBe(
       chaveCelula("2026-08-17", 2),
     );
@@ -167,14 +165,9 @@ describe("alvoNaBordaDaSemana", () => {
   });
 });
 
-describe("alvoPropostas / ehAlvoPropostas", () => {
-  it("produz um pseudo-alvo reconhecível pelo próprio dia", () => {
-    expect(alvoPropostas("2026-08-13")).toBe("propostas:2026-08-13");
-    expect(ehAlvoPropostas(alvoPropostas("2026-08-13"))).toBe(true);
-  });
-
-  it("nunca confunde uma célula de verdade (mesmo separador diferente) com propostas", () => {
-    expect(ehAlvoPropostas(chaveCelula("2026-08-13", 1))).toBe(false);
-    expect(ehAlvoPropostas("fila")).toBe(false);
-  });
-});
+/* Havia aqui um `describe("alvoPropostas / ehAlvoPropostas")`, com os dois
+   testes do pseudo-alvo da linha "Propostas da IA". A linha saiu do quadro
+   (duplicava a fila de decisão) e com ela o único `Alvo` que nunca era destino
+   de solta de verdade — não sobrou nada para esses testes cobrirem. Os dois
+   valores que `Alvo` ainda tem, célula e `"fila"`, já são exercitados pelos
+   `describe` acima. */

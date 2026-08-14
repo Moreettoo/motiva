@@ -93,6 +93,24 @@ export function piorRiscoDe(itens: readonly { risco: Risco }[]): Risco {
   return pior;
 }
 
+/**
+ * Regra: um agendamento só pode ser aprovado ou concluído com uma equipe
+ * atribuída — equipe não é opcional em nenhuma das duas transições.
+ *
+ * Fica aqui, e não repetida em `acoes.ts` e nos componentes, porque as pontas
+ * (a trava do servidor e o botão desabilitado na tela) precisam continuar de
+ * acordo — como `riscoPorPrazo` já é, entre a view e o painel.
+ */
+export function erroFaltaEquipe(
+  equipeId: number | null,
+  status: "aprovado" | "executado",
+): string | null {
+  if (equipeId != null) return null;
+  return status === "executado"
+    ? "Atribua uma equipe antes de marcar como executada."
+    : "Atribua uma equipe antes de aprovar.";
+}
+
 export const STATUS: Record<StatusAgendamento, { rotulo: string; icone: string; tinta: string; fundo: string }> = {
   sugerido: { rotulo: "Sugerido", icone: "Sparkles", tinta: "var(--ink-2)", fundo: "var(--surface-3)" },
   aprovado: { rotulo: "Aprovado", icone: "CircleCheck", tinta: "var(--good-ink)", fundo: "var(--good-soft)" },
@@ -147,6 +165,32 @@ export function riscoPorPrazo(diasAteLimite: number | null | undefined): Risco {
   if (diasAteLimite <= 20) return "alta";
   if (diasAteLimite <= 45) return "media";
   return "baixa";
+}
+
+/**
+ * A partir de quantos dias de folga um agendamento em aberto deixa de fazer
+ * sentido. Espelha `LIMIAR_FECHAR_DIAS` em `analisar_lote.py`, e as duas
+ * precisam continuar iguais — como a regra de risco entre a view e este arquivo.
+ *
+ * Por que 55 e não os 45 de `LIMIAR_DIAS` (o limiar de CRIAR): a banda de 10
+ * dias entre criar e fechar é histerese. Com o mesmo número nas duas pontas, um
+ * trecho oscilando entre 44 e 46 dias por causa de uma medição nova abriria e
+ * fecharia agendamento todo dia.
+ */
+export const DIAS_FOLGA_DISPENSA = 55;
+
+/**
+ * O agendamento deste trecho ainda é necessário?
+ *
+ * `null` (nenhuma previsão) NÃO é dispensável, e este é o ponto da função. A
+ * view carimba `risco = 'baixa'` quando `dias_ate_limite` é nulo, então testar
+ * o risco trataria "trecho sobre o qual não se sabe nada" como "trecho
+ * folgado" — e mandaria descartar o agendamento justamente de quem não tem
+ * previsão para justificar a decisão. A migração de 2026-08-14 e o
+ * `analisar_lote.py` usam esta mesma guarda em SQL e em Python.
+ */
+export function dispensaAgendamento(diasAteLimite: number | null | undefined): boolean {
+  return diasAteLimite != null && diasAteLimite > DIAS_FOLGA_DISPENSA;
 }
 
 /** Rotulo curto do prazo, incluindo o caso "ja passou". */

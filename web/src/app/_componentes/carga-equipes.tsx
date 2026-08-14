@@ -4,7 +4,7 @@ import { GraficoBarras, type BarraDado } from "@/components/viz/barras";
 import { fmt } from "@/lib/format";
 
 /**
- * Ocupação por turma nos próximos 21 dias.
+ * Ocupação por equipe nos próximos 21 dias.
  *
  * Uma medida só, então uma cor só (slot 1) com rótulo direto — o eixo viraria
  * ruído. Quem passa de 100% troca para a escala de status, e por isso vem com
@@ -19,8 +19,8 @@ export function CargaDasEquipes({
 }) {
   const descricao =
     sobrecarregadas > 0
-      ? `${sobrecarregadas === 1 ? "1 turma passou" : `${sobrecarregadas} turmas passaram`} da capacidade dos próximos 21 dias`
-      : "Km agendados sobre a capacidade de cada turma nos próximos 21 dias";
+      ? `${sobrecarregadas === 1 ? "1 equipe passou" : `${sobrecarregadas} equipes passaram`} da capacidade dos próximos 21 dias`
+      : "Km agendados sobre a capacidade de cada equipe nos próximos 21 dias";
 
   return (
     <GraficoBarras

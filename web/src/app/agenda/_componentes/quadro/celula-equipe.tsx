@@ -54,7 +54,7 @@ export const CelulaEquipe = memo(function CelulaEquipe({
   previa,
   realcada,
   recusada,
-  atenuada,
+  destacada,
   children,
 }: {
   celula: Celula;
@@ -63,8 +63,10 @@ export const CelulaEquipe = memo(function CelulaEquipe({
   previa: Ocupacao | null;
   realcada: boolean;
   recusada: boolean;
-  /** Outra equipe está em destaque (`controles.tsx`) e não é esta. */
-  atenuada: boolean;
+  /** ESTA é a equipe escolhida no seletor de destaque. Era o inverso
+   *  (`atenuada`, nas outras) e não dava sinal visível — ver `linhaDestacada`,
+   *  em `dados.tsx`, para as medições. */
+  destacada: boolean;
   children: React.ReactNode;
 }) {
   const leitura = previa ?? celula;
@@ -91,7 +93,7 @@ export const CelulaEquipe = memo(function CelulaEquipe({
          a posição física do rótulo no DOM deixa de importar, e ele pode
          continuar no fim, sem disputar espaço com a coluna de cartões. Sem
          grupo, o rótulo era um `sr-only` DEPOIS dos cartões e quem ouve a tela
-         recebia "BR-101…" antes de saber de que dia e de que turma.
+         recebia "BR-101…" antes de saber de que dia e de que equipe.
 
          Mas isso é tudo que `group` compra: navegação, não. Não é um dos
          landmarks da ARIA 1.2 — a definição dele é uma exclusão explícita, um
@@ -112,8 +114,8 @@ export const CelulaEquipe = memo(function CelulaEquipe({
          Célula vazia volta a ser `<div>` mudo, e nada se perde: `data-celula` não
          muda (ela continua alvo de solta pelo ponteiro) e no caminho de teclado
          quem narra é `descrever`/`validar`, em `quadro-semana.tsx`, que já falam
-         dia, turma, carga e o motivo da recusa a cada passo — inclusive o "Essa
-         turma está desativada e não recebe serviço novo." que o rótulo daqui
+         dia, equipe, carga e o motivo da recusa a cada passo — inclusive o "Essa
+         equipe está desativada e não recebe serviço novo." que o rótulo daqui
          carrega quando a célula é nomeada.
 
          NÃO `region`: seria estritamente pior — inundaria a única lista onde a
@@ -129,7 +131,7 @@ export const CelulaEquipe = memo(function CelulaEquipe({
          Em vez disso emite `data-celula-recusada`, um atributo PRÓPRIO que o
          hit-test (`alvoSob`, em `usar-arrasto.ts`) sabe ler sem tratar como
          destino válido: carrega a MESMA `celula.chave`, então `validar`
-         (que já sabe dizer "Esse dia já passou."/"Essa turma está
+         (que já sabe dizer "Esse dia já passou."/"Essa equipe está
          desativada…") roda normalmente e o estado de recusa é desenhado de
          verdade — em vez de resolver para `null` e a solta virar um no-op
          silencioso. */
@@ -137,32 +139,39 @@ export const CelulaEquipe = memo(function CelulaEquipe({
       data-celula-recusada={celula.aceitaSolta ? undefined : celula.chave}
       className={cn(
         "quadro-celula relative flex min-w-0 flex-col gap-1 border-b border-l border-grid p-1.5",
+        /* O realce da equipe em destaque: um tom de MARCA na célula, e não uma
+           veladura nas outras. Aqui está o que a versão anterior errava.
+
+           Ela escurecia as nove linhas FORA de foco com `bg-velatura`
+           (preto puro) a 3%. O raciocínio de escolher 3% está preservado abaixo
+           porque a conclusão dele importa; o que ele nunca mediu é se 3%
+           PRODUZ diferença. Produz quase nada no claro (1,072:1) e nada no
+           escuro (1,007:1 — e ainda 1,030:1 a 20%, porque preto sobre
+           quase-preto não tem para onde ir). Era um controle que respondia sem
+           dar sinal.
+
+           `bg-accent-soft` resolve por matiz em vez de luminância: 1,067:1 de
+           luminância no claro e 1,224:1 no escuro, mas com desvio de MATIZ nos
+           dois — verde pálido contra quase-branco, verde escuro contra
+           quase-preto —, que é o canal que o olho lê em áreas grandes e
+           adjacentes. E custa zero contraste de texto: o único texto que pousa
+           direto no fundo da célula é o rótulo `km/capacidade`, e ele carrega
+           `bg-surface` próprio (ver mais abaixo), então nem toca esta camada.
+
+           O raciocínio antigo, mantido porque continua verdadeiro sobre os
+           CARTÕES: eles pintam com o par do RISCO, calibrado perto do piso de
+           4,5:1, então mexer na opacidade deles arriscaria furar o piso sem
+           rodar o validador de paleta de novo. Nada aqui mexe neles.
+
+           `ring-accent` do alvo de arrasto continua vencendo visualmente: ele é
+           um anel de 2px por dentro, desenhado sobre este fundo. E a hachura de
+           excesso é pintada DEPOIS no DOM, então um alerta de capacidade não
+           desaparece por causa de destaque nenhum. */
+        destacada && "bg-accent-soft",
         realcada && "ring-2 ring-accent ring-inset",
         recusada && "ring-2 ring-ink-3 ring-inset cursor-not-allowed",
       )}
     >
-      {/* Atenuação de "fora de destaque": SÓ o fundo, nunca os cartões. Eles
-          pintam com o par do RISCO (`token.fundo`/`token.tinta`), calibrado
-          perto do piso de contraste de 4,5:1 (ver a nota de paleta no
-          CLAUDE.md — vários pares já estão no limite); reduzir a opacidade
-          DELES arriscaria furar esse piso sem rodar de novo o validador de
-          paleta. Uma camada decorativa ATRÁS dos cartões (`aria-hidden`, sem
-          texto, pintada antes deles no DOM para ficar por baixo) atenua o
-          quadro sem esse risco. A hachura de excesso, pintada DEPOIS, fica por
-          cima de propósito: um alerta de capacidade não deveria sumir só porque
-          outra equipe está em foco. */}
-      {/* `bg-velatura` (preto puro nos dois temas), não `bg-ink`: no escuro
-          `--ink` é quase branco, e sombrear com ele CLAREIA a linha fora de
-          foco em vez de recuá-la — o olho é puxado para o lado errado. Preto
-          sempre escurece, nos dois temas. Quem fixa a opacidade em 3% é o `<p>`
-          de capacidade mais abaixo, que pinta por cima desta veladura (texto de
-          verdade, `text-ink-3`) sempre que a célula tem carga: sobre `surface`
-          esse par mede 4,99:1 limpo e 4,66:1 com a veladura, contra o piso de
-          4,5:1 para texto pequeno. A 10% — a medida da primeira versão disto —
-          o mesmo par cai para 3,99:1 e fura o piso. */}
-      {atenuada ? (
-        <span aria-hidden="true" className="pointer-events-none absolute inset-0 bg-velatura opacity-[0.03]" />
-      ) : null}
 
       {leitura.excedida ? (
         <span

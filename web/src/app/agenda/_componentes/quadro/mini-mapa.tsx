@@ -2,19 +2,39 @@
 
 import { OctagonAlert } from "lucide-react";
 
-import { fmt } from "@/lib/format";
+import { fmt, parseData } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 import { ehFimDeSemana, type ResumoDia } from "../dados";
 
+/**
+ * A faixa de 28 dias. Sem legenda e sem frase próprias: as três marcas que ela
+ * usa ("com equipe", "sem equipe", "acima da capacidade") foram para a legenda
+ * ÚNICA do cabeçalho do quadro, ao lado das faixas de risco — as duas legendas
+ * respondiam à mesma pergunta em dois lugares, a poucos centímetros uma da
+ * outra.
+ *
+ * A frase que explicava a altura da barra e o clique também saiu. A altura se
+ * lê do próprio gráfico, e o clique agora tem o afeto que faltava: a coluna
+ * sobe 2 px no hover e no foco (ver `transition-transform`, abaixo) e o
+ * `aria-label` de cada uma termina em "Ir para esta semana." — sinal e
+ * instrução no próprio objeto, em vez de uma nota de rodapé sobre ele.
+ *
+ * Este componente ficou responsável por um recado que antes tinha dois donos: é
+ * o ÚNICO lugar da tela que ainda mostra a pressão de serviço SEM EQUIPE por
+ * dia (a banda de cima de cada barra). A linha "Propostas da IA" mostrava isso
+ * para 7 dias e duplicava a fila de decisão; aqui são 28, sem duplicar nada.
+ */
 export function MiniMapa({
   resumos,
   janela,
+  hoje,
   aoEscolherSemana,
 }: {
   resumos: ResumoDia[];
   /** Dias da semana visível, para marcar o intervalo no mapa. */
   janela: string[];
+  hoje: string;
   aoEscolherSemana: (dia: string) => void;
 }) {
   // Escala local: o dia mais cheio das quatro semanas vai à altura cheia. Uma
@@ -27,15 +47,23 @@ export function MiniMapa({
       <div className="flex items-end gap-px">
         {resumos.map((r) => {
           const dentro = naJanela.has(r.dia);
+          const ehHoje = r.dia === hoje;
 
           return (
             <button
               key={r.dia}
               type="button"
               onClick={() => aoEscolherSemana(r.dia)}
-              aria-label={`${fmt.dataLonga(r.dia)}. ${fmt.contar(r.comEquipe, "serviço com turma", "serviços com turma")}, ${fmt.contar(r.semEquipe, "sem turma", "sem turma")}.${r.algumaExcedida ? " Alguma turma acima da capacidade." : ""} Ir para esta semana.`}
+              aria-label={`${fmt.dataLonga(r.dia)}. ${fmt.contar(r.comEquipe, "serviço com equipe", "serviços com equipe")}, ${fmt.contar(r.semEquipe, "sem equipe", "sem equipe")}.${r.algumaExcedida ? " Alguma equipe acima da capacidade." : ""}${ehHoje ? " Hoje." : ""} Ir para esta semana.`}
               className={cn(
-                "group relative flex h-10 flex-1 flex-col justify-end rounded-xs",
+                "group relative flex h-14 min-w-0 flex-1 cursor-pointer flex-col justify-end rounded-xs",
+                // Só `transform`: o resto do sistema de movimento roda em opacity/transform
+                // pra `prefers-reduced-motion` desligar tudo num lugar só (globals.css), sem
+                // precisar checar a preferência aqui também. Subir 2px no hover/foco é o
+                // sinal de "isto é clicável" que faltava — antes só o cursor padrão (uma
+                // seta, não uma mão) e um filete de 1px sinalizavam interação, e nenhum dos
+                // dois é um sinal que alguém procura numa faixa de barrinhas.
+                "transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5",
                 ehFimDeSemana(r.dia) && "bg-surface-3",
                 dentro && "bg-accent-soft",
               )}
@@ -65,7 +93,11 @@ export function MiniMapa({
                   de sentido com o tema (quase preto no claro, quase branco no
                   escuro), então no escuro a parte CLARA é justamente a que TEM
                   equipe: a única explicação do gráfico mentia em metade dos
-                  temas. Posição não inverte; luminância inverte.
+                  temas. Posição não inverte; luminância inverte. Por isso a
+                  legenda abaixo não fala mais em "claro"/"escuro": é uma
+                  marca de cor de verdade, no MESMO token que pinta a faixa —
+                  as duas viram juntas com o tema, e não há frase pra
+                  desatualizar.
 
                   As duas faixas usam `--ink-3`/`--ink` (cinzas puros, sem
                   matiz nenhum — a paleta de tinta do projeto não tem hue) em
@@ -75,7 +107,7 @@ export function MiniMapa({
                   mede ~4,9:1 nos dois temas — mesma folga que já era usada
                   para "com equipe"; antes "sem equipe" ficava em `--surface-3`
                   (~1,1:1, quase fundido ao fundo, e é a faixa que MAIS
-                  aparece: 62 dos 97 serviços não têm turma). Sendo cinza puro,
+                  aparece: 62 dos 97 serviços não têm equipe). Sendo cinza puro,
                   a distinção sobrevive a quem não percebe matiz — só depende
                   de luminância, que é justamente o canal que sobrou intacto;
                   as duas faixas separam 3,70:1 no claro e 3,47:1 no escuro,
@@ -99,29 +131,36 @@ export function MiniMapa({
                   className="block w-full shrink-0 border-t border-border-strong bg-ink"
                 />
               </span>
-              <span className="mt-0.5 block h-px w-full bg-transparent group-hover:bg-accent-line" />
-              {/* Aqui havia um `<span className="sr-only">` com o total do dia:
-                  texto morto. O `aria-label` acima é explícito, e nome
-                  explícito SUBSTITUI o conteúdo no cálculo do nome acessível —
-                  ninguém nunca ouviu esse número. Removido em vez de
-                  incorporado porque o rótulo já diz as duas parcelas ("N
-                  serviços com turma, M sem turma") e o total é a soma delas:
-                  enfiá-lo no rótulo faria 28 botões recitarem aritmética. */}
+              <span
+                aria-hidden="true"
+                className="mt-0.5 block h-px w-full bg-transparent group-hover:bg-accent-line group-focus-visible:bg-accent-line"
+              />
+
+              {/* Número do dia: sem ele, a única forma de saber qual data uma
+                  coluna representa era passar o mouse e ouvir o `aria-label` —
+                  nada visível âncora a barra a um dia do calendário. `tnum`
+                  porque é número em coluna (28 lado a lado). Não é `aria-hidden`
+                  por decoração; é porque o `aria-label` do botão já fala a data
+                  inteira por extenso — repetir "13" aqui pro leitor de tela
+                  seria o mesmo fato duas vezes, na forma pior primeiro (mesmo
+                  argumento do `sr-only` em `cabecalho-dia.tsx`). */}
+              <span
+                aria-hidden="true"
+                className={cn(
+                  "tnum mt-0.5 block text-center font-mono text-2xs",
+                  ehHoje ? "font-semibold text-ink" : "text-ink-3",
+                )}
+              >
+                {fmt.n(parseData(r.dia).getDate())}
+              </span>
+              {ehHoje ? (
+                <span aria-hidden="true" className="mx-auto mt-0.5 h-0.5 w-3 rounded-full bg-accent-line" />
+              ) : null}
             </button>
           );
         })}
       </div>
 
-      {/* A legenda é o único canal que explica o gráfico, então ela não pode
-          nomear as faixas por luminância: "a parte clara" inverte de sentido
-          com o tema (ver o bloco das faixas, acima). Posição é estável — em
-          cima é sempre sem turma, embaixo sempre com turma, nos dois temas.
-          A spec (§2) pede o texto com "a parte clara"; foi escrita quando a
-          faixa sem equipe era `--surface-3`, e o par mudou por contraste. */}
-      <p className="mt-2 text-2xs text-ink-3">
-        A altura é o número de serviços no dia: embaixo os que já têm turma, em cima os que ainda
-        não. O ícone marca dia com turma acima da capacidade. Clique para ir à semana.
-      </p>
     </div>
   );
 }

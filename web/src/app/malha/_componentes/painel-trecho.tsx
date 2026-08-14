@@ -10,6 +10,7 @@ import {
   Leaf,
   Mountain,
   NotebookPen,
+  Pencil,
   Sparkles,
   Thermometer,
 } from "lucide-react";
@@ -22,7 +23,7 @@ import { useNotificacao } from "@/components/ui/notificacoes";
 import { PainelLateral } from "@/components/ui/painel-lateral";
 import { Medidor } from "@/components/viz/medidor";
 import { mudarStatusAgendamento } from "@/lib/acoes";
-import { ESPECIE, rotuloPrazo } from "@/lib/dominio";
+import { ESPECIE, erroFaltaEquipe, rotuloPrazo } from "@/lib/dominio";
 import { fmt, relativoEmDias } from "@/lib/format";
 import type { StatusAgendamento, TrechoStatus, ZonaClima } from "@/lib/types";
 
@@ -85,6 +86,12 @@ export function PainelTrecho({
   const especie = ESPECIE[trecho.especie];
   const status = trecho.agendamento_status;
   const agendamentoId = trecho.agendamento_id;
+  const manual = trecho.agendamento_origem === "manual";
+  // Este painel não tem seletor de equipe — só a agenda atribui. Por isso a
+  // dica manda para lá em vez de repetir o texto genérico de `erroFaltaEquipe`.
+  const bloqueioAprovacao = erroFaltaEquipe(trecho.equipe_id, "aprovado")
+    ? "Atribua uma equipe pela agenda antes de aprovar."
+    : null;
 
   function decidir(novoStatus: Extract<StatusAgendamento, "aprovado" | "descartado">) {
     if (agendamentoId == null || !trecho) return;
@@ -134,7 +141,10 @@ export function PainelTrecho({
                 variante="primario"
                 iconeEsquerda={<CircleCheck />}
                 carregando={pendente && emCurso === "aprovado"}
-                disabled={pendente || status === "aprovado" || status === "executado"}
+                disabled={
+                  pendente || status === "aprovado" || status === "executado" || bloqueioAprovacao != null
+                }
+                title={status === "sugerido" ? (bloqueioAprovacao ?? undefined) : undefined}
                 onClick={() => decidir("aprovado")}
               >
                 Aprovar roçada
@@ -292,12 +302,20 @@ export function PainelTrecho({
           </Secao>
         ) : null}
 
-        <Secao titulo="Decisão da IA" icone={<Sparkles />}>
+        {/* Título e ícone seguem a ORIGEM: a mesma `justificativa` da view tem
+            dois donos possíveis desde que existe agendamento manual, e chamar
+            de "Decisão da IA" um texto que um gestor digitou atribui a decisão
+            a quem não a tomou. "Sugerida" também sai — a roçada manual nasce
+            aprovada, não sugerida. */}
+        <Secao
+          titulo={manual ? "Agendamento manual" : "Decisão da IA"}
+          icone={manual ? <Pencil /> : <Sparkles />}
+        >
           {trecho.justificativa ? (
             <>
               {trecho.data_sugerida ? (
                 <p className="mb-3 flex flex-wrap items-baseline gap-x-2 text-sm text-ink-2">
-                  <span>Roçada sugerida para</span>
+                  <span>{manual ? "Roçada marcada para" : "Roçada sugerida para"}</span>
                   <span className="tnum font-mono text-ink">
                     {fmt.dataMedia(trecho.data_sugerida)}
                   </span>

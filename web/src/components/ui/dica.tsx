@@ -7,6 +7,7 @@ import {
   useId,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactElement,
   type ReactNode,
 } from "react";
@@ -41,6 +42,36 @@ const DESLOCAMENTO: Record<LadoDica, { x?: number; y?: number }> = {
 
 const ATRASO_MS = 140;
 
+/* "Já hidratou?" — as três funções de `useSyncExternalStore`, fora do componente
+   porque o hook compara referências e recriá-las reassinaria a store a cada
+   render.
+
+   `assinarMontagem` AVISA uma vez, em vez de ficar inerte como o
+   `() => () => {}` de `painel-lateral.tsx`. O React já promete re-renderizar
+   sozinho quando `getSnapshot()` difere do snapshot de servidor, então o aviso
+   é cinto e suspensório — mas ele torna o commit uma consequência do nosso
+   código em vez de uma consequência de detalhe interno do React, e custa uma
+   microtarefa. Note que `setState` em efeito, a forma óbvia de fazer isto, o
+   lint proíbe (`react-hooks/set-state-in-effect`).
+
+   MICROTAREFA, e não `requestAnimationFrame`: rAF não dispara em aba oculta —
+   medido, com `document.visibilityState === "hidden"` o quadro nunca chega,
+   enquanto `setTimeout` e microtarefa chegam. Não é detalhe de bancada: uma
+   página aberta em aba de segundo plano (clique do meio, sessão restaurada)
+   ficaria sem ligar a descrição até alguém olhar para ela. O `vivo` cobre o
+   desmonte, já que microtarefa não se cancela. */
+function assinarMontagem(avisar: () => void) {
+  let vivo = true;
+  queueMicrotask(() => {
+    if (vivo) avisar();
+  });
+  return () => {
+    vivo = false;
+  };
+}
+const jaMontado = () => true;
+const aindaNao = () => false;
+
 export function Dica({
   conteudo,
   lado = "cima",
@@ -55,6 +86,8 @@ export function Dica({
   const [sobre, setSobre] = useState(false);
   const [focado, setFocado] = useState(false);
   const [dispensado, setDispensado] = useState(false);
+  /** Ver o bloco sobre a fronteira RSC, mais abaixo. */
+  const montado = useSyncExternalStore(assinarMontagem, jaMontado, aindaNao);
   const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const aberto = (sobre || focado) && !dispensado;
@@ -83,8 +116,38 @@ export function Dica({
     setDispensado(false);
   }
 
-  const descricao = { "aria-describedby": id };
-  const gatilho = isValidElement(children)
+  /* `children` vindo de um Server Component NÃO é um elemento durante o SSR: ele
+     atravessa a fronteira RSC como referência preguiçosa e só vira elemento
+     depois que o payload é desserializado no cliente. Medido nas duas pontas,
+     nesta mesma linha: no servidor `isValidElement(children)` é FALSE e o
+     `$$typeof` é `Symbol(react.lazy)`; no cliente é TRUE e
+     `Symbol(react.transitional.element)`.
+
+     Com a decisão tomada durante o render, isso MOVIA o `aria-describedby` de
+     lugar entre as duas passadas — servidor no wrapper, cliente no filho — e o
+     React acusava mismatch de hidratação. Quebrava só em `/trechos/[id]`, que
+     é onde vivem as duas únicas Dicas dentro de Server Components
+     (`faixa-identidade.tsx` e `medidor.tsx`); as outras cinco chamadas já estão
+     em componentes `"use client"`, onde `children` é elemento nas duas passadas,
+     e nunca quebraram.
+
+     `montado` desempata: `false` no servidor E na primeira passada do cliente,
+     então as duas produzem HTML idêntico e a hidratação casa. O atributo entra
+     no commit seguinte, e nada se perde no caminho: o balão que ele descreve
+     (`id={id}`) só existe no DOM enquanto `aberto`, de modo que antes da
+     montagem o `aria-describedby` apontaria para um id inexistente de qualquer
+     jeito.
+
+     Quem produz `montado` é `assinarMontagem`, lá em cima — e o porquê de ele
+     avisar em vez de ficar inerte está escrito junto dela.
+
+     NÃO resolver isto pondo o atributo sempre no wrapper: ele é um `<span>` sem
+     papel e sem foco, e quem precisa da descrição é o filho — que nestes casos
+     carrega `tabIndex={0}` e às vezes `role="img"`. Seria trocar um aviso de
+     hidratação por uma perda de acessibilidade silenciosa. */
+  const descricao = montado ? { "aria-describedby": id } : {};
+  const noFilho = montado && isValidElement(children);
+  const gatilho = noFilho
     ? cloneElement(children as ReactElement<Record<string, unknown>>, descricao)
     : children;
 
@@ -101,7 +164,7 @@ export function Dica({
         setFocado(false);
         setDispensado(false);
       }}
-      {...(isValidElement(children) ? {} : descricao)}
+      {...(noFilho ? {} : descricao)}
     >
       {gatilho}
 

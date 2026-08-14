@@ -1,9 +1,10 @@
-import { CalendarClock, OctagonAlert, Sprout, Waypoints } from "lucide-react";
+import { CalendarClock, OctagonAlert, Waypoints } from "lucide-react";
 
 import { Indicador, type DeltaIndicador } from "@/components/ui/indicador";
-import { Minigrafico } from "@/components/viz/minigrafico";
 import { fmt } from "@/lib/format";
 import type { Painel } from "@/lib/types";
+
+import { CartaoCrescimento, type CrescimentoEspecieDado } from "./cartao-crescimento";
 
 /**
  * A faixa de leitura do topo. Quatro mostradores, o número sempre com o maior
@@ -15,6 +16,7 @@ export function Indicadores({
   kmEmRisco,
   serieCrescimento,
   deltaCrescimento,
+  crescimentoPorEspecie,
 }: {
   painel: Painel;
   rodovias: number;
@@ -22,6 +24,8 @@ export function Indicadores({
   /** Crescimento médio diário da malha, para o minigráfico. */
   serieCrescimento: number[];
   deltaCrescimento?: DeltaIndicador;
+  /** Mesma leitura, quebrada por espécie — o verso do card de crescimento. */
+  crescimentoPorEspecie: CrescimentoEspecieDado[];
 }) {
   const criticos = painel.por_risco.critica;
   const acimaDoLimite = painel.trechos_acima_do_limite;
@@ -63,21 +67,13 @@ export function Indicadores({
           nota={`${fmt.n(painel.trechos_total)} trechos em ${fmt.n(rodovias)} rodovias`}
         />
 
-        <Indicador
+        <CartaoCrescimento
           indice={3}
-          rotulo="Crescimento médio"
-          valor={fmt.d3(painel.crescimento_medio_cm_dia)}
-          unidade="cm/dia"
-          icone={<Sprout />}
-          delta={deltaCrescimento}
-          nota={`Pico da malha em ${fmt.cmDia(painel.crescimento_maximo_cm_dia)}`}
-          grafico={
-            <Minigrafico
-              pontos={serieCrescimento}
-              rotulo="Crescimento médio diário da malha nos últimos 45 dias"
-              largura={112}
-            />
-          }
+          valorMalha={painel.crescimento_medio_cm_dia}
+          picoMalha={painel.crescimento_maximo_cm_dia}
+          serieMalha={serieCrescimento}
+          deltaMalha={deltaCrescimento}
+          especies={crescimentoPorEspecie}
         />
       </div>
     </section>

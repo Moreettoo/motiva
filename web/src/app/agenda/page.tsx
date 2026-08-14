@@ -26,6 +26,11 @@ export default async function PaginaAgenda() {
 
   const resumoTrechos: TrechoResumo[] = trechos.map((t) => ({
     id: t.id,
+    rodovia: t.rodovia,
+    km_inicio: Number(t.km_inicio),
+    km_fim: Number(t.km_fim),
+    uf: t.uf,
+    sentido: t.sentido,
     risco: t.risco,
     dias_ate_limite: t.dias_ate_limite,
     ocupacao_pct: t.ocupacao_pct,
@@ -34,8 +39,16 @@ export default async function PaginaAgenda() {
     crescimento_cm_dia: t.crescimento_cm_dia,
   }));
 
-  const emAberto = agendamentos.filter((a) => a.status === "sugerido" || a.status === "aprovado");
-  const semEquipe = emAberto.filter((a) => a.equipe_id == null);
+  /* UM número no cabeçalho, e eram três.
+     "Em aberto" repetia a soma dos chips de status, que agora vivem no menu de
+     filtro do quadro com a contagem de cada um. "Equipes ativas" repetia as
+     linhas da grade, que estão desenhadas dez centímetros abaixo.
+     "Sem equipe" sobrou porque é o único que descreve o TRABALHO desta tela:
+     quantas roçadas ainda esperam uma decisão de dia e equipe. É também o
+     número do selo da fila de decisão, e os dois saem da mesma conta. */
+  const semEquipe = agendamentos.filter(
+    (a) => (a.status === "sugerido" || a.status === "aprovado") && a.equipe_id == null,
+  );
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
@@ -43,14 +56,11 @@ export default async function PaginaAgenda() {
         titulo="Agenda"
         destaque
         metricas={
-          <>
-            <MetricaCabecalho rotulo="Em aberto" valor={fmt.n(emAberto.length)} unidade="roçadas" />
-            <MetricaCabecalho rotulo="Sem equipe" valor={fmt.n(semEquipe.length)} unidade="roçadas" />
-            <MetricaCabecalho
-              rotulo="Equipes ativas"
-              valor={fmt.n(equipes.filter((e) => e.ativo).length)}
-            />
-          </>
+          <MetricaCabecalho
+            rotulo="Esperando decisão"
+            valor={fmt.n(semEquipe.length)}
+            unidade="roçadas"
+          />
         }
       />
 

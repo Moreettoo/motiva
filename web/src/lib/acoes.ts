@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 
-import { isoHoje } from "./format";
+import { erroFaltaEquipe } from "./dominio";
+import { fmt, isoHoje } from "./format";
 import { enfileirarAnalise, situacaoDaExecucao } from "./github";
 import { db } from "./supabase";
 import type { ExecucaoAnalise, StatusAgendamento } from "./types";
@@ -28,6 +29,22 @@ export async function mudarStatusAgendamento(
 ): Promise<Resultado<{ id: number; status: StatusAgendamento }>> {
   if (!STATUS_VALIDOS.includes(status)) {
     return { ok: false, erro: `Status inválido: ${status}` };
+  }
+
+  // Aprovar ou concluir sem equipe é o estado que essa trava existe pra
+  // evitar — ver `erroFaltaEquipe`. Descartar e reabrir não têm essa exigência.
+  if (status === "aprovado" || status === "executado") {
+    const { data: atual, error: erroAtual } = await db
+      .from("agendamentos")
+      .select("equipe_id")
+      .eq("id", agendamentoId)
+      .maybeSingle();
+
+    if (erroAtual) return { ok: false, erro: `Não foi possível verificar o agendamento: ${erroAtual.message}` };
+    if (!atual) return { ok: false, erro: "Agendamento não encontrado. Recarregue a página." };
+
+    const erroEquipe = erroFaltaEquipe(atual.equipe_id, status);
+    if (erroEquipe) return { ok: false, erro: erroEquipe };
   }
 
   const { data, error } = await db
@@ -60,6 +77,202 @@ export async function atribuirEquipe(agendamentoId: number, equipeId: number | n
 }
 
 /**
+ * Confere se a equipe existe e pode receber serviço novo.
+ *
+ * Compartilhada entre `gravarAlocacao` (arrastar no quadro) e `aprovarAgendamento`
+ * (atribuir já na aprovação): as duas gravam `equipe_id` numa linha que ainda
+ * está em aberto, então a mesma regra vale nos dois lugares.
+ */
+async function equipeUtilizavel(equipeId: number, permitirInativa: boolean): Promise<Resultado> {
+  const { data: equipe, error } = await db
+    .from("equipes")
+    .select("id, ativo")
+    .eq("id", equipeId)
+    .maybeSingle();
+
+  if (error) return { ok: false, erro: `Não foi possível ler a equipe: ${error.message}` };
+  if (!equipe) return { ok: false, erro: "Equipe não encontrada. Recarregue a página." };
+  if (!equipe.ativo && !permitirInativa) {
+    return { ok: false, erro: "Essa equipe está desativada e não recebe serviço novo." };
+  }
+  return { ok: true, dados: undefined };
+}
+
+/**
+ * Aprova a sugestão da IA, com data e equipe ajustáveis na hora.
+ *
+ * Existe pra aprovar deixar de ser um clique cego na sugestão: o gestor pode
+ * manter a data como a IA sugeriu (mesmo vencida — por isso, ao contrário de
+ * `gravarAlocacao`, não há checagem de data passada aqui), mas a equipe não é
+ * opcional — ver `erroFaltaEquipe`. Só mexe em quem ainda está "sugerido" —
+ * pela mesma razão de `gravarAlocacao`: evitar reescrever uma decisão que já
+ * saiu da fila.
+ */
+export async function aprovarAgendamento(
+  agendamentoId: number,
+  ajustes: { data: string; equipeId: number | null },
+): Promise<Resultado> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ajustes.data)) {
+    return { ok: false, erro: "Data inválida. Use o formato AAAA-MM-DD." };
+  }
+
+  const erroEquipe = erroFaltaEquipe(ajustes.equipeId, "aprovado");
+  if (erroEquipe) return { ok: false, erro: erroEquipe };
+
+  const checagem = await equipeUtilizavel(ajustes.equipeId as number, false);
+  if (!checagem.ok) return checagem;
+
+  const { data, error } = await db
+    .from("agendamentos")
+    .update({
+      status: "aprovado",
+      data_sugerida: ajustes.data,
+      equipe_id: ajustes.equipeId,
+      atualizado_em: new Date().toISOString(),
+    })
+    .eq("id", agendamentoId)
+    .eq("status", "sugerido")
+    .select("id")
+    .maybeSingle();
+
+  if (error) return { ok: false, erro: `Não foi possível aprovar: ${error.message}` };
+  if (!data) return { ok: false, erro: "Sugestão não encontrada ou já decidida. Recarregue a página." };
+
+  revalidarTudo();
+  return { ok: true, dados: undefined };
+}
+
+/** Teto do texto livre do motivo. `justificativa` é `text` e nada no banco
+ *  impede um despejo; 500 caracteres cabem uma reclamação inteira e ainda
+ *  cabem na gaveta sem virar rolagem. */
+const MOTIVO_MAX = 500;
+
+/**
+ * Cria uma roçada que a IA não propôs.
+ *
+ * NASCE `aprovado`, e isso não é conveniência — é a única forma de a linha
+ * sobreviver ao lote das 06:00. `analisar_lote.py` mantém um agendamento aberto
+ * por trecho: se encontra um `sugerido`, REESCREVE a linha no lugar (data,
+ * justificativa e prioridade da LLM por cima), e `fechar_obsoletos` descarta
+ * todo `sugerido` de trecho com mais de `LIMIAR_FECHAR_DIAS` de folga. Trecho
+ * folgado é justamente o caso que se agenda na mão — reclamação de motorista,
+ * obra, evento —, então uma roçada manual `sugerido` seria apagada na manhã
+ * seguinte pela mesma máquina que ela existe para contornar. Em `aprovado` com
+ * data futura o lote imprime "data mantida" e não toca: ele não desfaz decisão
+ * humana.
+ *
+ * Consequência aceita: equipe é obrigatória (mesma regra de `aprovarAgendamento`
+ * — ver `erroFaltaEquipe`) e o trecho para de receber sugestão da IA enquanto
+ * esta roçada estiver aberta. O segundo é o comportamento que aprovar uma
+ * sugestão já tem hoje.
+ *
+ * `previsao_id` e `modelo_usado` ficam nulos porque nenhuma previsão e nenhum
+ * modelo originaram esta decisão. `origem` é quem carrega o fato — ver o
+ * comentário de `Origem`, em `types.ts`, para por que não se deduz dos nulos.
+ */
+export async function criarRocadaManual(entrada: {
+  trechoId: number;
+  data: string;
+  equipeId: number | null;
+  motivo: string;
+}): Promise<Resultado<{ id: number; data: string }>> {
+  const { trechoId, data, equipeId } = entrada;
+  const motivo = entrada.motivo.trim();
+
+  if (!Number.isInteger(trechoId) || trechoId <= 0) {
+    return { ok: false, erro: "Escolha o trecho que vai ser roçado." };
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) {
+    return { ok: false, erro: "Data inválida. Use o formato AAAA-MM-DD." };
+  }
+  // Mesma trava de `gravarAlocacao`, e não a de `aprovarAgendamento`: aprovar
+  // aceita data vencida porque a data já existia e é da IA. Aqui a data está
+  // sendo escolhida agora, e escolher o passado nunca é intenção.
+  if (data < isoHoje()) {
+    return { ok: false, erro: "Não dá para agendar para um dia que já passou." };
+  }
+  if (motivo.length === 0) {
+    return { ok: false, erro: "Escreva por que esta roçada foi marcada." };
+  }
+  if (motivo.length > MOTIVO_MAX) {
+    return { ok: false, erro: `O motivo passou de ${MOTIVO_MAX} caracteres. Resuma um pouco.` };
+  }
+
+  const erroEquipe = erroFaltaEquipe(equipeId, "aprovado");
+  if (erroEquipe) return { ok: false, erro: erroEquipe };
+
+  const checagem = await equipeUtilizavel(equipeId as number, false);
+  if (!checagem.ok) return checagem;
+
+  // A view, e não `ia.trechos`: ela valida a existência do trecho E entrega o
+  // `risco` já calculado, que é de onde sai a `prioridade`. A prioridade nunca
+  // vem do gestor — a regra é "risco vem do prazo, não de opinião", e isso não
+  // muda porque quem agendou foi gente.
+  const { data: trecho, error: erroTrecho } = await db
+    .from("vw_trecho_status")
+    .select("id, risco, rodovia")
+    .eq("id", trechoId)
+    .maybeSingle();
+
+  if (erroTrecho) return { ok: false, erro: `Não foi possível ler o trecho: ${erroTrecho.message}` };
+  if (!trecho) return { ok: false, erro: "Trecho não encontrado. Recarregue a página." };
+
+  const { data: aberto, error: erroAberto } = await db
+    .from("agendamentos")
+    .select("data_sugerida")
+    .eq("trecho_id", trechoId)
+    .in("status", ["sugerido", "aprovado"])
+    .order("data_sugerida")
+    .limit(1)
+    .maybeSingle();
+
+  if (erroAberto) {
+    return { ok: false, erro: `Não foi possível conferir o trecho: ${erroAberto.message}` };
+  }
+  if (aberto) {
+    return {
+      ok: false,
+      erro: `${trecho.rodovia} já tem uma roçada em aberto para ${fmt.dataMedia(aberto.data_sugerida)}. Ajuste aquela em vez de criar outra.`,
+    };
+  }
+
+  const { data: linha, error } = await db
+    .from("agendamentos")
+    .insert({
+      trecho_id: trechoId,
+      previsao_id: null,
+      data_sugerida: data,
+      prioridade: trecho.risco,
+      justificativa: motivo,
+      fatores: null,
+      status: "aprovado",
+      origem: "manual",
+      modelo_usado: null,
+      equipe_id: equipeId,
+    })
+    .select("id, data_sugerida")
+    .maybeSingle();
+
+  if (error) {
+    // 23505: o índice único parcial `ux_agendamento_aberto_por_trecho`. Chega
+    // aqui quando alguém criou o agendamento do mesmo trecho entre a conferência
+    // acima e este insert — a janela de corrida que o índice existe para fechar,
+    // e a razão de ela virar recusa legível em vez de linha duplicada.
+    if (error.code === "23505") {
+      return {
+        ok: false,
+        erro: "Esse trecho acabou de receber uma roçada em aberto. Recarregue a página.",
+      };
+    }
+    return { ok: false, erro: `Não foi possível agendar: ${error.message}` };
+  }
+  if (!linha) return { ok: false, erro: "A roçada não foi criada. Tente de novo." };
+
+  revalidarTudo();
+  return { ok: true, dados: { id: linha.id as number, data: linha.data_sugerida as string } };
+}
+
+/**
  * Grava data e equipe de uma vez.
  *
  * NÃO é exportada de propósito: num arquivo `"use server"` todo export vira
@@ -80,17 +293,8 @@ async function gravarAlocacao(
   }
 
   if (equipeId != null) {
-    const { data: equipe, error: erroEquipe } = await db
-      .from("equipes")
-      .select("id, ativo")
-      .eq("id", equipeId)
-      .maybeSingle();
-
-    if (erroEquipe) return { ok: false, erro: `Não foi possível ler a equipe: ${erroEquipe.message}` };
-    if (!equipe) return { ok: false, erro: "Equipe não encontrada. Recarregue a página." };
-    if (!equipe.ativo && !opcoes.permitirPassado) {
-      return { ok: false, erro: "Essa turma está desativada e não recebe serviço novo." };
-    }
+    const checagem = await equipeUtilizavel(equipeId, opcoes.permitirPassado);
+    if (!checagem.ok) return checagem;
   }
 
   // `.in(status)` + `.maybeSingle()` juntos: sem eles, um id inexistente ou um
@@ -135,7 +339,7 @@ export async function desfazerAlocacao(
   return gravarAlocacao(agendamentoId, data, equipeId, { permitirPassado: true });
 }
 
-/** Soltar no trilho: tira a turma e o serviço volta a ser proposta da IA. */
+/** Soltar no trilho: tira a equipe e o serviço volta a ser proposta da IA. */
 export async function devolverParaFila(agendamentoId: number): Promise<Resultado> {
   const { data, error } = await db
     .from("agendamentos")

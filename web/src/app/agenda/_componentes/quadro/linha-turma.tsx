@@ -9,7 +9,7 @@ import { CelulaEquipe } from "./celula-equipe";
 import type { Alvo, CargaArrasto } from "./usar-arrasto";
 
 /**
- * A calha grudada com o nome da turma, mais as 7 células da semana.
+ * A calha grudada com o nome da equipe, mais as 7 células da semana.
  *
  * Isolada de `quadro-semana.tsx` para o arquivo principal caber num tamanho
  * revisável — a lista de props é grande porque a grade é plana (sem
@@ -18,7 +18,7 @@ import type { Alvo, CargaArrasto } from "./usar-arrasto";
  */
 export function LinhaTurma({
   linha,
-  atenuada,
+  destacada,
   previa,
   alvoAtual,
   recusaAtual,
@@ -36,10 +36,16 @@ export function LinhaTurma({
   desfazerDe,
 }: {
   linha: LinhaEquipe;
-  /** Outra equipe está em destaque (`controles.tsx`) e não é esta: a linha
-   *  inteira recebe ênfase reduzida. Nunca esconde nem desabilita — só muda
-   *  o quanto o olho é puxado para cá. */
-  atenuada: boolean;
+  /** ESTA é a equipe escolhida no seletor de destaque (`controles.tsx`): a
+   *  linha inteira recebe realce. Nunca esconde nem desabilita nenhuma outra —
+   *  toda célula continua sendo destino válido de solta.
+   *
+   *  Era o inverso (`atenuada`, nas nove OUTRAS linhas) e não funcionava: a
+   *  ênfase reduzida era uma veladura preta a 3%, que no tema escuro produz
+   *  1,007:1 de diferença — invisível, em qualquer alfa (a 20% ainda é
+   *  1,030:1). Realçar uma linha com matiz custa zero contraste e se vê nos
+   *  dois temas; ver `linhaDestacada`, em `dados.tsx`. */
+  destacada: boolean;
   previa: Map<ChaveCelula, Ocupacao>;
   alvoAtual: Alvo | null;
   recusaAtual: string | null;
@@ -84,17 +90,39 @@ export function LinhaTurma({
            mesma largura contam como uma. */
         data-obstaculo="esquerda"
         className={cn(
-          "sticky left-0 z-10 flex flex-col justify-center border-r border-b bg-surface px-2 py-1.5",
-          atenuada ? "border-border/60" : "border-border",
+          "sticky left-0 z-10 flex flex-col justify-center border-r border-b border-border px-2 py-1.5",
+          destacada ? "bg-accent-soft" : "bg-surface",
         )}
       >
-        {atenuada ? (
-          <span aria-hidden="true" className="pointer-events-none absolute inset-0 bg-velatura opacity-[0.03]" />
+        {/* O trilho de `--accent` é o sinal forte, e o único que não custa
+            nada: 4,82:1 sobre a superfície no claro e 12,31:1 no escuro, bem
+            acima do piso de 3:1 para elemento gráfico, e não toca texto nenhum.
+            Fica na calha porque ela é `sticky left-0` — o realce continua
+            visível com a pista rolada para qualquer dia da semana, que é
+            justamente quando achar a linha da equipe custa mais.
+            `bg-accent-soft` na calha é seguro para os dois textos abaixo:
+            medido, `ink` dá 17,33:1 no claro e 13,79:1 no escuro; `ink-2`
+            (para onde a segunda linha sobe quando destacada) dá 5,69:1 e
+            6,84:1. Em `ink-3` a segunda linha cairia para 3,98:1 no escuro,
+            abaixo do piso — por isso ela sobe um passo, e só aqui. */}
+        {destacada ? (
+          <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-accent" />
         ) : null}
-        <p className="relative truncate text-2xs font-medium text-ink" title={eq.nome}>
+        <p
+          className={cn(
+            "relative truncate text-2xs text-ink",
+            destacada ? "font-semibold" : "font-medium",
+          )}
+          title={eq.nome}
+        >
           {eq.nome}
         </p>
-        <p className="relative tnum truncate font-mono text-2xs text-ink-3">
+        <p
+          className={cn(
+            "relative tnum truncate font-mono text-2xs",
+            destacada ? "text-ink-2" : "text-ink-3",
+          )}
+        >
           {fmt.km(Number(eq.capacidade_km_dia))}/dia
           {eq.ativo ? "" : " · desativada"}
         </p>
@@ -108,7 +136,7 @@ export function LinhaTurma({
           previa={previa.get(celula.chave) ?? null}
           realcada={alvoAtual === celula.chave && !recusaAtual}
           recusada={alvoAtual === celula.chave && recusaAtual != null}
-          atenuada={atenuada}
+          destacada={destacada}
         >
           {celula.itens.map((item) => (
             <CartaoServico

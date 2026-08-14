@@ -57,6 +57,18 @@ export function Medidor({
 
   const leitura = `${rotulo}: ${formatarValor(valor)}, limite ${formatarValor(limite)} — ${token.rotulo}, ${fmt.pct(ocupacao)} do limite.`;
 
+  // O número e a unidade vêm num só texto ("32,4 cm"), mas só o número varia —
+  // "cm" é sempre duas letras. Desenhar as duas partes no mesmo corpo de fonte
+  // gasta, na unidade, a mesma largura que um dígito do valor custaria; com
+  // dois dígitos inteiros a string inteira passa do vão do arco e o traço
+  // risca as duas pontas (o "3" de um lado, o "m" do outro — a string é
+  // centralizada, então as duas bordas colidem à mesma distância). Separar a
+  // unidade num corpo menor devolve essa largura para o valor.
+  const textoValor = formatarValor(valor);
+  const posEspaco = textoValor.indexOf(" ");
+  const numeroTexto = posEspaco === -1 ? textoValor : textoValor.slice(0, posEspaco);
+  const unidadeTexto = posEspaco === -1 ? null : textoValor.slice(posEspaco + 1);
+
   return (
     <Dica
       lado="cima"
@@ -163,7 +175,12 @@ export function Medidor({
               tamanho >= 150 ? "text-2xl" : "text-xl",
             )}
           >
-            {formatarValor(valor)}
+            {numeroTexto}
+            {unidadeTexto ? (
+              <tspan dx="4" className="fill-ink-3 text-sm font-medium">
+                {unidadeTexto}
+              </tspan>
+            ) : null}
           </text>
         </svg>
 

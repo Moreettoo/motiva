@@ -59,10 +59,15 @@ export async function Shell({ children }: { children: React.ReactNode }) {
             className="flex-1 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
           >
             {/* Monitor de sala de controle: a largura máxima é generosa de
-                propósito, mas não infinita — linha de texto longa demais cansa. */}
+                propósito, mas não infinita — linha de texto longa demais cansa.
+                `flex h-full flex-col` é inerte pra quem não pede: uma página
+                comum preenche por conteúdo como sempre preencheu. Só quem
+                marca a própria raiz com `flex-1` (o copiloto, pra crescer até
+                o rodapé) passa a receber a altura de verdade que `main` já
+                calculava por baixo. */}
             <div
               className={cn(
-                "mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8",
+                "mx-auto flex h-full w-full max-w-[1600px] flex-col px-4 py-6 sm:px-6 lg:px-8 lg:py-8",
                 // Folga para a barra inferior do celular não cobrir o último bloco.
                 "pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-8",
               )}

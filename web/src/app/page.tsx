@@ -13,6 +13,7 @@ import {
   cargaDasEquipes,
   lacunasDeDados,
   listarAgendamentos,
+  listarEquipes,
   listarTrechos,
   montarPainel,
   serieCrescimentoPorEspecie,
@@ -23,6 +24,7 @@ import { sum } from "@/lib/utils";
 
 import { CarimboDoLote } from "./_componentes/carimbo-lote";
 import { CargaDasEquipes } from "./_componentes/carga-equipes";
+import type { CrescimentoEspecieDado } from "./_componentes/cartao-crescimento";
 import { CrescimentoPorEspecie } from "./_componentes/crescimento-especies";
 import { DistribuicaoDeRisco } from "./_componentes/distribuicao-risco";
 import { ExigemDecisao, type ItemDecisao } from "./_componentes/exigem-decisao";
@@ -94,7 +96,7 @@ function variacaoCrescimento(datas: string[], valores: number[]): DeltaIndicador
 }
 
 export default async function PaginaPainel() {
-  const [painel, trechos, porRodovia, serie, carga, lacunas, agendamentos] = await Promise.all([
+  const [painel, trechos, porRodovia, serie, carga, lacunas, agendamentos, equipes] = await Promise.all([
     montarPainel(),
     listarTrechos(),
     trechosPorRodovia(),
@@ -104,6 +106,7 @@ export default async function PaginaPainel() {
     // Sem filtro de propósito: `montarPainel` já pediu esta mesma lista, e o
     // `cache()` do React só deduplica quando os argumentos são idênticos.
     listarAgendamentos(),
+    listarEquipes(),
   ]);
 
   const hoje = isoHoje();
@@ -160,6 +163,7 @@ export default async function PaginaPainel() {
             : null,
       alturaLimiteCm: Number(a.trecho.altura_limite_cm),
       equipe: a.equipe?.nome ?? null,
+      equipeId: a.equipe?.id ?? null,
     };
   });
 
@@ -185,10 +189,30 @@ export default async function PaginaPainel() {
     return leituras.length ? sum(leituras) / leituras.length : 0;
   });
 
+  /* Verso do card "Crescimento médio": o mesmo cálculo de `montarPainel`
+     (média/pico do crescimento mais recente por trecho), só que agrupado por
+     espécie em vez da malha inteira. Ordem fixa de `ESPECIES` — não a do
+     recorte — pela mesma razão de `seriesEspecie`: a cor é da entidade. */
+  const crescimentoPorEspecie: CrescimentoEspecieDado[] = ESPECIES.map((especie, i) => {
+    const doGrupo = trechos.filter((t) => t.especie === especie);
+    const valores = doGrupo.map((t) => t.crescimento_cm_dia ?? 0).filter((v) => v > 0);
+    const valoresSerie = serie.pontos.map((p) => Number(p[especie]) || 0);
+
+    return {
+      especie,
+      rotulo: ESPECIE[especie].rotulo,
+      cor: corSerie(i),
+      valor: valores.length ? sum(valores) / valores.length : 0,
+      pico: valores.length ? Math.max(...valores) : 0,
+      delta: variacaoCrescimento(datasSerie, valoresSerie),
+      serie: valoresSerie,
+    };
+  });
+
   const cargaOrdenada = [...carga].sort((a, b) => b.ocupacao - a.ocupacao);
   const sobrecarregadas = cargaOrdenada.filter((c) => c.ocupacao > 100).length;
   const barrasCarga: BarraDado[] = cargaOrdenada.map((c) => ({
-    // Todas as turmas começam com "Equipe Roçada": o prefixo não distingue nada
+    // Todas as equipes começam com "Equipe Roçada": o prefixo não distingue nada
     // e só rouba largura do rótulo.
     rotulo: c.equipe.nome.replace(/^Equipe\s+Roçada\s+/i, ""),
     valor: c.ocupacao,
@@ -209,6 +233,7 @@ export default async function PaginaPainel() {
         kmEmRisco={kmEmRisco}
         serieCrescimento={mediaDiaria}
         deltaCrescimento={variacaoCrescimento(datasSerie, mediaDiaria)}
+        crescimentoPorEspecie={crescimentoPorEspecie}
       />
 
       <DistribuicaoDeRisco
@@ -226,7 +251,7 @@ export default async function PaginaPainel() {
             acoes={<LinkAcao href="/agenda">Ver agenda</LinkAcao>}
           />
 
-          <ExigemDecisao itens={decisoes} />
+          <ExigemDecisao itens={decisoes} equipes={equipes} />
 
           {decisoesRestantes > 0 ? (
             <CartaoRodape>

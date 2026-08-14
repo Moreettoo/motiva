@@ -15,6 +15,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
+import { Check } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
 import { cn } from "@/lib/utils";
@@ -55,12 +56,15 @@ export function Menu({
   // componente encaminha `ref`. O id nós mesmos carimbamos, então sempre existe.
   const elementoGatilho = useCallback(() => document.getElementById(idGatilho), [idGatilho]);
 
+  // Os dois papéis, não só `menuitem`: um menu de FILTRO é feito de
+  // `menuitemcheckbox` (ver `ItemMenuAlternavel`), e com o seletor antigo as
+  // setas ↑/↓ não achavam nenhum item — o menu abria mudo, sem foco em nada.
   const itens = useCallback(() => {
     const raiz = refMenu.current;
     if (!raiz) return [] as HTMLElement[];
-    return Array.from(raiz.querySelectorAll<HTMLElement>('[role="menuitem"]')).filter(
-      (el) => el.getAttribute("aria-disabled") !== "true",
-    );
+    return Array.from(
+      raiz.querySelectorAll<HTMLElement>('[role="menuitem"],[role="menuitemcheckbox"]'),
+    ).filter((el) => el.getAttribute("aria-disabled") !== "true");
   }, []);
 
   const fechar = useCallback(
@@ -253,6 +257,70 @@ export function ItemMenu({
           {atalho}
         </span>
       )}
+    </button>
+  );
+}
+
+/**
+ * Item de menu que ALTERNA em vez de agir — um filtro, não um comando.
+ *
+ * Duas diferenças em relação a `ItemMenu`, e as duas são da natureza de filtro:
+ *
+ * `role="menuitemcheckbox"` com `aria-checked`, para o leitor de tela anunciar
+ * "marcado"/"não marcado" em vez de ler um botão sem estado. A marca visível é
+ * um ícone à esquerda, no lugar reservado do ícone de `ItemMenu`, para as duas
+ * formas de item ficarem alinhadas na mesma lista.
+ *
+ * E ele NÃO fecha o menu. Um menu de ação fecha porque a ação acabou; um filtro
+ * quase nunca é um ajuste só — desmarcar "sugerido" e marcar "executado" são
+ * dois cliques, e fechar no primeiro obrigaria a reabrir para o segundo. Quem
+ * fecha é Escape, Tab ou o clique fora, que o `Menu` já trata.
+ */
+export function ItemMenuAlternavel({
+  marcado,
+  contagem,
+  icone,
+  aoAlternar,
+  children,
+}: {
+  marcado: boolean;
+  /** Número à direita — quantos itens o filtro alcança. Opcional. */
+  contagem?: string;
+  /** Ícone da própria entidade (o do risco, o do status), não a marca de
+   *  seleção: a marca é o `Check` que este componente desenha. */
+  icone?: ReactNode;
+  aoAlternar: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitemcheckbox"
+      aria-checked={marcado}
+      tabIndex={-1}
+      onClick={aoAlternar}
+      className={cn(
+        "flex w-full items-center gap-2.5 rounded-sm px-2.5 py-1.5 text-left text-sm",
+        "text-ink hover:bg-surface-3 focus:bg-surface-3",
+      )}
+    >
+      <span aria-hidden="true" className="inline-flex size-4 shrink-0 items-center justify-center">
+        {marcado ? <Check className="size-4 text-ink" /> : null}
+      </span>
+
+      {icone ? (
+        <span aria-hidden="true" className="inline-flex shrink-0 text-ink-3 [&>svg]:size-3.5">
+          {icone}
+        </span>
+      ) : null}
+
+      <span className="min-w-0 flex-1 truncate">{children}</span>
+
+      {contagem ? (
+        <span aria-hidden="true" className="tnum shrink-0 font-mono text-2xs text-ink-3">
+          {contagem}
+        </span>
+      ) : null}
     </button>
   );
 }

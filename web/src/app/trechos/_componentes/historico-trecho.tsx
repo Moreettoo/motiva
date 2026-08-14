@@ -1,7 +1,7 @@
-import { CalendarClock, Scissors, Sparkles } from "lucide-react";
+import { CalendarClock, History, Pencil, Scissors } from "lucide-react";
 
 import { Cartao, CartaoCabecalho, CartaoCorpo, CartaoRodape } from "@/components/ui/cartao";
-import { ChipRisco, ChipStatus } from "@/components/ui/chip";
+import { Chip, ChipRisco, ChipStatus } from "@/components/ui/chip";
 import {
   Tabela,
   TabelaCabecalho,
@@ -36,7 +36,10 @@ export function HistoricoTrecho({
         como="h2"
         icone={<Scissors />}
         titulo="Histórico do trecho"
-        descricao="Roçadas executadas e as decisões anteriores da IA."
+        /* Sem "da IA": a lista abaixo mistura decisões do lote com roçadas que
+           um gestor marcou na mão, e quem se anuncia é a exceção, no chip de
+           cada item. */
+        descricao="Roçadas executadas e as decisões anteriores deste trecho."
       />
 
       <CartaoCorpo className="space-y-6">
@@ -95,8 +98,13 @@ export function HistoricoTrecho({
             id="titulo-agendamentos-anteriores"
             className="flex items-center gap-1.5 text-2xs font-medium tracking-widest text-ink-3 uppercase"
           >
-            <Sparkles aria-hidden="true" className="size-3 shrink-0" />
-            Decisões anteriores da IA
+            {/* "da IA" saiu do título, e o ícone deixou de ser `Sparkles`: esta
+                lista mistura decisões do lote com roçadas que um gestor marcou
+                na mão, e um título que atribui todas à IA erra em cada linha
+                humana. Quem se anuncia é a exceção, no chip de cada item —
+                mesmo princípio da gaveta da agenda. */}
+            <History aria-hidden="true" className="size-3 shrink-0" />
+            Decisões anteriores
           </h3>
 
           {anteriores.length === 0 ? (
@@ -119,6 +127,11 @@ export function HistoricoTrecho({
                     </span>
                     <ChipStatus status={agendamento.status} />
                     <ChipRisco risco={agendamento.prioridade} tamanho="sm" />
+                    {agendamento.origem === "manual" ? (
+                      <Chip tom="neutro" icone={<Pencil />}>
+                        Na mão
+                      </Chip>
+                    ) : null}
                     <span className="tnum text-2xs text-ink-3">
                       decidido em {fmt.dataMedia(agendamento.criado_em)}
                     </span>

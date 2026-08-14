@@ -127,17 +127,11 @@ export function Conversa({ sugestoes, escopo }: { sugestoes: string[]; escopo: n
       : "A base ainda não tem agendamentos: rode a análise em lote antes de confiar na resposta.";
 
   return (
-    <section aria-labelledby="titulo-conversa" className="flex w-full max-w-[68ch] min-w-0 flex-col">
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 id="titulo-conversa" className="text-2xs tracking-widest text-ink-3 uppercase">
-          Conversa
-        </h2>
-        <p className="tnum shrink-0 font-mono text-2xs text-ink-3">
-          {escopo > 0 ? `${fmt.n(escopo)} agendamentos no contexto` : "sem contexto na base"}
-        </p>
-      </div>
-
-      <div className="mt-4 flex-1">
+    <section aria-label="Conversa" className="flex w-full min-w-0 min-h-0 flex-1 flex-col">
+      {/* A altura real vem de cima (`Shell` → página → esta seção); aqui só
+          resta decidir quem cresce. O histórico rola sozinho, dentro do seu
+          próprio espaço — o campo de pergunta abaixo não se move. */}
+      <div className="min-h-0 flex-1 overflow-y-auto scroll-thin">
         {turnos.length === 0 && (
           <EstadoVazio
             icone={<MessageSquareText />}
@@ -181,15 +175,13 @@ export function Conversa({ sugestoes, escopo }: { sugestoes: string[]; escopo: n
           ))}
         </ol>
 
-        {/* `scroll-mb-40` reserva a altura da banda fixa: sem isso o último
-            turno pararia atrás do campo de pergunta. */}
-        <div ref={fim} aria-hidden="true" className="scroll-mb-40" />
+        <div ref={fim} aria-hidden="true" />
       </div>
 
-      {/* Banda fixa: a pergunta fica ao alcance mesmo com a ficha do modelo
-          rolando ao lado. No celular ela para exatamente sobre a navegação
-          inferior, que tem 44px mais a área segura. */}
-      <div className="sticky bottom-[calc(2.75rem+env(safe-area-inset-bottom))] z-10 mt-6 border-t border-border bg-bg pt-4 pb-3 md:bottom-0 md:pb-4">
+      {/* Fora da área que rola: o campo de pergunta fica sempre à vista,
+          abaixo do histórico, sem precisar de `sticky` — a seção acima já é
+          quem rola por dentro do próprio espaço. */}
+      <div className="mt-6 shrink-0 border-t border-border bg-bg pt-4 pb-3 md:pb-4">
         {sugestoes.length > 0 && (
           <div className="mb-3">
             <h3 className="text-2xs tracking-widest text-ink-3 uppercase">Sugestões</h3>

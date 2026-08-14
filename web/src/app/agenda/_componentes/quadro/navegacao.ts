@@ -13,24 +13,14 @@ import { chaveCelula, chaveDia, type ChaveCelula, type Grade } from "../dados";
 export type Direcao = "esquerda" | "direita" | "cima" | "baixo";
 
 /** O trilho da fila é um alvo como qualquer outro, mas não tem eixo vertical.
- *  `propostas:${dia}` é um pseudo-alvo (ver `alvoPropostas`, abaixo): nunca
- *  um destino de solta de verdade, só existe para o hit-test do PONTEIRO
- *  conseguir nomear "a linha de Propostas da IA no dia X" e cair na mesma
- *  validação/mensagem que o teclado já usa. Nenhuma função de navegação por
- *  teclado (`proximoAlvo`, `realinharAlvo`, `alvoNaBordaDaSemana`) o produz. */
-export type Alvo = ChaveCelula | "fila" | `propostas:${string}`;
-
-/** Constrói/reconhece o pseudo-alvo da linha "Propostas da IA" de um dia — a
- *  MESMA string dos dois lados (produzida aqui, no atributo `data-*` que o
- *  hit-test lê, e testada em `validar`), para não haver dois formatos
- *  divergentes de um valor que nunca passa por `chaveCelula`. */
-export function alvoPropostas(dia: string): Alvo {
-  return `propostas:${dia}`;
-}
-
-export function ehAlvoPropostas(alvo: Alvo): boolean {
-  return alvo.startsWith("propostas:");
-}
+ *
+ *  Duas variantes, e não três: existia um pseudo-alvo `propostas:${dia}` para o
+ *  hit-test do ponteiro conseguir nomear a linha "Propostas da IA" e cair na
+ *  mesma recusa que o teclado já dava ("um dia só é marcado com equipe"). A
+ *  linha saiu do quadro — ela duplicava a fila de decisão —, e com ela o único
+ *  alvo do tipo que NUNCA era destino de solta. O que sobra aqui é só o que se
+ *  pode soltar de verdade. */
+export type Alvo = ChaveCelula | "fila";
 
 export type PassoNavegacao =
   | { tipo: "alvo"; alvo: Alvo }
@@ -101,7 +91,7 @@ export function proximoAlvo(
  * `aoTeclar` porque depende só de direção e alvo — que é justamente o que o
  * vitest alcança sem DOM.
  *
- * Três textos, não dois. O eixo VERTICAL (uma ponta da coluna de turmas) e o
+ * Três textos, não dois. O eixo VERTICAL (uma ponta da coluna de equipes) e o
  * trilho (que não tem eixo vertical e só sai pela direita) não são fim de
  * semana nenhum: dizer "fim da semana" ali confundiria quem ouve a tela à toa.
  * No eixo horizontal, os dois extremos precisam de textos DIFERENTES — antes
@@ -122,7 +112,7 @@ export function sufixoDeBorda(direcao: Direcao, alvo: Alvo): string {
 /**
  * Realinha o alvo para a semana nova ao atravessar semana em pleno movimento
  * (Shift+seta, ou seta simples no fim da semana): mesmo dia da semana, mesma
- * turma — só desloca a data em `delta * 7` dias, porque é exatamente quanto
+ * equipe — só desloca a data em `delta * 7` dias, porque é exatamente quanto
  * a semana desloca. "fila" não desloca: o trilho existe em qualquer semana.
  *
  * Sem isto, o alvo continua apontando para um dia que só existia na semana

@@ -5,50 +5,36 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Grade, ItemAgenda } from "../dados";
 
 /**
- * Primeiro cartão DA REGIÃO DO QUADRO em ordem de leitura — as Propostas da
- * semana, depois as células — e nunca a fila do trilho. É o padrão do roving
- * tabindex quando nada foi arrastado nem selecionado ainda, e o reserva quando
- * o cartão memorizado sumiu da lista. Sem isso o quadro ficaria sem NENHUM
- * ponto de entrada por Tab na primeira visita.
+ * Primeiro cartão DA REGIÃO DO QUADRO em ordem de leitura — as células, linha
+ * por linha — e nunca a fila do trilho. É o padrão do roving tabindex quando
+ * nada foi arrastado nem selecionado ainda, e o reserva quando o cartão
+ * memorizado sumiu da lista. Sem isso o quadro ficaria sem NENHUM ponto de
+ * entrada por Tab na primeira visita.
  *
  * A fila não entra porque o trilho é outra REGIÃO, com a sua própria parada de
  * Tab e o seu próprio sticky (ver `focoTrilhoId` em `useFocoGrade`, e
  * `decidirCartaoAtivoTrilho`, que é o padrão DELE). Enquanto ela entrava aqui,
  * o padrão do quadro podia ser um id cujo único cartão está no trilho — e
- * então nenhum cartão do quadro casava `item.id === idAtivo`: as 7 colunas, a
- * linha de Propostas e todas as raias de turma ficavam com ZERO paradas de
- * Tab, e o estado se sustentava nos renders seguintes porque o sticky também
- * validava aquele id como elegível. Bastava a primeira visita em que
- * `grade.fila[0]` cai fora da semana visível, um `›` até uma semana vazia, ou
- * abrir a gaveta num item que só existe no trilho.
+ * então nenhum cartão do quadro casava `item.id === idAtivo`: as 7 colunas e
+ * todas as raias de equipe ficavam com ZERO paradas de Tab, e o estado se
+ * sustentava nos renders seguintes porque o sticky também validava aquele id
+ * como elegível. Bastava a primeira visita em que `grade.fila[0]` cai fora da
+ * semana visível, um `›` até uma semana vazia, ou abrir a gaveta num item que
+ * só existe no trilho.
  *
- * Propostas ANTES das células, não o contrário: o quadro tem uma parada de Tab
- * só, então este valor é literalmente onde o Tab ATERRA ao entrar na região, e
- * a linha "Propostas da IA" vem antes das raias no DOM (ver
- * `quadro-semana.tsx`). Aterrar numa célula com cartões visíveis logo acima
- * seria entrar pelo meio da região — e as Propostas são justamente o que a
- * pessoa vem resolver no quadro, o que faz da ordem do DOM e da ordem da
- * tarefa a mesma ordem.
+ * Uma coleção só, e antes eram duas: a linha "Propostas da IA" vinha primeiro,
+ * porque no DOM ela vinha antes das raias. A linha saiu do quadro (duplicava a
+ * fila de decisão), e com ela sumiu a única fonte de cartão GÊMEO — um mesmo
+ * serviço montado em duas regiões ao mesmo tempo. Toda a maquinaria de
+ * desempate que existia por causa disso saiu junto; ver `useFocoGrade`.
  *
- * As Propostas são percorridas por `grade.janela.dias`, não por
- * `grade.propostas.values()`: `montarGrade` insere nesse Map na ordem dos
- * ITENS, não na dos dias, então `values()` pode devolver sexta antes de terça —
- * a ordem do Map não é a ordem da tela. Dentro de cada container (célula ou
- * dia de proposta) a lista já vem por urgência, então `[0]` é mesmo o cartão
- * de cima.
- *
- * `null` agora é resultado legítimo e mais frequente que antes: acontece
- * quando NENHUM dia da semana visível tem proposta E nenhuma célula de nenhuma
- * turma tem cartão — semana de fato vazia, ainda que o trilho esteja cheio.
- * Não há o que focar, e mentir um id do trilho era exatamente o defeito. A
- * rede para esse caso é do lado do DOM (spec §5: um cabeçalho do quadro ganha
- * `tabIndex={0}` para a região nunca ficar sem parada), não deste cálculo.
+ * `null` é resultado legítimo: nenhuma célula de nenhuma equipe tem cartão —
+ * semana de fato vazia, ainda que o trilho esteja cheio. Não há o que focar, e
+ * mentir um id do trilho era exatamente o defeito. A rede para esse caso é do
+ * lado do DOM (spec §5: um nó do quadro ganha `tabIndex={0}` para a região
+ * nunca ficar sem parada), não deste cálculo.
  */
 function primeiroItemDoQuadro(grade: Grade): number | null {
-  for (const dia of grade.janela.dias) {
-    const doDia = grade.propostas.get(dia);
-    if (doDia?.[0]) return doDia[0].id;
-  }
   for (const linha of grade.linhas) {
     for (const celula of linha.celulas) {
       if (celula.itens[0]) return celula.itens[0].id;
@@ -58,17 +44,12 @@ function primeiroItemDoQuadro(grade: Grade): number | null {
 }
 
 /**
- * ids de todo cartão que a REGIÃO DO QUADRO renderiza, e só ela:
- * `grade.propostas` (a linha "Propostas da IA" da semana visível) e as células
- * da semana visível. Duas coleções, as MESMAS duas que `primeiroItemDoQuadro`
- * percorre — e essa coincidência é o que sustenta o argumento em
- * `useFocoGrade` de que um id inelegível não sobrevive a um render: o conjunto
- * que valida o sticky e o universo de onde sai o padrão precisam ser o mesmo,
- * ou o primeiro ramo de `decidirCartaoAtivo` aprova um id que o segundo nunca
- * escolheria. Aqui as propostas são percorridas por `values()` e lá por
- * `grade.janela.dias`, e isso não abre folga: o Map só tem chaves de dentro da
- * janela (ver `montarGrade`), então os dois caminhos cobrem os MESMOS ids — a
- * diferença é de ordem, e ordem só importa para quem escolhe um.
+ * ids de todo cartão que a REGIÃO DO QUADRO renderiza, e só ela: as células da
+ * semana visível. A MESMA coleção que `primeiroItemDoQuadro` percorre — e essa
+ * igualdade é o que sustenta o argumento em `useFocoGrade` de que um id
+ * inelegível não sobrevive a um render: o conjunto que valida o sticky e o
+ * universo de onde sai o padrão precisam ser o mesmo, ou o primeiro ramo de
+ * `decidirCartaoAtivo` aprova um id que o segundo nunca escolheria.
  *
  * A fila do trilho NÃO entra. Ela é a outra região, com parada de Tab e sticky
  * próprios (ver `focoTrilhoId` em `useFocoGrade`), e enquanto entrava aqui era
@@ -79,23 +60,12 @@ function primeiroItemDoQuadro(grade: Grade): number | null {
  * nenhum cartão na tela representa, fazia `idAtivo` apontar para o nada e todo
  * cartão renderizado cair em `tabIndex={-1}`.
  *
- * `grade.propostas` é coleção própria da região, não um subproduto da fila. A
- * confusão vinha de `grade.fila` ser superconjunto dela (toda proposta também
- * está na fila inteira — ver `montarGrade`), o que fazia percorrer a fila
- * PARECER suficiente; o corte de exibição do trilho (`TETO_TRILHO` em
- * `quadro-semana.tsx`) foi o primeiro sintoma de que não era: um item além do
- * corte cuja data cai na semana visível tem cartão de verdade montado na linha
- * de Propostas e não está mais em `filaVisivel`.
- *
  * Exportada para `useFocoGrade` poder memoizar (`useMemo`) sem recalcular a
  * cada quadro de um arrasto por ponteiro, e para o teste poder montar o
  * conjunto sem duplicar a lógica.
  */
 export function idsDoQuadro(grade: Grade): Set<number> {
   const ids = new Set<number>();
-  for (const doDia of grade.propostas.values()) {
-    for (const item of doDia) ids.add(item.id);
-  }
   for (const linha of grade.linhas) {
     for (const celula of linha.celulas) {
       for (const item of celula.itens) ids.add(item.id);
@@ -104,45 +74,24 @@ export function idsDoQuadro(grade: Grade): Set<number> {
   return ids;
 }
 
-/** ids que aparecem na linha "Propostas da IA" da semana visível — sempre um
- *  subconjunto de `grade.fila` (ver `montarGrade`), mas só ESTES têm um
- *  SEGUNDO cartão de verdade na tela, além do que o trilho já mostra (ver
- *  `idAtivoNoTrilho`, abaixo). Exportada pelo mesmo motivo de `idsDoQuadro`:
- *  memoização em `useFocoGrade`, montagem direta no teste. */
-export function idsNasPropostas(grade: Grade): Set<number> {
-  const ids = new Set<number>();
-  for (const doDia of grade.propostas.values()) {
-    for (const item of doDia) ids.add(item.id);
-  }
-  return ids;
-}
-
 /**
  * ids que o TRILHO aceita ADOTAR da gaveta de detalhe (ver
- * `adotarSelecionado`): mora na fatia visível do trilho E não é gêmeo das
- * Propostas desta semana.
+ * `adotarSelecionado`): os da fatia visível do trilho, e só eles.
  *
- * Os dois lados do "E" são o critério de elegibilidade da região, e cada um
- * evita um estrago diferente. Sem o primeiro, um id da GRADE (com turma, logo
- * nunca presente em `filaVisivel`) entrava no sticky do trilho, o cálculo do
- * trilho o recusava por não achá-lo em `filaVisivel`, caía no PADRÃO — e o
- * cartão que a pessoa tinha acabado de focar no trilho perdia o tab stop para
- * o primeiro item da fila. Sem o segundo, adotar um gêmeo seria pior que não
- * adotar: `idAtivoNoTrilho` o anula no mesmo render (as Propostas ganham o
- * desempate), então a "adoção" apagaria o único tab stop do trilho em vez de
- * movê-lo. E não há perda nenhuma nisso — o cartão gêmeo daquele id continua
- * sendo o alvo do roving tabindex, só que na região das Propostas, que é
- * exatamente quem deve tê-lo.
+ * Sem este critério, um id da GRADE (com equipe, logo nunca presente em
+ * `filaVisivel`) entrava no sticky do trilho, o cálculo do trilho o recusava
+ * por não achá-lo em `filaVisivel`, caía no PADRÃO — e o cartão que a pessoa
+ * tinha acabado de focar no trilho perdia o tab stop para o primeiro item da
+ * fila.
+ *
+ * Havia uma segunda metade nesta regra ("e não é gêmeo das Propostas desta
+ * semana"), que saiu com a linha "Propostas da IA": um serviço sem equipe
+ * montava em duas regiões ao mesmo tempo, e adotar o gêmeo apagava o tab stop
+ * do trilho em vez de movê-lo. Sem a linha não há gêmeo, e a regra volta a ser
+ * uma pergunta só.
  */
-export function idsElegiveisNoTrilho(
-  filaVisivel: ItemAgenda[],
-  idsPropostas: ReadonlySet<number>,
-): Set<number> {
-  const ids = new Set<number>();
-  for (const item of filaVisivel) {
-    if (!idsPropostas.has(item.id)) ids.add(item.id);
-  }
-  return ids;
+export function idsElegiveisNoTrilho(filaVisivel: ItemAgenda[]): Set<number> {
+  return new Set(filaVisivel.map((item) => item.id));
 }
 
 /**
@@ -240,84 +189,52 @@ export function decidirCartaoAtivo({
 /**
  * Como `decidirCartaoAtivo`, mas escopado ao TRILHO: o único universo de
  * candidatos é `filaVisivel`, nunca a grade. Existe porque o trilho é uma
- * REGIÃO própria (spec §5, "um tab stop por região: trilho, propostas,
- * quadro") — com um único sticky global compartilhado entre as duas regiões
- * (o desenho anterior), sempre que o foco resolve para um item da grade
- * (com equipe, portanto nunca presente em `filaVisivel`) o trilho ficava sem
- * NENHUM cartão ativo, e vice-versa: as duas regiões brigavam pelo mesmo
- * valor e só uma por vez podia ganhar. Este cálculo independente é o que
- * garante ao trilho um tab stop mesmo quando o "quadro" está ativo num
- * cartão que mora numa célula.
+ * REGIÃO própria (spec §5, "um tab stop por região") — com um único sticky
+ * global compartilhado entre as duas regiões (o desenho anterior), sempre que o
+ * foco resolve para um item da grade (com equipe, portanto nunca presente em
+ * `filaVisivel`) o trilho ficava sem NENHUM cartão ativo, e vice-versa: as duas
+ * regiões brigavam pelo mesmo valor e só uma por vez podia ganhar. Este cálculo
+ * independente é o que garante ao trilho um tab stop mesmo quando o "quadro"
+ * está ativo num cartão que mora numa célula.
  *
  * Como em `decidirCartaoAtivo`, a gaveta de detalhe não entra na precedência:
  * chega em `anterior` por `adotarSelecionado`, filtrada por
- * `idsElegiveisNoTrilho` — o critério de quem o trilho pode adotar sem se
- * apagar.
+ * `idsElegiveisNoTrilho`.
+ *
+ * O padrão é o topo cru da fila. Ele já foi mais complicado: enquanto existia a
+ * linha "Propostas da IA", o topo da fila quase sempre era um GÊMEO (a fila vem
+ * por urgência, e o mais urgente costuma cair na semana visível), o desempate
+ * anulava esse id logo em seguida e o trilho ficava com ZERO parada de Tab no
+ * caso comum. Sem a linha não há gêmeo, e `[0]` é a resposta certa.
  */
 export function decidirCartaoAtivoTrilho({
   anterior,
   emVoo,
   filaVisivel,
-  idsPropostas,
 }: {
   /** Já passado por `adotarSelecionado` em `useFocoGrade`. */
   anterior: number | null;
   emVoo: number | null;
   filaVisivel: ItemAgenda[];
-  /** Quem monta também nas Propostas desta semana — ver `idAtivoNoTrilho`. */
-  idsPropostas: ReadonlySet<number>;
 }): number | null {
   const ids = new Set(filaVisivel.map((i) => i.id));
   const alvo = emVoo ?? anterior;
   if (alvo != null && ids.has(alvo)) return alvo;
-
-  // O PADRÃO pula os gêmeos, e é isto que dá ao trilho um tab stop de verdade.
-  // `grade.propostas` é o recorte de `grade.fila` que cai na semana visível, e
-  // a fila vem ordenada por urgência — então o topo dela quase sempre É um
-  // gêmeo. Com o padrão caindo no topo cru, `idAtivoNoTrilho` anulava logo em
-  // seguida (as Propostas ganham o desempate, porque não têm teto de exibição)
-  // e o trilho ficava com ZERO parada de Tab no caso comum, em vez de uma.
-  // Um alvo explícito — em voo, ou o sticky anterior — continua passando pelo
-  // desempate normalmente: ali o gêmeo das Propostas é mesmo o que deve
-  // receber o foco, e o trilho ficar sem tab stop é o preço certo de um foco
-  // que a pessoa pediu. A adoção da gaveta é o caso que NÃO pode pagar esse
-  // preço, porque ninguém pediu foco nenhum — por isso ela filtra os gêmeos
-  // antes de chegar aqui (`idsElegiveisNoTrilho`).
-  return filaVisivel.find((item) => !idsPropostas.has(item.id))?.id ?? null;
+  return filaVisivel[0]?.id ?? null;
 }
 
-/**
- * `idAtivo`, mas `null` quando o mesmo id também aparece nas Propostas desta
- * semana. Um serviço sem turma cuja data cai na semana visível monta em DUAS
- * regiões ao mesmo tempo — trilho (backlog inteiro) e propostas (recorte da
- * semana) — desenho explícito da spec, não acidente. Sem este desempate, os
- * dois gêmeos ficariam `ativo` juntos, dobrando as duas paradas de Tab do
- * cartão para quatro na grade inteira.
+/** As duas regiões onde um cartão pode montar. `refCartao` chaveia por região,
+ *  e não só por id, porque as duas mantêm caches de nó independentes: o trilho
+ *  independe da semana visível e a calha não, então trocar de semana desmonta
+ *  um lado e mantém o outro. Com uma entrada única por id, o `else
+ *  refsCartoes.current.delete(id)` do lado que desmonta apagaria a entrada do
+ *  lado que ficou, e a restauração de foco daquele cartão viraria um no-op
+ *  silencioso — exatamente a falha que este módulo existe para impedir.
  *
- * As Propostas "ganham" o desempate: ao contrário do trilho (que agora tem
- * um corte de exibição decidido por fora — `filaVisivel` acima — e pode não
- * estar de fato renderizando o gêmeo), o recorte da semana em
- * `grade.propostas` não tem teto, então sabemos com certeza que aquele
- * gêmeo está montado.
- */
-export function idAtivoNoTrilho(
-  idAtivo: number | null,
-  idsPropostas: ReadonlySet<number>,
-): number | null {
-  if (idAtivo == null) return null;
-  return idsPropostas.has(idAtivo) ? null : idAtivo;
-}
-
-/** As três regiões onde um cartão pode montar. `refCartao` chaveia por
- *  região porque um serviço sem turma cuja data cai na semana visível monta
- *  em DUAS delas (trilho e propostas) ao mesmo tempo: com uma única entrada
- *  de cache por id, as duas montagens brigam pela MESMA entrada, e quando só
- *  uma delas desmonta (por exemplo, trocar de semana tira a de propostas e
- *  mantém a do trilho, que independe da semana), o `else
- *  refsCartoes.current.delete(id)` apaga a entrada mesmo com a outra ainda
- *  montada — a restauração de foco daquele cartão vira um no-op silencioso,
- *  exatamente a falha que este módulo existe para impedir. */
-export type RegiaoFoco = "trilho" | "propostas" | "grid";
+ *  Eram TRÊS enquanto existia a linha "Propostas da IA", e ali o motivo era
+ *  mais forte: um mesmo serviço montava em duas regiões AO MESMO TEMPO. Essa
+ *  fonte de gêmeo acabou; o argumento do cache por região, não. */
+export type RegiaoFoco = "trilho" | "grid";
 
 /**
  * Roving tabindex (`idAtivo`/`idAtivoNoTrilho`) + restauração de foco da
@@ -360,7 +277,11 @@ export function useFocoGrade({
   filaDisponivel?: boolean;
 }): {
   idAtivo: number | null;
-  idAtivoNoTrilho: number | null;
+  /** O ativo do TRILHO, calculado à parte do `idAtivo` do quadro — as duas
+   *  regiões têm cada uma o seu tab stop. Já foi um valor derivado do outro,
+   *  anulado quando os dois apontavam para o mesmo cartão em duas regiões; sem
+   *  a linha "Propostas da IA" isso não acontece mais. */
+  idAtivoTrilho: number | null;
   refCartao: (regiao: RegiaoFoco, id: number) => (no: HTMLElement | null) => void;
   /** Handler de `onFocus` para o `<li>` do cartão: quando o cartão RECEBE
    *  foco (Tab, clique do mouse, ou o cursor virtual de um leitor de tela
@@ -385,20 +306,15 @@ export function useFocoGrade({
   // contraria a disciplina do módulo, não corrige um bug de performance real.
   //
   // O do QUADRO depende só de `grade`, e a lista de dependências é a própria
-  // fronteira da região: propostas da semana e células saem inteiras de
-  // `grade`, então nem `filaVisivel` nem `filaDisponivel` entram — o corte de
-  // exibição do trilho e a doca fechada mudam o que o TRILHO mostra, e o
-  // trilho tem os seus `idsElegiveisTrilho` logo abaixo. A coerência que este
-  // `useMemo` precisa manter é com `primeiroItemDoQuadro`: as duas funções
-  // percorrem as MESMAS duas coleções, e é essa igualdade que impede o
-  // primeiro ramo de `decidirCartaoAtivo` de aprovar um id que o segundo
-  // jamais escolheria.
+  // fronteira da região: as células saem inteiras de `grade`, então nem
+  // `filaVisivel` nem `filaDisponivel` entram — o corte de exibição do trilho e
+  // a doca fechada mudam o que o TRILHO mostra, e o trilho tem os seus
+  // `idsElegiveisTrilho` logo abaixo. A coerência que este `useMemo` precisa
+  // manter é com `primeiroItemDoQuadro`: as duas funções percorrem a MESMA
+  // coleção, e é essa igualdade que impede o primeiro ramo de
+  // `decidirCartaoAtivo` de aprovar um id que o segundo jamais escolheria.
   const idsRenderizados = useMemo(() => idsDoQuadro(grade), [grade]);
-  const idsPropostas = useMemo(() => idsNasPropostas(grade), [grade]);
-  const idsElegiveisTrilho = useMemo(
-    () => idsElegiveisNoTrilho(filaVisivel, idsPropostas),
-    [filaVisivel, idsPropostas],
-  );
+  const idsElegiveisTrilho = useMemo(() => idsElegiveisNoTrilho(filaVisivel), [filaVisivel]);
 
   // O `selecionado` que as duas regiões já viram. Uma variável de estado só
   // para as duas: elas leem o MESMO valor na mesma passada de render, então
@@ -434,7 +350,7 @@ export function useFocoGrade({
     // montado em ALGUM lugar, não montado NO QUADRO. Um id cujo único cartão
     // estava no trilho passava no primeiro ramo de `decidirCartaoAtivo`, o
     // fallback nunca rodava, e as 7 colunas, a linha de Propostas e as raias de
-    // turma ficavam com ZERO paradas de Tab — estado que o próprio sticky
+    // equipe ficavam com ZERO paradas de Tab — estado que o próprio sticky
     // revalidava render após render, porque o id continuava "elegível".
     anterior: adotarSelecionado({
       anterior: focoId,
@@ -449,7 +365,7 @@ export function useFocoGrade({
   if (idAtivo !== focoId) setFocoId(idAtivo);
 
   const [focoTrilhoId, setFocoTrilhoId] = useState<number | null>(null);
-  const idAtivoTrilhoProprio = decidirCartaoAtivoTrilho({
+  const idAtivoTrilho = decidirCartaoAtivoTrilho({
     anterior: adotarSelecionado({
       anterior: focoTrilhoId,
       selecionado,
@@ -458,9 +374,8 @@ export function useFocoGrade({
     }),
     emVoo,
     filaVisivel,
-    idsPropostas,
   });
-  if (idAtivoTrilhoProprio !== focoTrilhoId) setFocoTrilhoId(idAtivoTrilhoProprio);
+  if (idAtivoTrilho !== focoTrilhoId) setFocoTrilhoId(idAtivoTrilho);
 
   // Baixa da adoção, depois das duas regiões terem tido a sua chance — a ordem
   // aqui no corpo não muda o resultado DESTA passada (um `setState` de render
@@ -513,14 +428,12 @@ export function useFocoGrade({
     if (alvo == null) return;
     const ativo = document.activeElement;
     if (ativo && ativo !== document.body && ativo.isConnected) return;
-    // O cartão que remonta pode ter pousado na calha (o caso comum, depois
-    // de um `soltar`) ou de volta na fila/propostas (depois de um
-    // `devolver`) — tenta as três regiões nessa ordem de probabilidade, e
-    // foca a primeira que tiver um nó de verdade montado.
+    // O cartão que remonta pode ter pousado na calha (o caso comum, depois de
+    // um `soltar`) ou de volta na fila (depois de um `devolver`) — tenta as
+    // duas regiões nessa ordem de probabilidade, e foca a primeira que tiver
+    // um nó de verdade montado.
     const no =
-      refsCartoes.current.get(`grid:${alvo}`) ??
-      refsCartoes.current.get(`propostas:${alvo}`) ??
-      refsCartoes.current.get(`trilho:${alvo}`);
+      refsCartoes.current.get(`grid:${alvo}`) ?? refsCartoes.current.get(`trilho:${alvo}`);
     if (!no) return;
     restaurando.current = true;
     no.focus({ preventScroll: true });
@@ -540,7 +453,7 @@ export function useFocoGrade({
      render (a prop não é o `ref` especial de JSX, é uma prop comum, sujeita
      a `Object.is`). O cache mora num `Map` que não é recriado — só cresce, o
      que é aceitável na escala de agendamentos deste painel. Chaveado por
-     região (ver `RegiaoFoco` acima), não só por id: um serviço sem turma
+     região (ver `RegiaoFoco` acima), não só por id: um serviço sem equipe
      cuja data cai na semana visível tem DOIS nós de verdade na tela ao mesmo
      tempo, e cada um precisa da sua própria entrada — chavear só por id fazia
      os dois brigarem pela mesma entrada e o desmonte de um apagar o foco do
@@ -577,10 +490,5 @@ export function useFocoGrade({
     return fn;
   }, []);
 
-  return {
-    idAtivo,
-    idAtivoNoTrilho: idAtivoNoTrilho(idAtivoTrilhoProprio, idsPropostas),
-    refCartao,
-    aoFocar,
-  };
+  return { idAtivo, idAtivoTrilho, refCartao, aoFocar };
 }

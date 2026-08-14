@@ -403,7 +403,7 @@ p {
 
 /* ==========================================================================
    QUADRO DA SEMANA
-   A grade é plana de propósito: a calha das turmas é a coluna 1 da MESMA grade,
+   A grade é plana de propósito: a calha das equipes é a coluna 1 da MESMA grade,
    então as linhas alinham por construção, sem `subgrid` e sem medir nada em JS.
    ========================================================================== */
 .quadro-pista {
@@ -448,7 +448,7 @@ p {
   container: dia / inline-size;
 }
 
-/* Ordem de sacrifício conforme a coluna encolhe. O nome da turma nunca sai: ele
+/* Ordem de sacrifício conforme a coluna encolhe. O nome da equipe nunca sai: ele
    está na calha, não na célula. O limiar (7.5rem = 120px) fica ESTRITAMENTE
    ACIMA do piso `--dia-min` (6.5rem = 104px): o chip some quando a coluna já
    está a 16px do piso, não quando cruza o próprio piso — um limiar igual ou

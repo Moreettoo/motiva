@@ -123,7 +123,7 @@ export function TrilhoFila({
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-medium text-ink">Fila de decisão</h3>
           <p className="mt-0.5 text-2xs text-ink-3">
-            Arraste para um dia e uma turma. Soltar decide as duas coisas de uma vez.
+            Arraste para um dia e uma equipe. Soltar decide as duas coisas de uma vez.
           </p>
         </div>
         <span className="tnum shrink-0 rounded-md border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-2xs text-ink">
@@ -133,10 +133,19 @@ export function TrilhoFila({
 
       {total === 0 ? (
         <div className="p-3">
+          {/* A descrição nomeia o ESCOPO em vez de afirmar um fato sobre o
+              mundo. Ela dizia "Toda sugestão da IA já tem equipe.", o que é
+              falso sempre que o filtro de status é quem esvaziou a fila:
+              desmarcar sugerido e aprovado deixa este vazio na tela com serviços
+              sem equipe existindo do outro lado do filtro. A fila só carrega o
+              que espera decisão (sugerido/aprovado sem equipe), então mencionar
+              os status escolhidos é o que torna a frase verdadeira nos dois
+              casos — sem precisar de um sinal novo atravessando três
+              componentes só para escolher entre duas frases. */}
           <EstadoVazio
             icone={<IconeDominio nome="CircleCheck" />}
             titulo="Nada esperando decisão"
-            descricao="Toda sugestão da IA já tem turma."
+            descricao="Nenhuma roçada sem equipe nos status escolhidos agora."
           />
         </div>
       ) : (

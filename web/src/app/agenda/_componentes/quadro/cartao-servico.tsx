@@ -1,7 +1,7 @@
 "use client";
 
 import { memo } from "react";
-import { GripVertical, OctagonAlert, Undo2 } from "lucide-react";
+import { CircleSlash, GripVertical, OctagonAlert, Undo2 } from "lucide-react";
 
 import { Chip } from "@/components/ui/chip";
 import { IconeDominio } from "@/components/viz/legenda";
@@ -54,6 +54,11 @@ function rotuloCompleto(item: ItemAgenda): string {
   // (o chip "Vencida", por exemplo) é IGNORADO no cálculo do nome acessível.
   // Por isso o aviso de atraso entra aqui, não só no chip visual abaixo.
   if (item.atrasado) partes.push("Data vencida");
+  // Os DOIS, e não o que o chip escolheu mostrar: o cartão tem quatro linhas e
+  // precisa priorizar, mas uma frase falada não tem esse limite — omitir aqui
+  // esconderia de quem usa leitor de tela um fato que a tela só não mostra por
+  // falta de espaço.
+  if (item.dispensavel) partes.push("O trecho não precisa mais desta roçada");
   return partes.join(". ");
 }
 
@@ -112,6 +117,43 @@ export const CartaoServico = memo(function CartaoServico({
   const t = item.ag.trecho;
   const tabIndex = ativo ? 0 : -1;
 
+  /* PREENCHIMENTO RESERVADO À CRÍTICA — a decisão de cor deste componente.
+     Ver `docs/superpowers/specs/2026-08-14-agenda-clean-design.md`, §4.
+
+     Antes todo cartão era preenchido com a cor do risco. Com quatro faixas e
+     algumas dezenas de cartões na tela, o quadro virava um campo de cor onde
+     NADA se destaca porque tudo está pintado — o oposto do que uma escala de
+     status serve para fazer.
+
+     A primeira tentativa de conserto foi cartão neutro com a tarja em
+     `token.cor`, e a medição a reprovou: no tema claro, `--warning` sobre
+     branco dá 1,83:1 e `--serious` dá 2,64:1, abaixo do piso de 3:1 para
+     elemento gráfico. Não é surpresa — `globals.css` avisa que os dois ficam
+     abaixo de 3:1 DE PROPÓSITO, e a mitigação é ícone + rótulo. O que isso
+     revela é que o preenchimento suave nunca foi enfeite: era ele que carregava
+     o risco no claro.
+
+     O desenho que sobreviveu à medição usa `token.tinta` — o passo legível da
+     escala — como cor da tarja e do ícone. Medido sobre `--surface-2`:
+     6,90 a 7,54:1 no claro, 7,60 a 10,76:1 no escuro. Passa nos dois temas, nas
+     quatro faixas, com folga.
+
+     E o preenchimento fica só na CRÍTICA, que é onde alarme é a mensagem certa.
+     Medido no cartão crítico: tarja `--critical` sobre `--critical-soft` 3,92:1
+     no claro e 3,59:1 no escuro (piso 3,0); texto `--critical-ink` 5,96:1 e
+     7,60:1 (piso 4,5).
+
+     Quem DELIMITA o cartão é a tarja, não a borda: cartão `--surface-2` sobre
+     célula `--surface` é quase o mesmo tom no claro, e nenhuma borda tintada
+     resolve isso — medi `token.tinta` a 35%, 45% e 55% e o melhor caso no claro
+     é 2,89:1, abaixo do piso. A borda fica em `--border`, que é o que todo o
+     resto do sistema usa sobre `--surface`; a tarja sólida de 4 px a 7:1 é a
+     aresta forte, e ela carrega o risco de quebra. */
+  const critico = !encerrado && item.risco === "critica";
+  const fundo = encerrado ? "var(--surface-3)" : critico ? token.fundo : "var(--surface-2)";
+  const tinta = encerrado ? "var(--ink-2)" : critico ? token.tinta : "var(--ink)";
+  const corDaTarja = critico ? token.cor : token.tinta;
+
   /* O `relative` do `<li>` abaixo existe para o ANEL DE ERRO: `.anel-erro::after`
      é `position: absolute` e, sem ancestral posicionado, sobe até o viewport.
      Fica no `<li>` porque o `<div>` de dentro tem `overflow-hidden` — o filete de
@@ -149,9 +191,13 @@ export const CartaoServico = memo(function CartaoServico({
           correção já aplicada no cabeçalho do dia (ver `cabecalho-dia.tsx`). */}
       <div
         style={{
-          backgroundColor: encerrado ? "var(--surface-3)" : token.fundo,
-          color: encerrado ? "var(--ink-2)" : token.tinta,
-          borderColor: `color-mix(in oklab, ${token.cor} ${encerrado ? 28 : 55}%, transparent)`,
+          backgroundColor: fundo,
+          color: tinta,
+          // Só o cartão crítico ganha borda tintada, e ela é reforço do
+          // preenchimento, não o delimitador — ver a nota de cor acima.
+          borderColor: critico
+            ? `color-mix(in oklab, ${token.cor} 55%, transparent)`
+            : "var(--border)",
         }}
         className={cn(
           "group relative flex min-w-0 items-stretch gap-1 overflow-hidden rounded-sm border",
@@ -159,7 +205,11 @@ export const CartaoServico = memo(function CartaoServico({
           selecionado && "ring-2 ring-accent",
         )}
       >
-        <span aria-hidden="true" className="w-1 shrink-0" style={{ backgroundColor: token.cor }} />
+        <span
+          aria-hidden="true"
+          className="w-1 shrink-0"
+          style={{ backgroundColor: corDaTarja, opacity: encerrado ? 0.45 : 1 }}
+        />
 
         {encerrado ? null : (
           <button
@@ -182,40 +232,37 @@ export const CartaoServico = memo(function CartaoServico({
                `aria-disabled` avisa o leitor de tela sem tirar o nó do lugar. */
             onPointerDown={salvando ? undefined : (evento) => aoPegar(evento, carga)}
             onKeyDown={salvando ? undefined : (evento) => aoTeclar(evento, carga)}
-            /* A alça é `text-current` — a tinta do RISCO — sobre o fundo do
-               RISCO, então a `opacity` do botão compõe as duas: a cor efetiva é
-               `tinta*a + fundo*(1-a)`. Medido contra o fundo, para os quatro
-               riscos, nos dois temas, contra o piso de 3:1 de WCAG 1.4.11
+            /* A alça é `text-current` sobre o fundo do cartão, então a
+               `opacity` do botão compõe as duas: a cor efetiva é
+               `tinta*a + fundo*(1-a)`. O piso é o 3:1 de WCAG 1.4.11
                (informação visual necessária para IDENTIFICAR um componente de
-               interface — a alça é o que identifica o controle de arrastar; ela é
-               `aria-hidden` e o nome acessível vive no `<button>`, então não cai
-               no piso de texto):
+               interface — a alça é o que identifica o controle de arrastar; ela
+               é `aria-hidden` e o nome acessível vive no `<button>`, então não
+               cai no piso de texto).
 
-                 opacidade   pior par (claro)   pior par (escuro)
-                 30%              1,56               1,83
-                 45%              2,01               2,59     ← repouso anterior
-                 60%              2,65               3,60
-                 70%              3,23               4,42     ← repouso agora
-                 80%              3,93               5,32     ← sobrevoo anterior
-                100%              5,86               7,60     ← sobrevoo agora
+               As medições MUDARAM com o cartão neutro, e para melhor: `current`
+               agora é `--ink` na maioria dos cartões, não a tinta de um risco
+               sobre um fundo daquele mesmo risco. Medido a 70% (repouso), pior
+               caso de cada tema:
 
-               70% é o MÍNIMO que limpa o piso nos dois temas; 60% ainda falha no
-               claro. O sobrevoo foi para 100% para continuar existindo como
-               PASSO: de 70% para 80% a tinta efetiva muda pouco demais para se
-               ver, e a 100% a alça fica exatamente com a tinta do risco, o mesmo
-               peso do ícone ao lado.
+                                      claro     escuro
+                 cartão neutro         7,20      8,22
+                 cartão crítico        3,52      4,42
 
-               E não é só conformidade. A alça existe porque é DESCOBRÍVEL, ao
-               contrário da pressão longa (spec §3): a 45% ela era quase
-               invisível em repouso, o que contrariava a própria razão de ela
-               estar ali — quem não passa o mouse (toque, ou olho de passagem)
-               não descobria que o cartão se arrasta.
+               Os dois passam com folga onde antes 70% era o MÍNIMO aceitável
+               (3,23:1 no claro). O sobrevoo continua em 100% — 19,16:1 e
+               15,69:1 no neutro — porque ele é um PASSO percebido, não uma
+               correção de contraste.
 
-               O `opacity-30` de "salvando" fica: 1,56:1 e 1,83:1 estão longe do
-               piso, mas neste estado o botão tem `aria-disabled` e nenhum
-               handler (nem `onPointerDown` nem `onKeyDown`), e 1.4.11 dispensa
-               componente INATIVO. O estado dura uma ida ao servidor e tem outro
-               canal: o `animate-pulse` do ícone. */
+               A alça existe porque é DESCOBRÍVEL, ao contrário da pressão longa
+               (spec §3): quem não passa o mouse (toque, ou olho de passagem)
+               precisa ver que o cartão se arrasta.
+
+               O `opacity-30` de "salvando" fica: está longe do piso, mas neste
+               estado o botão tem `aria-disabled` e nenhum handler (nem
+               `onPointerDown` nem `onKeyDown`), e 1.4.11 dispensa componente
+               INATIVO. O estado dura uma ida ao servidor e tem outro canal: o
+               `animate-pulse` do ícone. */
             className={cn(
               "flex w-5 shrink-0 touch-none items-center justify-center text-current",
               salvando ? "cursor-wait opacity-30" : "cursor-grab opacity-70 group-hover:opacity-100",
@@ -236,9 +283,16 @@ export const CartaoServico = memo(function CartaoServico({
           className="min-w-0 flex-1 py-1.5 pr-2 text-left"
         >
           <span className="flex min-w-0 items-center gap-1.5">
+            {/* O ícone leva a tinta do RISCO mesmo no cartão neutro, onde o
+                texto é `--ink`: é ele, junto com a tarja, que distingue alta de
+                média sem depender de preenchimento. A regra da skill `dataviz`
+                continua valendo dos dois lados — as três formas são diferentes
+                (`OctagonAlert`, `TriangleAlert`, `Clock`) e a legenda do
+                cabeçalho as nomeia, então a cor nunca aparece sozinha. */}
             <IconeDominio
               nome={encerrado ? STATUS[item.status].icone : token.icone}
               className="size-3.5 shrink-0"
+              style={encerrado ? undefined : { color: token.tinta }}
             />
             <span className="block truncate text-2xs font-medium">{t.rodovia}</span>
             {/* Compacto (linha "Propostas da IA") não tem altura sobrando para
@@ -281,17 +335,34 @@ export const CartaoServico = memo(function CartaoServico({
             </span>
           )}
 
-          {compacto || !item.atrasado ? null : (
+          {/* Um selo por vez, e "vencida" ganha. Os dois podem ser verdade ao
+              mesmo tempo, mas não convivem no mesmo cartão de 4 linhas — e
+              vencida é a mais urgente das duas: ela pede ação hoje, enquanto
+              "não é mais necessária" pede só uma confirmação. Quem usa leitor
+              de tela recebe as DUAS em `rotuloCompleto`, que não tem essa
+              restrição de espaço. */}
+          {compacto ? null : item.atrasado ? (
             <span className="mt-1 block">
               <Chip tom="critical" tamanho="sm" icone={<OctagonAlert />}>
                 Data vencida
               </Chip>
             </span>
-          )}
+          ) : item.dispensavel ? (
+            <span className="mt-1 block">
+              <Chip tom="neutro" tamanho="sm" icone={<CircleSlash />}>
+                Não é mais necessária
+              </Chip>
+            </span>
+          ) : null}
         </button>
 
+        {/* `bg-surface-3` opaco, e não `bg-surface-2/70`: no cartão neutro o
+            fundo do selo passou a ser a MESMA cor do cartão (`--surface-2`), e
+            o selo sumia. `--ink-2` sobre `--surface-3` mede 5,55:1 no claro e
+            7,12:1 no escuro; a borda o separa do fundo crítico, onde os dois
+            tons se aproximam. */}
         {item.diasServico > 1 ? (
-          <span className="tnum absolute top-1 right-1 rounded-xs bg-surface-2/70 px-1 font-mono text-2xs text-ink-2">
+          <span className="tnum absolute top-1 right-1 rounded-xs border border-border bg-surface-3 px-1 font-mono text-2xs text-ink-2">
             {fmt.n(item.diasServico)} d
           </span>
         ) : null}

@@ -1,4 +1,4 @@
-import type { ComponentType, ReactNode, SVGProps } from "react";
+import type { ComponentType, CSSProperties, ReactNode, SVGProps } from "react";
 import {
   Circle,
   CircleCheck,
@@ -39,10 +39,24 @@ const ICONES: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
   Fence,
 };
 
-export function IconeDominio({ nome, className }: { nome?: string; className?: string }) {
+export function IconeDominio({
+  nome,
+  className,
+  style,
+}: {
+  nome?: string;
+  className?: string;
+  /** Para quando a cor sai de um token do domínio (`RISCO[r].tinta`) e não de
+   *  uma classe: o cartão da agenda pinta o ícone com a tinta do risco enquanto
+   *  o texto ao lado fica em `--ink`. Tailwind não gera classe para valor
+   *  vindo de objeto, e `text-[var(--…)]` arbitrário não aceita interpolação. */
+  style?: CSSProperties;
+}) {
   if (!nome) return null;
   const Icone = ICONES[nome] ?? Circle;
-  return <Icone aria-hidden="true" className={cn("size-3.5 shrink-0", className)} />;
+  return (
+    <Icone aria-hidden="true" className={cn("size-3.5 shrink-0", className)} style={style} />
+  );
 }
 
 export type ItemLegenda = {
