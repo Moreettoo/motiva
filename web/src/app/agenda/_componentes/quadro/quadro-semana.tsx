@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useId, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, OctagonAlert } from "lucide-react";
 
 import { Botao, BotaoIcone } from "@/components/ui/botao";
@@ -37,6 +37,63 @@ import { useFocoGrade } from "./usar-foco-grade";
  *  o roving tabindex não sabia disso e podia zerar a parada de Tab da grade
  *  inteira ao apontar pra ele. */
 const TETO_TRILHO = 25;
+
+/** Espaço de largura zero (U+200B), acrescentado e retirado do fim do texto de
+ *  uma região viva para o nó SEMPRE mudar. Não entra na fala: não está nos
+ *  dicionários de símbolos de NVDA, JAWS ou VoiceOver, então nenhum deles
+ *  verbaliza nada a mais; e não ocupa pixel — o que aqui é detalhe, as duas
+ *  regiões são `sr-only`. Escrito como escape, nunca como o caractere literal:
+ *  um invisível colado no código não sobrevive a uma revisão nem a um `grep`. */
+const MARCA_RENOVACAO = "\u200B";
+
+/**
+ * O que escrever numa região viva para o nó mudar mesmo quando a frase REPETE.
+ *
+ * Sem isto existe um caso de silêncio: se o texto novo for IGUAL ao que a região
+ * já continha, o React não reescreve o nó, o DOM não muda, e o leitor de tela
+ * não repete nada.
+ *
+ * A espera de 150 ms do passo (`ANUNCIO_MS`, em `usar-arrasto.ts`) é o que
+ * tornou isso comum: uma ida-e-volta de setas mais rápida que ela emite UM texto
+ * no fim, e esse texto descreve a célula de onde se saiu. Antes da espera, cada
+ * passo de um movimento escrevia um texto diferente em sequência — mas o caso já
+ * existia na BORDA, onde a frase repete por natureza: bater duas vezes no último
+ * dia da semana emite a mesma frase duas vezes, e a segunda era muda. No lado
+ * polite a repetição também é alcançável: uma escrita que falha, reverte e é
+ * refeita para a MESMA célula produz duas vezes a mesma frase de desfecho.
+ *
+ * A marca ALTERNA (entra e sai), não acumula: acrescentar sempre daria o mesmo
+ * texto na terceira repetição seguida e o silêncio voltaria.
+ *
+ * Os três limites que isto respeita: a fala não muda (nada visível nem audível
+ * entra na frase); a região não é REMONTADA, só o texto do mesmo `<p>` muda —
+ * inserir uma região viva junto com o texto não é anunciado de forma confiável
+ * (ver `conversa.tsx`); e funciona com `aria-atomic="true"`, que relê a região
+ * inteira a cada mudança e por isso não exige que a marca seja percebida como
+ * conteúdo novo.
+ */
+function renovarAnuncio(anterior: string, texto: string): string {
+  const marcado = anterior.endsWith(MARCA_RENOVACAO);
+  if ((marcado ? anterior.slice(0, -1) : anterior) !== texto) return texto;
+  return marcado ? texto : texto + MARCA_RENOVACAO;
+}
+
+/**
+ * A frase que descreve o destaque de equipe. Fala "equipe", não "turma", de
+ * propósito: ela narra o controle do nível da PÁGINA ("Destacar equipe", em
+ * `controles.tsx`) que a pessoa acabou de mexer, e não o rótulo de dentro do
+ * quadro — ver o comentário do canto da grade, mais abaixo.
+ *
+ * Pura, e é ela que serve de "valor anterior" da guarda de mudança: comparar a
+ * frase pronta responde exatamente à pergunta que interessa — a narração seria
+ * diferente? — sem inventar uma chave composta que precise de separador.
+ */
+function textoDoDestaque(nome: string | null, visivelNaSemana: boolean): string {
+  if (!nome) return "Destaque de equipe removido.";
+  return visivelNaSemana
+    ? `${nome} em destaque. As demais equipes aparecem atenuadas no quadro.`
+    : `${nome} em destaque. Nenhum serviço desta equipe nesta semana — nada atenuado.`;
+}
 
 export function QuadroSemana({
   grade,
@@ -88,13 +145,27 @@ export function QuadroSemana({
   aoDevolver: (item: ItemAgenda) => void;
 }) {
   const [passo, setPasso] = useState("");
+  /** Desfecho da escrita E destaque de equipe, na MESMA região polite — o
+   *  porquê está no comentário das regiões vivas, no fim do arquivo. */
   const [desfecho, setDesfecho] = useState("");
-  const [anuncioDestaque, setAnuncioDestaque] = useState("");
   const [filaExpandida, setFilaExpandida] = useState(false);
   // Fechada por padrão: a doca não deveria cobrir a grade assim que a página
   // abre no estreito. Independente de `filaExpandida` — ver o comentário em
   // `TrilhoResponsivo` sobre por que são dois eixos, não um.
   const [docaAberta, setDocaAberta] = useState(false);
+
+  /* As duas portas de escrita das regiões vivas. Passam por `renovarAnuncio`
+     (forma de atualização, para ler o texto anterior sem depender dele) e são
+     ESTÁVEIS: `narrarPasso` desce para `useArrasto` como `anunciar`, que a
+     embute em `aoTeclar`, que desce até os ~130 cartões — uma closure nova a
+     cada render derrubaria o `memo` de todos eles no meio de um arrasto. */
+  const narrarPasso = useCallback((texto: string) => {
+    setPasso((anterior) => renovarAnuncio(anterior, texto));
+  }, []);
+  const narrarDesfecho = useCallback((texto: string) => {
+    setDesfecho((anterior) => renovarAnuncio(anterior, texto));
+  }, []);
+
   const estreito = useTrilhoEstreito();
   // Abaixo de `lg`, o trilho só é um alvo de navegação alcançável quando a
   // doca está aberta — colapsada ele é `inert` (ver `TrilhoResponsivo`).
@@ -116,28 +187,35 @@ export function QuadroSemana({
     [equipeFoco, grade.linhas],
   );
 
-  // Quem não vê a tela não percebe a opacidade das linhas atenuadas — só o
-  // aria-live abaixo conta essa história. Pula o PRIMEIRO commit (a guarda de
-  // `montado`) para não anunciar "destaque removido" assim que a página abre
-  // sem nenhum filtro na URL, que não é uma MUDANÇA, é o estado inicial.
-  // Depende de `focoVisivelNaSemana`, não só do nome: trocar de SEMANA com o
-  // MESMO destaque ativo pode fazer a equipe em foco ganhar ou perder a
-  // linha, e o anúncio precisa reavaliar nesse momento — não só quando o
-  // destaque em si muda.
-  const montado = useRef(false);
-  useEffect(() => {
-    if (!montado.current) {
-      montado.current = true;
-      return;
-    }
-    setAnuncioDestaque(
-      !equipeFocoNome
-        ? "Destaque de equipe removido."
-        : focoVisivelNaSemana
-          ? `${equipeFocoNome} em destaque. As demais equipes aparecem atenuadas no quadro.`
-          : `${equipeFocoNome} em destaque. Nenhum serviço desta equipe nesta semana — nada atenuado.`,
-    );
-  }, [equipeFocoNome, focoVisivelNaSemana]);
+  /* Quem não vê a tela não percebe a opacidade das linhas atenuadas — só a
+     região viva conta essa história. Ela depende de `focoVisivelNaSemana`, não
+     só do nome: trocar de SEMANA com o MESMO destaque ativo pode fazer a equipe
+     em foco ganhar ou perder a linha, e a narração precisa reavaliar nesse
+     momento, não só quando o destaque em si muda.
+
+     "É uma MUDANÇA?" é uma pergunta sobre DADO: guarda-se em estado a frase já
+     vista e compara-se durante o render — o mesmo padrão de `selecionadoVisto` /
+     `adotarSelecionado`, em `usar-foco-grade.ts`. O estado nasce com a frase
+     atual, então o primeiro commit nunca anuncia: estado inicial não é mudança.
+
+     O desenho anterior perguntava sobre CICLO DE VIDA — um `useRef` levantado no
+     primeiro efeito para pular o primeiro commit — e falava "Destaque de equipe
+     removido." com a página recém-aberta e nenhum `?equipe=` na URL: o ref
+     sobrevive à dupla invocação de efeitos do StrictMode (o React monta,
+     desmonta e remonta os efeitos sem recriar o ref), então na segunda passada a
+     guarda já estava levantada e o efeito anunciava. O sintoma observado era de
+     DESENVOLVIMENTO — em produção o StrictMode não faz isso. O padrão novo não
+     depende disso para estar certo: comparar frases não pergunta em que commit
+     estamos, então vale em qualquer ordem de montagem, e um remonte por outro
+     motivo (troca de rota, Suspense) também não passa a narrar um destaque que
+     ninguém mexeu. */
+  const textoDestaque = textoDoDestaque(equipeFocoNome, focoVisivelNaSemana);
+  const [destaqueVisto, setDestaqueVisto] = useState(textoDestaque);
+  if (textoDestaque !== destaqueVisto) {
+    setDestaqueVisto(textoDestaque);
+    narrarDesfecho(textoDestaque);
+  }
+
   const filaVisivel = useMemo(
     () => (filaExpandida ? grade.fila : grade.fila.slice(0, TETO_TRILHO)),
     [grade.fila, filaExpandida],
@@ -187,7 +265,7 @@ export function QuadroSemana({
 
       if (alvo === "fila") {
         aoDevolver(item);
-        setDesfecho(`${carga.rotulo} devolvido para a fila.`);
+        narrarDesfecho(`${carga.rotulo} devolvido para a fila.`);
         return;
       }
 
@@ -196,9 +274,9 @@ export function QuadroSemana({
       if (!celula || !equipe) return;
 
       aoAlocar(item, celula.dia, equipe);
-      setDesfecho(`${carga.rotulo} alocado para ${fmt.dataLonga(celula.dia)}, ${equipe.nome}.`);
+      narrarDesfecho(`${carga.rotulo} alocado para ${fmt.dataLonga(celula.dia)}, ${equipe.nome}.`);
     },
-    [porId, grade, equipePorId, aoAlocar, aoDevolver],
+    [porId, grade, equipePorId, aoAlocar, aoDevolver, narrarDesfecho],
   );
 
   const navegarSemana = useCallback(
@@ -211,7 +289,7 @@ export function QuadroSemana({
     validar,
     aoSoltar: soltar,
     descrever,
-    anunciar: setPasso,
+    anunciar: narrarPasso,
     aoNavegarSemana: navegarSemana,
     filaDisponivel,
   });
@@ -272,7 +350,13 @@ export function QuadroSemana({
           <BotaoIcone rotulo="Semana anterior" tamanho="sm" onClick={() => navegarSemana(-1)}>
             <ChevronLeft />
           </BotaoIcone>
-          <p aria-live="polite" className="tnum min-w-0 font-mono text-sm text-ink">
+          {/* Sem `aria-live`, de propósito: esta faixa é o RÓTULO do controle que
+              a própria pessoa acabou de acionar (‹, ›, Hoje, ou uma coluna do
+              mini-mapa), o foco permanece no botão e o passo do movimento já
+              narra a chegada. Viva, ela só competia com as duas regiões do fim do
+              arquivo — um Shift+seta durante um movimento por teclado disparava
+              três anúncios de uma vez. */}
+          <p className="tnum min-w-0 font-mono text-sm text-ink">
             {fmt.dataCurta(grade.janela.inicio)} – {fmt.dataMedia(grade.janela.fim)}
           </p>
           <BotaoIcone rotulo="Próxima semana" tamanho="sm" onClick={() => navegarSemana(1)}>
@@ -351,16 +435,41 @@ export function QuadroSemana({
                 = 10; eixo vertical grudado (cabeçalho do dia, em
                 `cabecalho-dia.tsx`) = 20. 30 > 20 e 30 > 10 nas duas
                 direções — sem essa folga o canto seria recortado numa das
-                rolagens, a depender só da ordem do DOM. */}
+                rolagens, a depender só da ordem do DOM.
+
+                O canto NÃO leva `data-obstaculo`, embora grude nos dois eixos: o
+                cabeçalho do dia já reserva a faixa de cima e a calha a da
+                esquerda, por borda fica o MAIOR (ver `usar-arrasto.ts`), e o canto
+                não é mais alto que um cabeçalho nem mais largo que uma calha —
+                marcá-lo não mudaria um pixel dos insets. */}
             <div className="sticky top-0 left-0 z-30 border-r border-b border-border bg-surface px-2 py-1.5">
-              <span className="block text-2xs tracking-widest text-ink-3 uppercase">Equipe</span>
+              {/* "Turma", não "Equipe": dentro do quadro o rótulo de interface é
+                  TURMA — é o que dizem a calha ao lado (`sem turma`), os textos de
+                  recusa e a ajuda do trilho, e duas palavras para a mesma coisa na
+                  MESMA faixa de cabeçalho não têm defesa. "Equipe" continua sendo
+                  o nome da ENTIDADE no código (`Equipe`, `equipeId`, `ia.equipes`)
+                  e o rótulo dos controles no nível da PÁGINA ("Destacar equipe",
+                  "Equipes mobilizadas"), que não são parte do quadro. */}
+              <span className="block text-2xs tracking-widest text-ink-3 uppercase">Turma</span>
             </div>
 
             {grade.janela.dias.map((dia, i) => (
               <CabecalhoDia key={dia} dia={dia} hoje={hoje} resumo={grade.porDia[i]} />
             ))}
 
-            <div className="sticky left-0 z-10 border-r border-b border-border bg-surface px-2 py-1.5">
+            {/* `data-obstaculo="esquerda"`: esta calha é `sticky left-0` na mesma
+                coluna de 144px, DENTRO da `.quadro-pista`, então come a faixa
+                esquerda da área em que se solta um cartão — mesma convenção do
+                cabeçalho do dia e da calha da turma (ver `usar-arrasto.ts`).
+                Marcar aqui também, e não só em `linha-turma.tsx`, não é
+                redundância: quando nenhuma turma ganha linha na semana (filtro de
+                equipes, ou toda turma desativada e sem serviço na janela — ver
+                `equipesComLinha`), esta é a ÚNICA calha na tela, e sem o atributo
+                os 144px ficariam sem inset. */}
+            <div
+              data-obstaculo="esquerda"
+              className="sticky left-0 z-10 border-r border-b border-border bg-surface px-2 py-1.5"
+            >
               <span className="block text-2xs font-medium text-ink-2">Propostas da IA</span>
               <span className="block text-2xs text-ink-3">sem turma</span>
             </div>
@@ -434,14 +543,38 @@ export function QuadroSemana({
 
       <Sobrevoo estado={estado} item={itemEmVoo} />
 
+      {/* DUAS regiões vivas, e a divisão é por urgência, não por assunto.
+
+          `assertive` é só o passo do movimento: ele INTERROMPE, porque um passo
+          que chega depois do próximo descreve uma célula onde o cartão já não
+          está. Nada mais entra aqui.
+
+          `polite` é uma região só para desfecho da escrita E destaque de equipe.
+          As duas coisas narram desfecho e nunca precisam soar juntas; com duas
+          regiões polite montadas ao mesmo tempo, duas mensagens quase simultâneas
+          COMPETEM em vez de enfileirar. Numa região só, a segunda espera a
+          primeira terminar — que é o comportamento certo.
+
+          O preço de uma região só é que o último a escrever vence DENTRO de um
+          mesmo commit, e isso custa algo em UM caso: se uma solta muda o destaque
+          no mesmo evento — o destaque aponta para uma turma desativada e o serviço
+          movido era o último dela na semana, o único jeito de `focoVisivelNaSemana`
+          virar, já que turma ativa sempre tem linha — a frase do destaque cobre a
+          do desfecho, porque a guarda do destaque roda no render que a própria
+          solta provocou. Aceitável: a frase que sobra descreve a consequência da
+          mesma ação ("nenhum serviço desta equipe nesta semana"), e o cartão
+          mudou de lugar na tela. Duas regiões não consertavam isso — trocavam por
+          duas falas disputando o canal, que é justamente o que se veio corrigir.
+
+          As duas ficam MONTADAS desde o início, com texto vazio: inserir uma
+          região viva junto com o texto não é anunciado de forma confiável (ver
+          `conversa.tsx`). Por isso também é que a repetição de frase precisa de
+          `renovarAnuncio` em vez de um remonte. */}
       <p aria-live="assertive" aria-atomic="true" className="sr-only">
         {passo}
       </p>
       <p aria-live="polite" aria-atomic="true" className="sr-only">
         {desfecho}
-      </p>
-      <p aria-live="polite" aria-atomic="true" className="sr-only">
-        {anuncioDestaque}
       </p>
     </section>
   );

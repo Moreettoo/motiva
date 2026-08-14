@@ -100,7 +100,21 @@ export function TrilhoFila({
         realcado && "ring-2 ring-accent ring-inset",
       )}
     >
-      <header className="sticky top-0 z-20 flex items-start gap-2 border-b border-border bg-surface p-3">
+      {/* `data-obstaculo="topo"`: este cabeçalho é `sticky top-0` e come a faixa
+          de cima da área em que se solta um cartão na fila. Vale nas DUAS
+          montagens do trilho (`trilho-responsivo.tsx`) porque as duas põem um
+          rolador IMEDIATAMENTE em volta deste `<section>` — no largo a coluna
+          (`overflow-y-auto`, `max-h-[min(78vh,760px)]`), no estreito a doca aberta
+          (`overflow-y-auto`, `max-h-[60vh]`) — e quem lê o atributo é o rolador em
+          que o elemento está DENTRO (`medirInsets`, em `usar-arrasto.ts`), não um
+          rolador nomeado: o mesmo atributo serve aos dois sem saber qual está
+          montado. Com a doca FECHADA o container é `overflow-hidden` e `inert`,
+          então não é rolador, não entra na conta de ninguém, e não há ponteiro
+          para pairar ali. */}
+      <header
+        data-obstaculo="topo"
+        className="sticky top-0 z-20 flex items-start gap-2 border-b border-border bg-surface p-3"
+      >
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-medium text-ink">Fila de decisão</h3>
           <p className="mt-0.5 text-2xs text-ink-3">

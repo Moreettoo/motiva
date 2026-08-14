@@ -99,10 +99,17 @@ export const CartaoServico = memo(function CartaoServico({
           de foco) era aninhamento interativo — indefinido entre leitores de
           tela. Os dois controles reais agora são irmãos: a alça e o botão de
           detalhe, nessa ordem no DOM. */}
+      {/* Cartão encerrado em `ink-2`, não `ink-3`: medido, `ink-3` sobre
+          `surface-3` dá 4,57:1 no claro e 4,14:1 no escuro — abaixo do piso de
+          4,5:1 para texto pequeno, e este cartão carrega rodovia, faixa de km e
+          prazo em `text-2xs`. `ink-2` sobre o mesmo fundo dá 5,55:1 e 7,12:1.
+          Subir um passo na escada de tinta em vez de mexer no token: `--ink-3` é
+          consumido em toda a base e mudá-lo obrigaria a remedir cada par. Mesma
+          correção já aplicada no cabeçalho do dia (ver `cabecalho-dia.tsx`). */}
       <div
         style={{
           backgroundColor: encerrado ? "var(--surface-3)" : token.fundo,
-          color: encerrado ? "var(--ink-3)" : token.tinta,
+          color: encerrado ? "var(--ink-2)" : token.tinta,
           borderColor: `color-mix(in oklab, ${token.cor} ${encerrado ? 28 : 55}%, transparent)`,
         }}
         className={cn(
@@ -174,14 +181,27 @@ export const CartaoServico = memo(function CartaoServico({
             ) : null}
           </span>
 
+          {/* Sem `opacity` nestas duas linhas, e não é preferência: `opacity` num
+              <span> de TEXTO compõe a tinta com o fundo, e o par efetivo cai muito
+              abaixo do piso de 4,5:1. No cartão encerrado, já com a tinta subida
+              para `ink-2`: 3,62:1 a 80% e 2,99:1 a 70% no claro, 5,08:1 e 4,24:1 no
+              escuro (a 70% falha nos dois temas). Nos cartões ativos, com a tinta
+              de risco sobre o fundo suave, é pior — no claro os quatro riscos ficam
+              entre 3,23 e 4,29:1 a 80%, e entre 3,23 e 3,52:1 a 70%.
+              São faixa de km, carga em km e prazo: texto informativo, não enfeite,
+              e é a informação que decide o serviço. A hierarquia dentro do cartão
+              não depende da veladura — ela já vem do peso e da família (rodovia em
+              `font-medium`, estes dois em `font-mono`), o mesmo argumento escrito na
+              escada de tinta de `cabecalho-dia.tsx`. Não há token intermediário
+              para atenuar sem cobrar contraste. */}
           {compacto ? null : (
-            <span className="tnum mt-0.5 block truncate font-mono text-2xs opacity-80">
+            <span className="tnum mt-0.5 block truncate font-mono text-2xs">
               {fmt.faixaKm(Number(t.km_inicio), Number(t.km_fim))}
             </span>
           )}
 
           {compacto ? null : (
-            <span className="chip-km tnum mt-0.5 block truncate font-mono text-2xs opacity-70">
+            <span className="chip-km tnum mt-0.5 block truncate font-mono text-2xs">
               {fmt.km(item.km)} · {relativoEmDias(item.data)}
             </span>
           )}
