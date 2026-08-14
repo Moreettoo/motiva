@@ -143,6 +143,31 @@ export type Grade = {
 
 const EM_ABERTO = new Set<StatusAgendamento>(["sugerido", "aprovado"]);
 
+/**
+ * Quais equipes "contam" nesta janela: ativa, OU inativa com serviço em
+ * aberto cujo `item.data` caia dentro de `dias`. Turma inativa sem serviço na
+ * janela fica de fora — sem ela o cartão sumiria do quadro enquanto o resumo
+ * continuaria contando o serviço (o motivo original desta regra), e com ela
+ * incondicional, uma equipe sem NENHUM serviço na janela contaria km de uma
+ * célula que nenhuma tela mostra.
+ *
+ * `montarGrade` e `resumo28`/`diasComExcesso` chamam esta MESMA função — uma
+ * calculava a regra por conta própria e a outra não calculava nenhuma, e as
+ * duas podiam divergir sobre a mesma equipe no mesmo dia. `dias` é parâmetro,
+ * não fixo em 7: a semana visível de `montarGrade` e os 28 dias de
+ * `resumo28` são janelas de tamanhos diferentes para a MESMA regra — só o
+ * tamanho da janela muda, nunca o critério de quem conta nela.
+ */
+function equipesComLinha(itens: ItemAgenda[], equipes: Equipe[], dias: string[]): Equipe[] {
+  const diasDaJanela = new Set(dias);
+  const desativadaComServico = new Set(
+    itens
+      .filter((i) => i.equipeId != null && EM_ABERTO.has(i.status) && diasDaJanela.has(i.data))
+      .map((i) => i.equipeId as number),
+  );
+  return equipes.filter((e) => e.ativo || desativadaComServico.has(e.id));
+}
+
 export function montarGrade({
   itens,
   equipes,
@@ -157,17 +182,9 @@ export function montarGrade({
   const porId = new Map(equipes.map((e) => [e.id, e]));
   const diasDaJanela = new Set(janela.dias);
 
-  // Uma turma desativada com serviço na janela ainda precisa de linha: sem ela o
-  // cartão sumiria do quadro enquanto o resumo continuaria contando o serviço.
-  const desativadaComServico = new Set(
-    itens
-      .filter((i) => i.equipeId != null && EM_ABERTO.has(i.status) && diasDaJanela.has(i.data))
-      .map((i) => i.equipeId as number),
+  const comLinha = equipesComLinha(itens, equipes, janela.dias).sort(
+    (a, b) => a.base_uf.localeCompare(b.base_uf, "pt-BR") || a.nome.localeCompare(b.nome, "pt-BR"),
   );
-
-  const comLinha = equipes
-    .filter((e) => e.ativo || desativadaComServico.has(e.id))
-    .sort((a, b) => a.base_uf.localeCompare(b.base_uf, "pt-BR") || a.nome.localeCompare(b.nome, "pt-BR"));
 
   const fatiasPorItem = new Map<number, Fatia[]>();
   const kmPorCelula = new Map<ChaveCelula, number>();
@@ -283,15 +300,24 @@ export function previaDoMovimento(
  * produzir `Celula`/`LinhaEquipe`: o mini-mapa de 28 dias só precisa do sinal
  * booleano por dia, não do objeto inteiro.
  *
- * Não compartilha código com `montarGrade` por decisão, não por descuido:
- * aquele loop constrói `itensPorCelula` e `fatiasPorItem` na MESMA passada que
- * `kmPorCelula`, e os dois têm uso próprio ali (célula por linha, prévia de
- * arrasto) que esta função não precisa. Extrair só o pedaço de km forçaria
- * `montarGrade` a chamar `fatiasEm` de novo ou a ler de uma estrutura externa
- * — trocar código já testado por uma dedupe cosmética não compensa o risco.
+ * Usa `equipesComLinha` — a MESMA função que decide quem ganha linha em
+ * `montarGrade` — para nunca contar uma equipe inativa sem serviço na
+ * janela. Sem isso, uma equipe inativa cujo serviço não cai dentro de `dias`
+ * (por exemplo, começou antes da janela de 28 dias e só uma fatia antiga
+ * vaza para dentro dela) ficaria sem NENHUMA linha/célula visível em
+ * `montarGrade` para justificar um alerta que ainda assim apareceria aqui.
+ *
+ * O resto do cálculo (fatias, km por célula) não é compartilhado com
+ * `montarGrade` por decisão, não por descuido: aquele loop constrói
+ * `itensPorCelula` e `fatiasPorItem` na MESMA passada que `kmPorCelula`, e os
+ * dois têm uso próprio ali (célula por linha, prévia de arrasto) que esta
+ * função não precisa. Extrair também esse pedaço forçaria `montarGrade` a
+ * chamar `fatiasEm` de novo ou a ler de uma estrutura externa — trocar
+ * código já testado por uma dedupe cosmética não compensa o risco.
  */
 function diasComExcesso(itensEmAberto: ItemAgenda[], equipes: Equipe[], dias: string[]): Set<string> {
-  const porId = new Map(equipes.map((e) => [e.id, e]));
+  const relevantes = equipesComLinha(itensEmAberto, equipes, dias);
+  const porId = new Map(relevantes.map((e) => [e.id, e]));
   const kmPorCelula = new Map<ChaveCelula, number>();
 
   for (const item of itensEmAberto) {
@@ -306,7 +332,7 @@ function diasComExcesso(itensEmAberto: ItemAgenda[], equipes: Equipe[], dias: st
 
   const excedidos = new Set<string>();
   for (const dia of dias) {
-    for (const equipe of equipes) {
+    for (const equipe of relevantes) {
       const capacidade = Number(equipe.capacidade_km_dia) || 0;
       const km = kmPorCelula.get(chaveCelula(dia, equipe.id)) ?? 0;
       if (km > capacidade + 1e-6) {

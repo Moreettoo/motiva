@@ -301,3 +301,56 @@ describe("resumo28", () => {
     expect(r.find((d) => d.dia === "2026-08-13")?.algumaExcedida).toBe(false);
   });
 });
+
+/* ---------- montarGrade e resumo28 têm que concordar sobre quem conta ---------- */
+
+describe("equipesComLinha compartilhada entre montarGrade e resumo28", () => {
+  it("equipe inativa com serviço na janela: grade da semana e faixa de 28 dias concordam sobre o dia excedido", () => {
+    const inativa = equipe({ id: 9, ativo: false, capacidade_km_dia: 6 });
+    const lista = itens(
+      [
+        // 4 + 3 = 7km no dia 13, contra 6km/dia: excede. `data` está dentro
+        // da janela das duas chamadas — a equipe inativa qualifica nas duas.
+        agendamento({ id: 1, data: "2026-08-13", equipeId: 9, kmInicio: 0, kmFim: 4 }),
+        agendamento({ id: 2, data: "2026-08-13", equipeId: 9, kmInicio: 0, kmFim: 3 }),
+      ],
+      [inativa],
+    );
+
+    const janela = montarJanela("2026-08-13");
+    const grade = montarGrade({ itens: lista, equipes: [inativa], janela, hoje: "2026-08-13" });
+    const faixa = resumo28(lista, "2026-08-13", [inativa]);
+
+    const diaGrade = grade.porDia.find((d) => d.dia === "2026-08-13")?.algumaExcedida;
+    const diaFaixa = faixa.find((d) => d.dia === "2026-08-13")?.algumaExcedida;
+
+    expect(diaGrade).toBe(true);
+    expect(diaFaixa).toBe(true);
+  });
+
+  it("não conta equipe inativa sem NENHUM serviço dentro da janela de 28 dias, mesmo com fatia antiga vazando para dentro dela", () => {
+    // As duas datas de início (08-08 e 08-09) ficam ANTES do início da janela
+    // de 28 dias (08-10, a segunda-feira de "2026-08-13"). Só as FATIAS —
+    // não os itens — alcançam o primeiro dia da janela.
+    const inativa = equipe({ id: 9, ativo: false, capacidade_km_dia: 6 });
+    const lista = itens(
+      [
+        // 13km / 6 por dia = 3 dias: 08-08, 08-09, 08-10 (~4,33km cada fatia).
+        agendamento({ id: 1, data: "2026-08-08", equipeId: 9, kmInicio: 0, kmFim: 13 }),
+        // 7km / 6 por dia = 2 dias: 08-09, 08-10 (3,5km cada fatia).
+        agendamento({ id: 2, data: "2026-08-09", equipeId: 9, kmInicio: 0, kmFim: 7 }),
+      ],
+      [inativa],
+    );
+
+    // No dia 08-10 (primeiro dia da janela de 28), as duas fatias somam
+    // ~7,83km contra 6km/dia de capacidade — excederia, SE a equipe contasse.
+    // Mas nenhum dos dois itens tem `data` dentro da janela: a equipe
+    // inativa não tem serviço "seu" ali, só sobra de serviço que já tinha
+    // começado antes dela — e não ganharia linha nenhuma em `montarGrade`
+    // para nenhuma semana que contenha esse dia.
+    const faixa = resumo28(lista, "2026-08-13", [inativa]);
+
+    expect(faixa.find((d) => d.dia === "2026-08-10")?.algumaExcedida).toBe(false);
+  });
+});

@@ -410,8 +410,8 @@ p {
      1296px para o conteúdo da página; menos a borda de 1px dos dois lados do
      quadro (2px) e o trilho da fila (w-60 = 240px, Tarefa 7) sobram 1054px
      para esta grade — a conta ignora de propósito a barra de rolagem
-     vertical da própria pista, que come mais alguns px; é folga a mais, não
-     a menos.
+     vertical da própria pista, que também consome largura; a folga real
+     abaixo é MENOR que os 182px, nunca maior, por causa dessa omissão.
      --calha (144px) + 7 × --dia-min (104px) = 872px, ~182px de folga (~17%)
      sobre os 1054px. Isso NÃO é a largura que a coluna renderiza a 1600px:
      `1fr` reparte o que sobra, então cada coluna fica em (1054 − 144) / 7 =
