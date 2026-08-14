@@ -76,9 +76,13 @@ export const CartaoServico = memo(function CartaoServico({
         role="button"
         tabIndex={-1}
         aria-label={rotuloCompleto(item)}
-        aria-roledescription="serviço arrastável"
-        aria-pressed={selecionado}
-        onKeyDown={(evento) => aoTeclar(evento, carga)}
+        /* Encerrado nunca entra em movimento — nem alça, nem teclado. Sem
+           onKeyDown, "serviço arrastável" e um aria-pressed de alternância
+           mentiriam sobre o que Espaço faria aqui; o aria-label já diz a
+           situação ("Situação: Executado"), então omitir basta. */
+        aria-roledescription={encerrado ? undefined : "serviço arrastável"}
+        aria-pressed={encerrado ? undefined : selecionado}
+        onKeyDown={encerrado ? undefined : (evento) => aoTeclar(evento, carga)}
         style={{
           backgroundColor: encerrado ? "var(--surface-3)" : token.fundo,
           color: encerrado ? "var(--ink-3)" : token.tinta,
