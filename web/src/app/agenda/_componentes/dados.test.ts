@@ -246,6 +246,76 @@ describe("montarGrade", () => {
   });
 });
 
+/* ---------- o dia de continuação ---------- */
+
+describe("montarGrade — continuações", () => {
+  const lenta = equipe({ id: 1, capacidade_km_dia: 4.5 });
+  const janela = montarJanela("2026-08-13");
+
+  it("o dia seguinte de um serviço de 2 dias tem carga sem cartão, e sabe de quem é", () => {
+    // 5km na turma de 4,5km/dia = 2 dias, 2,5km em cada.
+    const lista = itens(
+      [agendamento({ id: 1, data: "2026-08-13", equipeId: 1, kmInicio: 0, kmFim: 5 })],
+      [lenta],
+    );
+    const g = montarGrade({ itens: lista, equipes: [lenta], janela, hoje: "2026-08-13" });
+
+    const inicio = g.porCelula.get(chaveCelula("2026-08-13", 1));
+    const seguinte = g.porCelula.get(chaveCelula("2026-08-14", 1));
+
+    // O cartão desenha SÓ no dia de início; o dia seguinte herda km.
+    expect(inicio?.itens.map((i) => i.id)).toEqual([1]);
+    expect(inicio?.continuacoes).toEqual([]);
+    expect(seguinte?.itens).toEqual([]);
+    expect(seguinte?.km).toBeCloseTo(2.5);
+    // Sem esta lista o rótulo falado dessa célula dizia "Sem serviço." com a
+    // barra mostrando 2,5/4,5 — km sem dono.
+    expect(seguinte?.continuacoes.map((i) => i.id)).toEqual([1]);
+  });
+
+  it("serviço de um dia só não deixa continuação em nenhuma célula", () => {
+    const lista = itens([agendamento({ id: 1, data: "2026-08-13", equipeId: 1, kmInicio: 0, kmFim: 3 })], [lenta]);
+    const g = montarGrade({ itens: lista, equipes: [lenta], janela, hoje: "2026-08-13" });
+
+    expect([...g.porCelula.values()].every((c) => c.continuacoes.length === 0)).toBe(true);
+  });
+
+  it("serviço iniciado FORA da janela nomeia a continuação que caiu dentro dela", () => {
+    // 08-09 é domingo, um dia antes do início da janela (08-10): a célula do
+    // dia de início não existe, e a de continuação é o único lugar que mostra
+    // esse km.
+    const lista = itens(
+      [agendamento({ id: 1, data: "2026-08-09", equipeId: 1, kmInicio: 0, kmFim: 5 })],
+      [lenta],
+    );
+    const g = montarGrade({ itens: lista, equipes: [lenta], janela, hoje: "2026-08-13" });
+
+    const primeiro = g.porCelula.get(chaveCelula("2026-08-10", 1));
+    expect(primeiro?.itens).toEqual([]);
+    expect(primeiro?.km).toBeCloseTo(2.5);
+    expect(primeiro?.continuacoes.map((i) => i.id)).toEqual([1]);
+  });
+
+  it("célula sem cartão pode passar da capacidade — era a frase 'Sem serviço. Acima da capacidade.'", () => {
+    // Dois serviços de 5km na mesma turma de 4,5km/dia: cada um deposita 2,5km
+    // no dia seguinte, e 5,0 > 4,5. A célula excede sem ter um único cartão.
+    const lista = itens(
+      [
+        agendamento({ id: 1, data: "2026-08-13", equipeId: 1, kmInicio: 0, kmFim: 5 }),
+        agendamento({ id: 2, data: "2026-08-13", equipeId: 1, kmInicio: 0, kmFim: 5 }),
+      ],
+      [lenta],
+    );
+    const g = montarGrade({ itens: lista, equipes: [lenta], janela, hoje: "2026-08-13" });
+
+    const seguinte = g.porCelula.get(chaveCelula("2026-08-14", 1));
+
+    expect(seguinte?.itens).toEqual([]);
+    expect(seguinte?.excedida).toBe(true);
+    expect(seguinte?.continuacoes.map((i) => i.id)).toEqual([1, 2]);
+  });
+});
+
 /* ---------- prévia ---------- */
 
 describe("previaDoMovimento", () => {

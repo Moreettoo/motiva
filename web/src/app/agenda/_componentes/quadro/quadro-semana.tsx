@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useId, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, OctagonAlert } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, FilterX, OctagonAlert, RotateCcw } from "lucide-react";
 
 import { Botao, BotaoIcone } from "@/components/ui/botao";
+import { EstadoVazio } from "@/components/ui/vazio";
 import { IconeDominio, Legenda } from "@/components/viz/legenda";
 import { ORDEM_RISCO, RISCO } from "@/lib/dominio";
 import { fmt, inicioDaSemana, somarDias } from "@/lib/format";
@@ -12,6 +13,7 @@ import { cn } from "@/lib/utils";
 
 import {
   chaveDia,
+  linhaAtenuada,
   previaDoMovimento,
   type ChaveCelula,
   type Grade,
@@ -45,6 +47,43 @@ const TETO_TRILHO = 25;
  *  regiões são `sr-only`. Escrito como escape, nunca como o caractere literal:
  *  um invisível colado no código não sobrevive a uma revisão nem a um `grep`. */
 const MARCA_RENOVACAO = "\u200B";
+
+/** Id que NENHUMA equipe tem \u2014 `ia.equipes.id` \u00E9 `serial`, sempre positivo.
+ *  Existe para perguntar a `linhaAtenuada` (dados.tsx) s\u00F3 a metade da regra que
+ *  n\u00E3o depende da linha \u2014 "h\u00E1 destaque, e ele tem linha nesta semana?" \u2014 sem
+ *  reescrever essa pergunta aqui. Ver o memo `atenuadas`, mais abaixo. */
+const EQUIPE_INEXISTENTE = -1;
+
+/**
+ * Quantos cart\u00F5es a PISTA monta: a linha de "Propostas da IA" mais as c\u00E9lulas
+ * das linhas de turma \u2014 exatamente os dois `map` que este componente renderiza
+ * (o do trilho n\u00E3o conta, ele \u00E9 outro tab stop e vive fora da pista).
+ *
+ * \u00C9 contagem de N\u00D3 MONTADO, n\u00E3o regra de dom\u00EDnio, e \u00E9 por isso que mora aqui em
+ * vez de `dados.tsx`: quem responde "o quadro est\u00E1 vazio?" \u00E9 quem desenha o
+ * quadro, e a resposta muda se um dia a pista renderizar menos do que a grade
+ * traz (como o trilho j\u00E1 faz, com `TETO_TRILHO`).
+ *
+ * O que ela N\u00C3O \u00E9: `idAtivo == null`. As duas coisas divergem nas duas
+ * dire\u00E7\u00F5es \u2014 `idAtivo` \u00E9 nulo com a pista cheia (nenhum cart\u00E3o ainda adotado,
+ * ou o \u00FAnico cart\u00E3o em voo) e pode ser n\u00E3o-nulo com a pista vazia \u2014 e amarrar a
+ * rede de Tab a ele a ligaria na hora errada.
+ */
+function contarCartoesDaPista(grade: Grade): number {
+  let total = 0;
+  for (const lista of grade.propostas.values()) total += lista.length;
+  for (const linha of grade.linhas) for (const celula of linha.celulas) total += celula.itens.length;
+  return total;
+}
+
+/* Adjacência que precisa ficar dita, senão as duas derivam em silêncio:
+   `idsDoQuadro` (em `usar-foco-grade.ts`) percorre exatamente estas mesmas duas
+   fontes, e `idsDoQuadro(grade).size === 0` é equivalente a
+   `contarCartoesDaPista(grade) === 0`. Não são a mesma função porque respondem a
+   perguntas diferentes — lá é o universo de elegibilidade do roving tabindex,
+   aqui é quantos nós este componente monta —, e só coincidem no zero. Quem
+   mudar as fontes de uma tem que mudar as da outra: divergindo, a rede de Tab
+   aparece com cartão na tela, ou fica escondida sem nenhum. */
 
 /**
  * O que escrever numa região viva para o nó mudar mesmo quando a frase REPETE.
@@ -104,6 +143,7 @@ export function QuadroSemana({
   equipeFoco,
   totalAtrasados,
   semanaAtraso,
+  servicosNaSemanaSemFiltro,
   selecionado,
   salvandoIds,
   desfazerPorId,
@@ -114,6 +154,7 @@ export function QuadroSemana({
   aoSelecionar,
   aoAlocar,
   aoDevolver,
+  aoRestaurar,
 }: {
   grade: Grade;
   itens: ItemAgenda[];
@@ -130,6 +171,12 @@ export function QuadroSemana({
   totalAtrasados: number;
   /** Segunda-feira da semana do atrasado mais antigo; `null` sem nenhum. */
   semanaAtraso: string | null;
+  /** Serviços cuja data cai na semana visível IGNORANDO o filtro de status —
+   *  o único número que o quadro não consegue derivar de `grade` (que nasce de
+   *  `visiveis`, já filtrada). Escalar de propósito, como `equipeFoco`. Serve a
+   *  UMA pergunta: com a pista sem nenhum cartão, foi o filtro que escondeu a
+   *  semana ou a semana está mesmo vazia? Ver a rede de Tab, no fim do arquivo. */
+  servicosNaSemanaSemFiltro: number;
   selecionado: number | null;
   salvandoIds: ReadonlySet<number>;
   desfazerPorId: ReadonlyMap<number, () => void>;
@@ -151,6 +198,12 @@ export function QuadroSemana({
   aoSelecionar: (id: number) => void;
   aoAlocar: (item: ItemAgenda, dia: string, equipe: Equipe) => void;
   aoDevolver: (item: ItemAgenda) => void;
+  /** O MESMO "Restaurar padrão" de `controles.tsx` (`aoRestaurar` lá). A rede de
+   *  Tab o oferece quando o filtro de status escondeu a semana inteira: sem uma
+   *  saída no lugar onde o problema aparece, o gestor tem de subir a tela até os
+   *  chips para desfazer o que acabou de fazer. Precisa ser estável (memoizado
+   *  em `planejamento.tsx`) — ver o comentário das portas de anúncio. */
+  aoRestaurar: () => void;
 }) {
   const [passo, setPasso] = useState("");
   /** Desfecho da escrita E destaque de equipe, na MESMA região polite — o
@@ -185,18 +238,37 @@ export function QuadroSemana({
   const equipePorId = useMemo(() => new Map(equipes.map((e) => [e.id, e])), [equipes]);
   const equipeFocoNome = equipeFoco != null ? (equipePorId.get(equipeFoco)?.nome ?? null) : null;
 
-  // Mesma condição de `linhaAtenuada` (dados.tsx): equipe em foco sem
-  // NENHUMA linha nesta semana não atenua ninguém — atenuar a semana toda
-  // sem nada para contrastar seria o oposto de "destacar". O anúncio
-  // precisa concordar com isso, senão descreve um destaque que a tela não
-  // está mostrando.
-  const focoVisivelNaSemana = useMemo(
-    () => equipeFoco != null && grade.linhas.some((l) => l.equipe.id === equipeFoco),
-    [equipeFoco, grade.linhas],
-  );
+  /* A regra do destaque é a de `linhaAtenuada` (dados.tsx) — a função TESTADA.
+     Este arquivo reimplementava a mesma regra à mão em dois lugares (um memo de
+     "o foco tem linha nesta semana" e a expressão que decidia `atenuada` por
+     linha) enquanto a função não tinha consumidor de produção nenhum: duas
+     cópias que concordavam, e a que rodava não era a coberta por teste.
+
+     Um memo com o conjunto pronto, e não uma chamada solta dentro do `map` das
+     linhas: `linhaAtenuada` varre `linhas` por dentro para responder "a equipe
+     em foco aparece nesta semana?", então chamá-la por linha é O(n²) — e há
+     render a cada quadro do `pointermove`. Cada `<LinhaTurma>` continua
+     recebendo só um booleano, como antes.
+
+     `destaqueTemLinha` é a MESMA pergunta, feita à MESMA função: com um id que
+     nenhuma equipe tem, o último termo da regra (`equipeId !== focoEquipeId`) é
+     sempre verdadeiro e sobra exatamente "existe destaque E ele tem linha
+     aqui". Não é `atenuadas.size > 0`: com uma linha só, e ela sendo a em foco,
+     nada atenua e o destaque ainda assim está na tela — o anúncio diria que a
+     equipe não tem serviço na semana quando ela tem. */
+  const { atenuadas, destaqueTemLinha } = useMemo(() => {
+    const conjunto = new Set<number>();
+    for (const linha of grade.linhas) {
+      if (linhaAtenuada(linha.equipe.id, equipeFoco, grade.linhas)) conjunto.add(linha.equipe.id);
+    }
+    return {
+      atenuadas: conjunto,
+      destaqueTemLinha: linhaAtenuada(EQUIPE_INEXISTENTE, equipeFoco, grade.linhas),
+    };
+  }, [equipeFoco, grade.linhas]);
 
   /* Quem não vê a tela não percebe a opacidade das linhas atenuadas — só a
-     região viva conta essa história. Ela depende de `focoVisivelNaSemana`, não
+     região viva conta essa história. Ela depende de `destaqueTemLinha`, não
      só do nome: trocar de SEMANA com o MESMO destaque ativo pode fazer a equipe
      em foco ganhar ou perder a linha, e a narração precisa reavaliar nesse
      momento, não só quando o destaque em si muda.
@@ -217,7 +289,7 @@ export function QuadroSemana({
      estamos, então vale em qualquer ordem de montagem, e um remonte por outro
      motivo (troca de rota, Suspense) também não passa a narrar um destaque que
      ninguém mexeu. */
-  const textoDestaque = textoDoDestaque(equipeFocoNome, focoVisivelNaSemana);
+  const textoDestaque = textoDoDestaque(equipeFocoNome, destaqueTemLinha);
   const [destaqueVisto, setDestaqueVisto] = useState(textoDestaque);
   if (textoDestaque !== destaqueVisto) {
     setDestaqueVisto(textoDestaque);
@@ -339,6 +411,63 @@ export function QuadroSemana({
     (id: number) => desfazerPorId.get(id) ?? null,
     [desfazerPorId],
   );
+
+  /* A REDE DE TAB da pista (spec §5, "o quadro nunca fica sem tab stop").
+     Toda parada de Tab da pista é um CARTÃO — o roving tabindex só sabe apontar
+     para cartão —, então sem nenhum cartão montado a pista inteira sai da ordem
+     de Tab: 77 células e nada em que parar. Não é hipótese: `?status=executado`
+     esvazia a grade inteira em dois cliques, porque `montarGrade` só põe em
+     célula e em propostas o que está em aberto.
+
+     A condição é a CONTAGEM DE CARTÃO MONTADO (ver `contarCartoesDaPista`, no
+     alto), nunca `idAtivo == null` — as duas divergem nas duas direções, e o
+     comentário da função explica.
+
+     A spec propunha dar `tabIndex` ao "`<h4>` do primeiro grupo". Não existe
+     `<h4>` no quadro, e o rótulo do grupo em `celula-equipe.tsx` é um `<span
+     aria-hidden="true">`: focar um nó `aria-hidden` é violação e não anuncia
+     nada. Daí um nó próprio.
+
+     Ele fica DENTRO da pista e como ÚLTIMO item da grade (`col-span-full`,
+     que é `grid-column: 1 / -1` — a grade tem 8 colunas), não acima dela: assim
+     chegar nele por Tab ROLA a pista para a vista, o que um aviso pendurado
+     fora do rolador não faria.
+
+     Sem `role="status"` nem nenhuma região viva: o nó troca de texto a cada
+     mudança de semana, e uma região viva narraria isso por cima do movimento em
+     curso. Quem lê a frase é quem chega nela por Tab — por isso `tabIndex={0}` e
+     nome acessível, e nada de foco automático. */
+  const cartoesDaPista = useMemo(() => contarCartoesDaPista(grade), [grade]);
+
+  /* As duas frases, e a diferença entre elas é o valor real desta rede: hoje o
+     gestor desmarca dois chips, vê a semana branca e conclui que não há serviço
+     nenhum para planejar. Se a pista está vazia e a semana TEM serviço, ele está
+     todo fora do filtro — não há terceira explicação, porque serviço em aberto
+     com data na janela sempre ganha lugar (célula, se tem turma; propostas, se
+     não tem).
+
+     A segunda frase fala em "data nesta semana", não em "serviço nesta semana",
+     e a diferença é medida: uma fatia de CONTINUAÇÃO (serviço que começou antes
+     da segunda e se estende para dentro da janela) carrega km numa célula sem
+     desenhar cartão nenhum — ver `Celula.continuacoes`, em `dados.tsx`. A rede
+     ainda tem de aparecer, porque não há cartão em que parar, e a frase continua
+     verdadeira: a data daquele serviço está na semana anterior, e é isso que
+     `servicosNaSemanaSemFiltro` mede. */
+  const vazio =
+    cartoesDaPista > 0
+      ? null
+      : servicosNaSemanaSemFiltro > 0
+        ? {
+            icone: <FilterX />,
+            titulo: "O filtro de status esconde a semana inteira.",
+            descricao: `Esta semana tem ${fmt.contar(servicosNaSemanaSemFiltro, "serviço")}, e nenhum deles está nos status escolhidos agora.`,
+          }
+        : {
+            icone: <CalendarDays />,
+            titulo: "Nenhum serviço com data nesta semana.",
+            descricao:
+              "Arraste um cartão da fila de decisão para um dia e uma turma, ou navegue para outra semana.",
+          };
 
   const idTitulo = useId();
 
@@ -530,7 +659,7 @@ export function QuadroSemana({
               <LinhaTurma
                 key={linha.equipe.id}
                 linha={linha}
-                atenuada={focoVisivelNaSemana && linha.equipe.id !== equipeFoco}
+                atenuada={atenuadas.has(linha.equipe.id)}
                 previa={previa}
                 alvoAtual={alvoAtual}
                 recusaAtual={recusaAtual}
@@ -548,6 +677,38 @@ export function QuadroSemana({
                 desfazerDe={desfazerDe}
               />
             ))}
+
+            {vazio ? (
+              /* `role="group"` e não `status`/`region`: um grupo focável anuncia
+                 o próprio nome ao receber foco e não entra no rotor de
+                 landmarks nem interrompe fala nenhuma. O nome repete título e
+                 descrição porque é a frase inteira que precisa chegar a quem
+                 ouve — o texto visível é o mesmo, palavra por palavra. */
+              <div
+                role="group"
+                tabIndex={0}
+                aria-label={`${vazio.titulo} ${vazio.descricao}`}
+                className="col-span-full p-3"
+              >
+                <EstadoVazio
+                  icone={vazio.icone}
+                  titulo={vazio.titulo}
+                  descricao={vazio.descricao}
+                  acao={
+                    servicosNaSemanaSemFiltro > 0 ? (
+                      <Botao
+                        tamanho="sm"
+                        variante="fantasma"
+                        iconeEsquerda={<RotateCcw />}
+                        onClick={aoRestaurar}
+                      >
+                        Restaurar padrão
+                      </Botao>
+                    ) : null
+                  }
+                />
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
@@ -569,7 +730,7 @@ export function QuadroSemana({
           O preço de uma região só é que o último a escrever vence DENTRO de um
           mesmo commit, e isso custa algo em UM caso: se uma solta muda o destaque
           no mesmo evento — o destaque aponta para uma turma desativada e o serviço
-          movido era o último dela na semana, o único jeito de `focoVisivelNaSemana`
+          movido era o último dela na semana, o único jeito de `destaqueTemLinha`
           virar, já que turma ativa sempre tem linha — a frase do destaque cobre a
           do desfecho, porque a guarda do destaque roda no render que a própria
           solta provocou. Aceitável: a frase que sobra descreve a consequência da

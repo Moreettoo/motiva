@@ -110,6 +110,13 @@ export function PlanejamentoAgenda({
   // tratá-la como canônica.
   const ancora = chaveDia(inicioDaSemana(semanaValida(semana) ? semana : hoje));
 
+  /** A âncora que o quadro mostra quando `?semana=` está AUSENTE. Um valor, não
+   *  um cálculo repetido: é ele que `aoNavegar` usa para decidir se apaga o
+   *  parâmetro da URL e `alterado` para decidir se há o que restaurar — as duas
+   *  perguntas são a mesma, e antes cada uma respondia à sua maneira. String, e
+   *  por isso estável nas dependências sem `useMemo`. */
+  const ancoraPadrao = chaveDia(inicioDaSemana(hoje));
+
   const { mostrar } = useNotificacao();
   const [, iniciar] = useTransition();
 
@@ -381,6 +388,16 @@ export function PlanejamentoAgenda({
     [naJanela],
   );
 
+  // Grupo "NÃO SEGUE O FILTRO" da regra acima, e pelo mesmo motivo dos
+  // vencidos: este número existe para dizer que o filtro escondeu a semana
+  // inteira, então o filtro não pode decidir se o que ele esconde existe. Não há
+  // contradição possível com o quadro — quando ele aparece na tela, não sobrou
+  // cartão nenhum para conferir contra. `itens`, e não `visiveis`, é o ponto.
+  const servicosNaSemanaSemFiltro = useMemo(
+    () => itens.filter((item) => diasDaJanela.has(item.data)).length,
+    [itens, diasDaJanela],
+  );
+
   // O escopo do filtro, não o da semana. Contava só `diasDaJanela` e descrevia
   // um conjunto que o botão não governa: o filtro alimenta `visiveis`, e
   // `visiveis` alimenta também o TRILHO (todos os ~62 sem turma, de todo o
@@ -418,8 +435,15 @@ export function PlanejamentoAgenda({
     planejadas.map((item) => item.equipeId).filter((id) => id != null),
   ).size;
 
+  // Compara a ÂNCORA, não o valor CRU da URL. `?semana=` chega até aqui por
+  // duas portas que não mudam a tela: uma data válida fora da segunda-feira
+  // (`?semana=2026-08-13`, uma quinta desta semana) e lixo que `semanaValida`
+  // reprova (`?semana=abc`) produzem os MESMOS sete dias do padrão — e com
+  // `semana !== ""` o botão "Restaurar padrão" aparecia sem nada para
+  // restaurar. É o mesmo resíduo que a normalização da âncora tirou por uma
+  // porta e deixou por outra; o que governa a tela é `ancora`.
   const alterado =
-    semana !== "" ||
+    ancora !== ancoraPadrao ||
     equipe !== "" ||
     status.length !== STATUS_PADRAO.length ||
     STATUS_PADRAO.some((s) => !status.includes(s));
@@ -557,8 +581,8 @@ export function PlanejamentoAgenda({
   );
 
   const aoNavegar = useCallback(
-    (nova: string) => setSemana(nova === chaveDia(inicioDaSemana(hoje)) ? null : nova),
-    [setSemana, hoje],
+    (nova: string) => setSemana(nova === ancoraPadrao ? null : nova),
+    [setSemana, ancoraPadrao],
   );
 
   // "Atrasado" só existe em `sugerido`/`aprovado` (ver `dados.tsx`), e o
@@ -578,11 +602,17 @@ export function PlanejamentoAgenda({
 
   const aoSelecionar = useCallback((id: number) => setSelecionado(id), [setSelecionado]);
 
-  function restaurar() {
+  /* Memoizado porque agora desce DUAS vezes: para `Controles`, como sempre, e
+     para `QuadroSemana`, cuja rede de Tab oferece o mesmo "Restaurar padrão"
+     quando o filtro esvaziou a semana. Prop nova no quadro tem de ser escalar ou
+     estável — uma função recriada a cada render atravessaria até os ~130 cartões
+     e derrubaria o `memo` deles no meio de um `pointermove`. As três escritas do
+     `nuqs` já são estáveis, então a identidade daqui também é. */
+  const restaurar = useCallback(() => {
     setSemana(null);
     setStatus(null);
     setEquipe(null);
-  }
+  }, [setSemana, setStatus, setEquipe]);
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
@@ -615,6 +645,7 @@ export function PlanejamentoAgenda({
         equipeFoco={equipeFoco}
         totalAtrasados={totalAtrasados}
         semanaAtraso={semanaAtraso}
+        servicosNaSemanaSemFiltro={servicosNaSemanaSemFiltro}
         selecionado={selecionado}
         salvandoIds={salvandoIds}
         desfazerPorId={desfazerPorId}
@@ -625,6 +656,7 @@ export function PlanejamentoAgenda({
         aoSelecionar={aoSelecionar}
         aoAlocar={alocar}
         aoDevolver={devolver}
+        aoRestaurar={restaurar}
       />
 
       <PainelAgendamento

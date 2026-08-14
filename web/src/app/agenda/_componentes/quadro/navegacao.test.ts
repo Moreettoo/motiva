@@ -3,7 +3,14 @@ import { describe, expect, it } from "vitest";
 import type { Equipe } from "@/lib/types";
 
 import { chaveCelula, montarGrade, montarJanela, type Grade } from "../dados";
-import { alvoNaBordaDaSemana, alvoPropostas, ehAlvoPropostas, proximoAlvo, realinharAlvo } from "./navegacao";
+import {
+  alvoNaBordaDaSemana,
+  alvoPropostas,
+  ehAlvoPropostas,
+  proximoAlvo,
+  realinharAlvo,
+  sufixoDeBorda,
+} from "./navegacao";
 
 function equipe(id: number, nome: string): Equipe {
   return {
@@ -85,6 +92,37 @@ describe("proximoAlvo", () => {
       tipo: "alvo",
       alvo: "fila",
     });
+  });
+});
+
+describe("sufixoDeBorda", () => {
+  const celula = chaveCelula("2026-08-10", 1);
+
+  it("no primeiro dia, a seta para a esquerda fala do INÍCIO da semana", () => {
+    // O caso que estava errado: com a doca fechada no estreito, `proximoAlvo`
+    // devolve `borda` em vez de "fila" (ver o teste de `filaDisponivel: false`
+    // acima), e o anúncio saía "Fim da semana; Shift e seta para a próxima" —
+    // mentindo sobre o fato e mandando o gestor para o lado oposto.
+    expect(sufixoDeBorda("esquerda", celula)).toBe("Início da semana; Shift e seta para a anterior.");
+  });
+
+  it("no último dia, a seta para a direita continua falando do FIM da semana", () => {
+    expect(sufixoDeBorda("direita", chaveCelula("2026-08-16", 1))).toBe(
+      "Fim da semana; Shift e seta para a próxima.",
+    );
+  });
+
+  it("o eixo vertical não é fim de semana nenhum", () => {
+    expect(sufixoDeBorda("cima", celula)).toBe("Não há equipe nessa direção.");
+    expect(sufixoDeBorda("baixo", celula)).toBe("Não há equipe nessa direção.");
+  });
+
+  it("o trilho não tem eixo horizontal de semana — nem para a esquerda", () => {
+    // "fila" só sai pela direita; bater à esquerda ali não é o início de
+    // semana nenhuma, e Shift+seta não levaria a lugar nenhum a partir dele.
+    expect(sufixoDeBorda("esquerda", "fila")).toBe("Não há equipe nessa direção.");
+    expect(sufixoDeBorda("direita", "fila")).toBe("Não há equipe nessa direção.");
+    expect(sufixoDeBorda("cima", "fila")).toBe("Não há equipe nessa direção.");
   });
 });
 

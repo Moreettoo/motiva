@@ -82,21 +82,23 @@ type Entradas = {
   selecionadoVisto?: number | null;
 };
 
-/** Nos testes, sem corte de exibição — a fila visível é a fila inteira. */
+/** A cadeia do QUADRO como `useFocoGrade` a monta. A fila do trilho não entra
+ *  em nenhum dos dois lados: `idsDoQuadro` só conhece `grade`, e é isso que faz
+ *  o conjunto de elegibilidade e o universo do padrão serem os MESMOS. */
 function decidir(grade: Grade, p: Entradas): number | null {
-  const idsRenderizados = idsDoQuadro(grade.fila, grade);
+  const idsRenderizados = idsDoQuadro(grade);
   return decidirCartaoAtivo({
     anterior: adotarSelecionado({
       anterior: p.anterior,
       selecionado: p.selecionado,
       selecionadoVisto: p.selecionadoVisto ?? null,
-      // O critério do QUADRO: qualquer id com cartão montado em algum lugar da
-      // grade — o mesmo conjunto contra o qual a decisão já valida um alvo.
+      // O critério do QUADRO: um cartão montado NO QUADRO (Propostas da semana
+      // ou célula de turma) — o mesmo conjunto contra o qual a decisão já
+      // valida um alvo, e o mesmo de onde sai o padrão.
       elegiveis: idsRenderizados,
     }),
     emVoo: p.emVoo,
     grade,
-    filaVisivel: grade.fila,
     idsRenderizados,
   });
 }
@@ -183,7 +185,11 @@ describe("decidirCartaoAtivo", () => {
     expect(decidir(grade, { anterior: 2, emVoo: null, selecionado: null })).toBe(2);
   });
 
-  it("cai no padrão (primeiro da fila) quando o anterior sumiu da lista", () => {
+  it("cai no padrão (a primeira proposta da semana) quando o anterior sumiu da lista", () => {
+    // Nome corrigido: era "primeiro da fila", e o valor batia por coincidência
+    // — o id 1 não tem turma E sua data cai na semana visível, então ele é ao
+    // mesmo tempo o topo da fila e o primeiro cartão da linha de Propostas. O
+    // padrão do quadro é o segundo desses papéis; o primeiro é do trilho.
     const grade = montar([
       agendamento({ id: 1, data: "2026-08-11" }),
       agendamento({ id: 2, data: "2026-08-12", equipeId: 1 }),
@@ -192,9 +198,28 @@ describe("decidirCartaoAtivo", () => {
     expect(decidir(grade, { anterior: 99, emVoo: null, selecionado: null })).toBe(1);
   });
 
-  it("cai no primeiro item da grade quando a fila está vazia", () => {
+  it("cai na primeira célula quando a semana não tem proposta nenhuma", () => {
     const grade = montar([agendamento({ id: 2, data: "2026-08-12", equipeId: 1 })]);
     expect(decidir(grade, { anterior: null, emVoo: null, selecionado: null })).toBe(2);
+  });
+
+  it("o padrão entra pelas Propostas antes das células, e na ordem dos DIAS", () => {
+    const grade = montar([
+      agendamento({ id: 1, data: "2026-08-11", equipeId: 1 }), // célula, terça
+      agendamento({ id: 2, data: "2026-08-14" }), // proposta, sexta
+      agendamento({ id: 3, data: "2026-08-12" }), // proposta, quarta
+    ]);
+    // A célula da terça é o cartão mais à esquerda da semana e ainda assim
+    // perde: a linha "Propostas da IA" vem antes das raias de turma no DOM
+    // (`quadro-semana.tsx`), e o quadro tem uma parada de Tab só — este valor É
+    // onde o Tab aterra ao entrar na região, então precisa ser o primeiro
+    // cartão em ordem de leitura, não o primeiro em ordem de dado.
+    //
+    // Entre as propostas vence o menor DIA (quarta), não a ordem de inserção do
+    // Map, que segue os ITENS: `montarGrade` inseriu sexta primeiro. Percorrer
+    // `grade.propostas.values()` daria o id 2, um cartão duas colunas à direita.
+    expect([...grade.propostas.keys()]).toEqual(["2026-08-14", "2026-08-12"]);
+    expect(decidir(grade, { anterior: null, emVoo: null, selecionado: null })).toBe(3);
   });
 
   it("devolve null quando não há nenhum item em lugar nenhum", () => {
@@ -226,85 +251,108 @@ describe("decidirCartaoAtivo", () => {
     expect(decidir(semanaNova, { anterior: null, emVoo: null, selecionado: 2 })).toBe(3);
   });
 
-  it("um id além do corte de exibição do trilho, e fora da semana visível, não trava a grade", () => {
-    // Simula o teto do trilho: `filaVisivel` só tem o id 2. O id 1 existe em
-    // `grade.fila` mas está "além do teto" — e sua data (fora da janela
-    // visível, 2026-08-10 a 2026-08-16) também não o coloca em
-    // `grade.propostas`, então ele não tem cartão NENHUM montado na tela.
+  it("um id cujo ÚNICO cartão está no trilho não é ativo do quadro por nenhuma das três portas", () => {
+    // O defeito, pelos três gatilhos que levam a ele. O id 1 não tem turma e
+    // sua data (2026-09-01) cai fora da janela visível (2026-08-10 a
+    // 2026-08-16): não vira proposta, e sem turma nunca ocupa célula — o único
+    // cartão dele está no trilho. Enquanto `idsDoQuadro` incluía a fila, esse
+    // id passava no PRIMEIRO ramo de `decidirCartaoAtivo`, o padrão nunca
+    // rodava, e nenhum cartão do quadro casava `item.id === idAtivo`: as 7
+    // colunas, a linha de Propostas e todas as raias ficavam com ZERO paradas
+    // de Tab, com a célula do id 2 visível na tela. E o estado se sustentava,
+    // porque o mesmo conjunto revalidava o sticky no render seguinte.
     const grade = montar([
       agendamento({ id: 1, data: "2026-09-01" }),
-      agendamento({ id: 2, data: "2026-08-12" }),
+      agendamento({ id: 2, data: "2026-08-12", equipeId: 1 }),
     ]);
-    const filaVisivel = [grade.fila.find((i) => i.id === 2)!];
-    const idsRenderizados = idsDoQuadro(filaVisivel, grade);
-    expect(
-      decidirCartaoAtivo({
-        anterior: 1,
-        emVoo: null,
-        filaVisivel,
-        grade,
-        idsRenderizados,
-      }),
-    ).toBe(2); // cai no padrão (primeiro da fila VISÍVEL), não trava em tabIndex=-1.
+    expect([...idsDoQuadro(grade)]).toEqual([2]); // a fila não é do quadro
+    // (a) sticky memorizado — o caso que persistia entre renders.
+    expect(decidir(grade, { anterior: 1, emVoo: null, selecionado: null })).toBe(2);
+    // (b) primeira visita: sem sticky nenhum, o padrão não pode escolher
+    //     `grade.fila[0]` — e aqui a fila inteira é esse id.
+    expect(grade.fila.map((i) => i.id)).toEqual([1]);
+    expect(decidir(grade, { anterior: null, emVoo: null, selecionado: null })).toBe(2);
+    // (c) a gaveta abrindo nesse item: a adoção é recusada por inelegibilidade
+    //     na região e o padrão do quadro prevalece. O cartão do trilho segue
+    //     alcançável por lá — é a região dele que carrega essa parada de Tab.
+    expect(decidir(grade, { anterior: null, emVoo: null, selecionado: 1 })).toBe(2);
   });
 
-  it("um id além do corte do trilho, mas presente nas propostas desta semana, AINDA valida como ativo", () => {
-    // Mesmo corte do teste acima, mas agora a data do id 1 (2026-08-11) CAI
-    // na janela visível — ele tem um cartão de verdade na linha "Propostas
-    // da IA", mesmo estando fora do corte de exibição do trilho.
-    // `idsDoQuadro` precisa unir `grade.propostas`, não só `filaVisivel` e
-    // as células, ou este id seria injustamente recusado como ativo.
+  it("um item da linha de Propostas valida como ativo mesmo além do corte de exibição do trilho", () => {
+    // O corte do trilho (`TETO_TRILHO`) deixou de ser assunto deste cálculo:
+    // `idsDoQuadro` só conhece `grade`, e `grade.propostas` é coleção da região
+    // do quadro, não um subproduto da fila. O id 1 pode estar além do teto do
+    // trilho — ele tem cartão de verdade na linha "Propostas da IA" porque sua
+    // data (2026-08-11) cai na janela visível, e é isso que decide.
     const grade = montar([
       agendamento({ id: 1, data: "2026-08-11" }),
       agendamento({ id: 2, data: "2026-08-12" }),
     ]);
-    const filaVisivel = [grade.fila.find((i) => i.id === 2)!];
-    const idsRenderizados = idsDoQuadro(filaVisivel, grade);
     expect(
       decidirCartaoAtivo({
         anterior: null,
         emVoo: 1,
-        filaVisivel,
         grade,
-        idsRenderizados,
+        idsRenderizados: idsDoQuadro(grade),
       }),
     ).toBe(1);
   });
 
-  it("doca fechada / fila indisponível: o ativo do QUADRO não pode ser um id do trilho", () => {
-    // Item 1 está SÓ no trilho (sem equipe, data fora da janela visível —
-    // não vira proposta, e sem equipe nunca ocupa célula). Com a doca
-    // fechada no estreito (`filaDisponivel: false`), o trilho existe no DOM
-    // mas está `inert`: um Tab não alcança ele ali. Sem o gate, o padrão
-    // (`primeiroItemDoQuadro`) apontava para o item 1 mesmo assim — o
-    // "ativo" do quadro resolvia para um cartão que o teclado não alcança.
+  it("cartões só na linha de Propostas: o padrão os encontra, em vez de devolver null", () => {
+    // O terceiro buraco: `primeiroItemDoQuadro` percorria as células e nunca
+    // `grade.propostas`, então uma semana sem cartão em célula nenhuma devolvia
+    // `null` com cartões visíveis na tela. Alcançável hoje no estreito com a
+    // doca fechada, numa semana cujos abertos estejam todos sem turma.
+    const grade = montar([
+      agendamento({ id: 1, data: "2026-08-11" }),
+      agendamento({ id: 2, data: "2026-08-12" }),
+    ]);
+    expect(grade.linhas.every((l) => l.celulas.every((c) => c.itens.length === 0))).toBe(true);
+    expect(decidir(grade, { anterior: null, emVoo: null, selecionado: null })).toBe(1);
+
+    // E o vencido que só existe no trilho não rouba essa entrada, mesmo sendo o
+    // topo da fila — a fila é ordenada por urgência, o quadro por leitura.
+    const comVencido = montar([
+      agendamento({ id: 9, data: "2026-08-05" }), // sem turma, antes da janela: só trilho
+      agendamento({ id: 1, data: "2026-08-11" }), // sem turma, na janela: proposta
+    ]);
+    expect(comVencido.fila.map((i) => i.id)).toEqual([9, 1]);
+    expect(decidir(comVencido, { anterior: null, emVoo: null, selecionado: null })).toBe(1);
+  });
+
+  it("semana vazia com o trilho cheio: o ativo do QUADRO não pode ser um id do trilho", () => {
+    // Item 1 está SÓ no trilho (sem equipe, data fora da janela visível — não
+    // vira proposta, e sem equipe nunca ocupa célula). Este caso passava antes
+    // só por causa de um gate de layout (`filaDisponivel: false`, a doca do
+    // trilho fechada no estreito, que deixa o nó `inert`). Agora ele vale
+    // sozinho: o quadro não aponta para a fila em largura nenhuma.
+    const grade = montar([agendamento({ id: 1, data: "2026-09-01" })]);
+    expect(decidir(grade, { anterior: null, emVoo: null, selecionado: null })).toBeNull();
+  });
+
+  it("doca aberta (ou largura ampla): esse mesmo item CONTINUA sem ser o padrão do quadro", () => {
+    // A expectativa deste teste estava invertida: ele afirmava `.toBe(1)` sob o
+    // nome "o mesmo item volta a ser o padrão do quadro", codificando o bug.
+    // O id 1 não tem UM cartão no quadro — chamá-lo de padrão da região era
+    // exatamente o que zerava a parada de Tab das 7 colunas, da linha de
+    // Propostas e das 10 raias, em toda semana alcançada pelo `›` que estivesse
+    // vazia. O par com o teste acima continua sendo o ponto: o resultado é o
+    // mesmo com a doca aberta ou fechada, porque `filaDisponivel` deixou de ser
+    // entrada desta decisão quando a fila deixou de ser candidata dela.
+    //
+    // `null` aqui é honesto e é o que passou a ser garantido: nada no quadro
+    // para focar. A rede desse caso é do DOM (spec §5, um cabeçalho do quadro
+    // com `tabIndex={0}`), não deste cálculo — se ela cair, a região fica sem
+    // parada de Tab por ausência real de conteúdo, não por um id fantasma.
     const grade = montar([agendamento({ id: 1, data: "2026-09-01" })]);
     expect(
       decidirCartaoAtivo({
         anterior: null,
         emVoo: null,
-        filaVisivel: grade.fila,
         grade,
-        idsRenderizados: idsDoQuadro([], grade), // useFocoGrade também gateia isto quando filaDisponivel é falso
-        filaDisponivel: false,
+        idsRenderizados: idsDoQuadro(grade),
       }),
-    ).toBeNull(); // nada na grade (nenhuma equipe com serviço) e o trilho está fora de alcance.
-  });
-
-  it("doca aberta (ou largura ampla): o mesmo item volta a ser o padrão do quadro", () => {
-    // Mesma grade do teste acima, mas com `filaDisponivel` no valor default
-    // (`true`) — prova que o gate só muda o resultado quando explicitamente
-    // desligado, sem regredir o comportamento de coluna já testado acima.
-    const grade = montar([agendamento({ id: 1, data: "2026-09-01" })]);
-    expect(
-      decidirCartaoAtivo({
-        anterior: null,
-        emVoo: null,
-        filaVisivel: grade.fila,
-        grade,
-        idsRenderizados: idsDoQuadro(grade.fila, grade),
-      }),
-    ).toBe(1);
+    ).toBeNull();
   });
 });
 

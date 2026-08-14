@@ -3,7 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { Grade } from "../dados";
-import { alvoNaBordaDaSemana, proximoAlvo, realinharAlvo, type Alvo, type Direcao } from "./navegacao";
+import {
+  alvoNaBordaDaSemana,
+  proximoAlvo,
+  realinharAlvo,
+  sufixoDeBorda,
+  type Alvo,
+  type Direcao,
+} from "./navegacao";
 
 // Os componentes importam interação de um lugar só; espalhar o conhecimento de
 // que existem dois módulos (navegação pura + hook) seria pior.
@@ -570,6 +577,34 @@ export function useArrasto({
       if (evento.button !== 0 && evento.pointerType === "mouse") return;
       evento.preventDefault();
 
+      /* Um movimento por TECLADO em voo (`"carregando"`) é CANCELADO aqui, com
+         anúncio, e não silenciosamente sobrescrito — nem o gesto novo recusado.
+
+         Por que cancelar e não recusar: o ponteiro é manipulação direta e
+         acabou de acontecer, enquanto o movimento por teclado é um estado modal
+         que a pessoa pode ter esquecido que abriu (nada na tela grita "há um
+         cartão pego"). Recusar a alça deixaria o gesto novo sem resposta
+         nenhuma — "a alça não funciona" —, e é a mesma regra que este bloco já
+         segue para um segundo PONTEIRO: quem chega depois manda. Não há estado
+         novo na máquina: `"carregando"` termina como sempre terminou, por
+         `fechar()`.
+
+         Por que ANUNCIAR: sem isto o movimento de A desaparecia em silêncio num
+         clique curto na alça de B — curto o bastante para não passar dos 8px,
+         logo sem virar arrasto nenhum —, e quem só ouve a tela não tinha como
+         saber que o cartão pego deixou de estar pego. `fechar()` é o que zera
+         `precisaAnunciarChegada` e o passo pendente do diferidor, que antes
+         vazavam para o gesto novo. A ordem (falar, depois fechar) é a mesma do
+         `Esc`: `anunciarAgora` descarta o passo pendente antes de falar.
+
+         Só `"carregando"`: é a única fase que apenas o teclado produz, e a
+         única cuja perda não se vê. `"candidato"`/`"arrastando"` são de
+         ponteiro e continuam tratados pelo `limparRecursos` logo abaixo. */
+      if (estadoRef.current.fase === "carregando") {
+        anunciarAgora("Movimento cancelado. O serviço continua onde estava.");
+        fechar();
+      }
+
       // Um segundo ponteiro pode chegar antes de o primeiro soltar ou
       // cancelar: sem limpar aqui, o temporizador do gesto anterior (ainda
       // não comprometido) sobrevive à troca e comprometeria o ponteiro ERRADO
@@ -604,7 +639,7 @@ export function useArrasto({
 
       definirEstado({ fase: "candidato", carga });
     },
-    [comprometer, definirEstado],
+    [comprometer, definirEstado, anunciarAgora, fechar],
   );
 
   // Os ouvintes ficam em `window` e não no quadro: entre o `pointerdown` e o
@@ -872,15 +907,12 @@ export function useArrasto({
         return;
       }
       if (passo.tipo === "borda") {
-        // "Fim da semana" só faz sentido no eixo horizontal. No vertical (uma
-        // ponta da coluna de equipes) e a partir do trilho (que não tem
-        // eixo vertical e só sai pela direita) o motivo é outro — dizer "fim
-        // da semana" ali confundiria quem usa leitor de tela à toa.
-        const semEixoHorizontal = direcao === "cima" || direcao === "baixo" || atual.alvo === "fila";
-        const sufixo = semEixoHorizontal
-          ? "Não há equipe nessa direção."
-          : "Fim da semana; Shift e seta para a próxima.";
-        anunciarPasso(`${descrever(passo.alvo, atual.carga)} ${sufixo}`);
+        // A composição do sufixo é pura (só direção e alvo) e mora em
+        // `sufixoDeBorda`, em `navegacao.ts`, onde o vitest a alcança — ver lá
+        // por que são três textos e não dois. `passo.alvo` é o mesmo
+        // `atual.alvo` neste ramo (`{tipo: "borda"}` nunca muda o alvo);
+        // usa-se o do passo por ser o alvo que a frase descreve.
+        anunciarPasso(`${descrever(passo.alvo, atual.carga)} ${sufixoDeBorda(direcao, passo.alvo)}`);
         return;
       }
 

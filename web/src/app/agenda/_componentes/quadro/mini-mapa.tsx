@@ -26,7 +26,6 @@ export function MiniMapa({
     <div className="rounded-md border border-border bg-surface p-3">
       <div className="flex items-end gap-px">
         {resumos.map((r) => {
-          const total = r.comEquipe + r.semEquipe;
           const dentro = naJanela.has(r.dia);
 
           return (
@@ -55,8 +54,18 @@ export function MiniMapa({
                   não fosse o pico exato dos 28. Altura real empilha de
                   verdade. O arredondamento do topo mora no envoltório
                   (`overflow-hidden`), não numa das faixas: assim o canto
-                  aparece sobre qualquer uma que toque o topo — a clara, a
-                  escura, ou nenhuma, no dia zerado.
+                  aparece sobre qualquer uma que toque o topo — a de cima, a de
+                  baixo, ou nenhuma, no dia zerado.
+
+                  A ORDEM é o que a legenda nomeia, e é por isso que ela fala em
+                  cima e embaixo: `flex-col` com `justify-end` põe o primeiro
+                  filho ACIMA do segundo, então sem equipe fica em cima e com
+                  equipe embaixo, nos dois temas. A legenda dizia "a parte clara
+                  ainda não tem equipe" — verdade só no claro. `--ink` inverte
+                  de sentido com o tema (quase preto no claro, quase branco no
+                  escuro), então no escuro a parte CLARA é justamente a que TEM
+                  equipe: a única explicação do gráfico mentia em metade dos
+                  temas. Posição não inverte; luminância inverte.
 
                   As duas faixas usam `--ink-3`/`--ink` (cinzas puros, sem
                   matiz nenhum — a paleta de tinta do projeto não tem hue) em
@@ -68,10 +77,15 @@ export function MiniMapa({
                   (~1,1:1, quase fundido ao fundo, e é a faixa que MAIS
                   aparece: 62 dos 97 serviços não têm turma). Sendo cinza puro,
                   a distinção sobrevive a quem não percebe matiz — só depende
-                  de luminância, que é justamente o canal que sobrou intacto.
-                  `border-t` em cada faixa (não só no envoltório) dá a cada uma
-                  um contorno próprio: sem ele, a faixa clara flutuava sem
-                  nenhuma borda quando não alcançava o topo do envoltório. */}
+                  de luminância, que é justamente o canal que sobrou intacto;
+                  as duas faixas separam 3,70:1 no claro e 3,47:1 no escuro,
+                  acima do piso de 3:1 de elemento gráfico. Contra os três
+                  fundos que a coluna pode ter, o pior caso de cada faixa é
+                  4,57:1 (`ink-3` sobre `surface-3`) no claro e 3,98:1 (`ink-3`
+                  sobre `accent-soft`) no escuro. `border-t` em cada faixa (não
+                  só no envoltório) dá a cada uma um contorno próprio: sem ele,
+                  a faixa de cima flutuava sem nenhuma borda quando não
+                  alcançava o topo do envoltório. */}
               <span
                 aria-hidden="true"
                 className="flex h-8 w-full flex-col justify-end overflow-hidden rounded-t-xs border border-border-strong"
@@ -86,15 +100,27 @@ export function MiniMapa({
                 />
               </span>
               <span className="mt-0.5 block h-px w-full bg-transparent group-hover:bg-accent-line" />
-              <span className="sr-only">{fmt.n(total)}</span>
+              {/* Aqui havia um `<span className="sr-only">` com o total do dia:
+                  texto morto. O `aria-label` acima é explícito, e nome
+                  explícito SUBSTITUI o conteúdo no cálculo do nome acessível —
+                  ninguém nunca ouviu esse número. Removido em vez de
+                  incorporado porque o rótulo já diz as duas parcelas ("N
+                  serviços com turma, M sem turma") e o total é a soma delas:
+                  enfiá-lo no rótulo faria 28 botões recitarem aritmética. */}
             </button>
           );
         })}
       </div>
 
+      {/* A legenda é o único canal que explica o gráfico, então ela não pode
+          nomear as faixas por luminância: "a parte clara" inverte de sentido
+          com o tema (ver o bloco das faixas, acima). Posição é estável — em
+          cima é sempre sem turma, embaixo sempre com turma, nos dois temas.
+          A spec (§2) pede o texto com "a parte clara"; foi escrita quando a
+          faixa sem equipe era `--surface-3`, e o par mudou por contraste. */}
       <p className="mt-2 text-2xs text-ink-3">
-        A altura é o número de serviços no dia; a parte clara ainda não tem equipe. O ícone marca
-        dia com turma acima da capacidade. Clique para ir à semana.
+        A altura é o número de serviços no dia: embaixo os que já têm turma, em cima os que ainda
+        não. O ícone marca dia com turma acima da capacidade. Clique para ir à semana.
       </p>
     </div>
   );

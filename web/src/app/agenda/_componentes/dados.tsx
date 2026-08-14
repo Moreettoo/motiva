@@ -117,6 +117,14 @@ export type Celula = {
   dia: string;
   equipeId: number;
   itens: ItemAgenda[];
+  /** Serviços que OCUPAM este dia sem desenhar cartão nele: `itensPorCelula` é
+   *  chaveado pelo dia de INÍCIO (o cartão desenha onde começa), então o segundo
+   *  dia de um serviço de 2 dias herda só km. Sem esta lista a célula de
+   *  continuação fica com `km > 0` e `itens` vazio, e o rótulo falado tinha de
+   *  escolher entre mentir ("Sem serviço.", com a barra mostrando 2,5/4,5) e
+   *  deixar o km sem dono. Alcançável pelo próprio arrasto: 6 agendamentos em
+   *  aberto passam de 4,5 km e há turma ativa com 4,5 km/dia de capacidade. */
+  continuacoes: ItemAgenda[];
   km: number;
   capacidade: number;
   ocupacao: number;
@@ -197,6 +205,7 @@ export function montarGrade({
   const fatiasPorItem = new Map<number, Fatia[]>();
   const kmPorCelula = new Map<ChaveCelula, number>();
   const itensPorCelula = new Map<ChaveCelula, ItemAgenda[]>();
+  const continuacoesPorCelula = new Map<ChaveCelula, ItemAgenda[]>();
 
   for (const item of itens) {
     if (!EM_ABERTO.has(item.status) || item.equipeId == null) continue;
@@ -206,8 +215,19 @@ export function montarGrade({
     const fatias = fatiasEm(item, item.data, equipe);
     fatiasPorItem.set(item.id, fatias);
 
-    for (const fatia of fatias) {
+    for (const [i, fatia] of fatias.entries()) {
       kmPorCelula.set(fatia.chave, (kmPorCelula.get(fatia.chave) ?? 0) + fatia.km);
+      // Da segunda fatia em diante o cartão já foi desenhado no dia de início:
+      // esta célula carrega km sem cartão. Ver `Celula.continuacoes`. O índice
+      // cobre também a fatia cujo dia de início cai FORA da janela — ela não
+      // tem célula onde desenhar, e o dia de continuação que caiu dentro
+      // continua sendo o único lugar que mostra esse km.
+      if (i > 0) {
+        continuacoesPorCelula.set(fatia.chave, [
+          ...(continuacoesPorCelula.get(fatia.chave) ?? []),
+          item,
+        ]);
+      }
     }
     // O cartão desenha no dia em que começa; as demais fatias só entram na carga.
     const chave = chaveCelula(item.data, item.equipeId);
@@ -229,6 +249,7 @@ export function montarGrade({
         dia,
         equipeId: equipe.id,
         itens: (itensPorCelula.get(chave) ?? []).slice().sort(ordenarPorUrgencia),
+        continuacoes: (continuacoesPorCelula.get(chave) ?? []).slice().sort(ordenarPorUrgencia),
         capacidade,
         km: medida.km,
         ocupacao: medida.ocupacao,

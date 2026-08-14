@@ -96,6 +96,30 @@ export function proximoAlvo(
 }
 
 /**
+ * O que dizer DEPOIS de descrever a célula quando a seta bateu numa borda
+ * (`{tipo: "borda"}` de `proximoAlvo`). Pura, e mora aqui e não dentro de
+ * `aoTeclar` porque depende só de direção e alvo — que é justamente o que o
+ * vitest alcança sem DOM.
+ *
+ * Três textos, não dois. O eixo VERTICAL (uma ponta da coluna de turmas) e o
+ * trilho (que não tem eixo vertical e só sai pela direita) não são fim de
+ * semana nenhum: dizer "fim da semana" ali confundiria quem ouve a tela à toa.
+ * No eixo horizontal, os dois extremos precisam de textos DIFERENTES — antes
+ * havia um só, e a seta para a ESQUERDA no primeiro dia com o trilho
+ * indisponível (estreito, doca fechada: `proximoAlvo` devolve `borda` em vez de
+ * "fila") anunciava "Fim da semana; Shift e seta para a próxima", errado no
+ * fato e apontando a dica para o lado oposto ao do movimento.
+ */
+export function sufixoDeBorda(direcao: Direcao, alvo: Alvo): string {
+  if (direcao === "cima" || direcao === "baixo" || alvo === "fila") {
+    return "Não há equipe nessa direção.";
+  }
+  return direcao === "esquerda"
+    ? "Início da semana; Shift e seta para a anterior."
+    : "Fim da semana; Shift e seta para a próxima.";
+}
+
+/**
  * Realinha o alvo para a semana nova ao atravessar semana em pleno movimento
  * (Shift+seta, ou seta simples no fim da semana): mesmo dia da semana, mesma
  * turma — só desloca a data em `delta * 7` dias, porque é exatamente quanto
