@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import type { AgendamentoDetalhado, Equipe } from "@/lib/types";
 
-import { montarGrade, montarItens, montarJanela, type Grade } from "../dados";
+import { montarGrade, montarItens, montarJanela, type Grade, type ItemAgenda } from "../dados";
 import {
+  adotarSelecionado,
   decidirCartaoAtivo,
   decidirCartaoAtivoTrilho,
   idAtivoNoTrilho,
   idsDoQuadro,
+  idsElegiveisNoTrilho,
   idsNasPropostas,
 } from "./usar-foco-grade";
 
@@ -67,17 +69,61 @@ function montar(ags: AgendamentoDetalhado[]): Grade {
   return montarGrade({ itens, equipes, janela, hoje });
 }
 
+/** Como `useFocoGrade` chama a gaveta de detalhe: `selecionado` NÃO é entrada
+ *  de `decidirCartaoAtivo` — ele chega em `anterior`, uma vez por mudança, via
+ *  `adotarSelecionado`. `selecionadoVisto` default `null` é o render em que a
+ *  gaveta ACABOU de passar a mostrar aquele id (o caso de `?ag=` na primeira
+ *  pintura); passar o mesmo valor de `selecionado` simula a gaveta já aberta há
+ *  vários renders, que é quando o `onFocus` precisa mandar. */
+type Entradas = {
+  anterior: number | null;
+  emVoo: number | null;
+  selecionado: number | null;
+  selecionadoVisto?: number | null;
+};
+
 /** Nos testes, sem corte de exibição — a fila visível é a fila inteira. */
-function decidir(
-  grade: Grade,
-  p: { anterior: number | null; emVoo: number | null; selecionado: number | null },
-): number | null {
+function decidir(grade: Grade, p: Entradas): number | null {
+  const idsRenderizados = idsDoQuadro(grade.fila, grade);
   return decidirCartaoAtivo({
-    ...p,
+    anterior: adotarSelecionado({
+      anterior: p.anterior,
+      selecionado: p.selecionado,
+      selecionadoVisto: p.selecionadoVisto ?? null,
+      // O critério do QUADRO: qualquer id com cartão montado em algum lugar da
+      // grade — o mesmo conjunto contra o qual a decisão já valida um alvo.
+      elegiveis: idsRenderizados,
+    }),
+    emVoo: p.emVoo,
     grade,
     filaVisivel: grade.fila,
-    idsRenderizados: idsDoQuadro(grade.fila, grade),
+    idsRenderizados,
   });
+}
+
+/** A cadeia do TRILHO inteira, na ordem em que `useFocoGrade` a monta: adoção
+ *  da gaveta (filtrada por `idsElegiveisNoTrilho`) → decisão → desempate contra
+ *  as Propostas. O último elo é o que `TrilhoFila` recebe de fato na prop
+ *  `idAtivo`; afirmar só o elo do meio deixa passar fixture em que a decisão
+ *  devolve um id e o componente recebe `null`. */
+function ativoDoTrilho(
+  grade: Grade,
+  p: Entradas,
+  filaVisivel: ItemAgenda[] = grade.fila,
+): number | null {
+  const idsPropostas = idsNasPropostas(grade);
+  const proprio = decidirCartaoAtivoTrilho({
+    anterior: adotarSelecionado({
+      anterior: p.anterior,
+      selecionado: p.selecionado,
+      selecionadoVisto: p.selecionadoVisto ?? null,
+      elegiveis: idsElegiveisNoTrilho(filaVisivel, idsPropostas),
+    }),
+    emVoo: p.emVoo,
+    filaVisivel,
+    idsPropostas,
+  });
+  return idAtivoNoTrilho(proprio, idsPropostas);
 }
 
 describe("decidirCartaoAtivo", () => {
@@ -89,12 +135,44 @@ describe("decidirCartaoAtivo", () => {
     expect(decidir(grade, { anterior: 2, emVoo: 1, selecionado: 2 })).toBe(1);
   });
 
-  it("sem cartão em voo, o selecionado vence sobre o anterior", () => {
+  it("na MUDANÇA do selecionado (gaveta abrindo), ele é adotado por cima do anterior", () => {
+    // Nome corrigido: não é "o selecionado vence sobre o anterior" em geral —
+    // vence só no render em que a gaveta passa a mostrá-lo, que é o único
+    // trabalho dele. É o que garante que o Tab volte PARA ELE quando a gaveta
+    // fechar, em vez de para o primeiro cartão da tela.
     const grade = montar([
       agendamento({ id: 1, data: "2026-08-11" }),
       agendamento({ id: 2, data: "2026-08-12", equipeId: 1 }),
     ]);
     expect(decidir(grade, { anterior: 1, emVoo: null, selecionado: 2 })).toBe(2);
+  });
+
+  it("com a gaveta aberta há vários renders, o anterior (onFocus) manda sobre o selecionado", () => {
+    // O defeito: `selecionado` é o `?ag=` da URL e fica IGUAL por muitos
+    // renders. Pesando mais que o sticky, ele revertia cada `onFocus` no MESMO
+    // render (`setFocoId` escrevia, o recálculo empurrava de volta) e o tab
+    // stop não saía do cartão da gaveta — justo quando a pessoa está andando
+    // entre cartões para comparar com o detalhe aberto.
+    const grade = montar([
+      agendamento({ id: 1, data: "2026-08-11" }),
+      agendamento({ id: 2, data: "2026-08-12", equipeId: 1 }),
+    ]);
+    expect(
+      decidir(grade, { anterior: 1, emVoo: null, selecionado: 2, selecionadoVisto: 2 }),
+    ).toBe(1);
+  });
+
+  it("a gaveta fechando não puxa o tab stop de volta para o cartão dela", () => {
+    // `selecionado` cai para `null` e `selecionadoVisto` ainda é o id antigo:
+    // outra mudança, mas não há nada para adotar. O sticky que o `onFocus`
+    // deixou é exatamente onde o Tab deve retomar.
+    const grade = montar([
+      agendamento({ id: 1, data: "2026-08-11" }),
+      agendamento({ id: 2, data: "2026-08-12", equipeId: 1 }),
+    ]);
+    expect(
+      decidir(grade, { anterior: 1, emVoo: null, selecionado: null, selecionadoVisto: 2 }),
+    ).toBe(1);
   });
 
   it("sem os dois, mantém o anterior (sticky) enquanto ele existir", () => {
@@ -163,7 +241,6 @@ describe("decidirCartaoAtivo", () => {
       decidirCartaoAtivo({
         anterior: 1,
         emVoo: null,
-        selecionado: null,
         filaVisivel,
         grade,
         idsRenderizados,
@@ -187,7 +264,6 @@ describe("decidirCartaoAtivo", () => {
       decidirCartaoAtivo({
         anterior: null,
         emVoo: 1,
-        selecionado: null,
         filaVisivel,
         grade,
         idsRenderizados,
@@ -207,7 +283,6 @@ describe("decidirCartaoAtivo", () => {
       decidirCartaoAtivo({
         anterior: null,
         emVoo: null,
-        selecionado: null,
         filaVisivel: grade.fila,
         grade,
         idsRenderizados: idsDoQuadro([], grade), // useFocoGrade também gateia isto quando filaDisponivel é falso
@@ -225,7 +300,6 @@ describe("decidirCartaoAtivo", () => {
       decidirCartaoAtivo({
         anterior: null,
         emVoo: null,
-        selecionado: null,
         filaVisivel: grade.fila,
         grade,
         idsRenderizados: idsDoQuadro(grade.fila, grade),
@@ -256,7 +330,6 @@ describe("decidirCartaoAtivoTrilho", () => {
     const ativo = decidirCartaoAtivoTrilho({
       anterior: null,
       emVoo: null,
-      selecionado: null,
       filaVisivel: grade.fila,
       idsPropostas,
     });
@@ -278,32 +351,48 @@ describe("decidirCartaoAtivoTrilho", () => {
       decidirCartaoAtivoTrilho({
         anterior: null,
         emVoo: null,
-        selecionado: null,
         filaVisivel: grade.fila,
         idsPropostas: idsNasPropostas(grade),
       }),
     ).toBeNull();
   });
 
-  it("mantém o anterior (sticky) mesmo sendo gêmeo — só o PADRÃO pula", () => {
-    // Um alvo explícito continua passando pelo desempate normalmente: ali o
-    // gêmeo das Propostas é mesmo quem deve receber o foco.
+  it("o sticky gêmeo passa pela decisão, mas o desempate o anula: o tab stop é das Propostas", () => {
+    // Nome e fixture corrigidos. O antigo era "mantém o anterior (sticky) mesmo
+    // sendo gêmeo — só o PADRÃO pula", afirmando `.toBe(2)` sobre o elo do
+    // MEIO da cadeia: verdade para `decidirCartaoAtivoTrilho`, mas com este
+    // fixture (as duas datas DENTRO da janela, logo os dois itens gêmeos) o
+    // valor que `TrilhoFila` recebe é `null`. Os dois fatos convivem, e é o
+    // segundo que descreve a tela: o cartão gêmeo das Propostas é quem carrega
+    // a parada de Tab daquele id.
     const grade = montar([
       agendamento({ id: 1, data: "2026-08-11" }),
       agendamento({ id: 2, data: "2026-08-12" }),
     ]);
-    expect(
-      decidirCartaoAtivoTrilho({
-        anterior: 2,
-        emVoo: null,
-        selecionado: null,
-        filaVisivel: grade.fila,
-        idsPropostas: idsNasPropostas(grade),
-      }),
-    ).toBe(2);
+    const idsPropostas = idsNasPropostas(grade);
+    const proprio = decidirCartaoAtivoTrilho({
+      anterior: 2,
+      emVoo: null,
+      filaVisivel: grade.fila,
+      idsPropostas,
+    });
+    expect(proprio).toBe(2); // a decisão só pula gêmeo no PADRÃO, e isto continua valendo
+    expect(idAtivoNoTrilho(proprio, idsPropostas)).toBeNull();
+    expect(ativoDoTrilho(grade, { anterior: 2, emVoo: null, selecionado: null })).toBeNull();
   });
 
-  it("ignora emVoo/selecionado que não pertencem ao trilho (item com equipe) e cai no padrão", () => {
+  it("mantém o anterior (sticky) que só existe no trilho — aí sim ele chega ao componente", () => {
+    // O par honesto do teste acima: mesma regra ("só o PADRÃO pula gêmeo"), mas
+    // com o item 2 fora da janela visível. Sem gêmeo para disputar, o sticky
+    // atravessa a cadeia inteira e é ele que o `TrilhoFila` recebe.
+    const grade = montar([
+      agendamento({ id: 1, data: "2026-08-11" }),
+      agendamento({ id: 2, data: "2026-09-01" }),
+    ]);
+    expect(ativoDoTrilho(grade, { anterior: 2, emVoo: null, selecionado: null })).toBe(2);
+  });
+
+  it("ignora emVoo que não pertence ao trilho (item com equipe) e cai no padrão", () => {
     // Item 2 TEM equipe: nunca aparece em `filaVisivel`. Um sticky global
     // compartilhado com o "quadro" adotaria o id 2 aqui mesmo assim — o bug
     // original. O cálculo escopado ao trilho recusa e cai no primeiro item
@@ -316,7 +405,6 @@ describe("decidirCartaoAtivoTrilho", () => {
       decidirCartaoAtivoTrilho({
         anterior: null,
         emVoo: 2,
-        selecionado: null,
         filaVisivel: grade.fila,
         idsPropostas: idsNasPropostas(grade),
       }),
@@ -329,7 +417,6 @@ describe("decidirCartaoAtivoTrilho", () => {
       decidirCartaoAtivoTrilho({
         anterior: 1,
         emVoo: null,
-        selecionado: null,
         filaVisivel: grade.fila, // vazia: o único item tem equipe
         idsPropostas: idsNasPropostas(grade),
       }),
@@ -337,8 +424,155 @@ describe("decidirCartaoAtivoTrilho", () => {
   });
 });
 
+describe("adotarSelecionado", () => {
+  it("adota na mudança, quando o id é elegível na região", () => {
+    expect(
+      adotarSelecionado({
+        anterior: 7,
+        selecionado: 3,
+        selecionadoVisto: null,
+        elegiveis: new Set([3]),
+      }),
+    ).toBe(3);
+  });
+
+  it("declina quando o selecionado não mudou: o sticky do onFocus governa", () => {
+    // O coração da correção. `selecionado` fica igual por muitos renders com a
+    // gaveta aberta; se ele fosse uma entrada CONTÍNUA, este caso devolveria 3
+    // e reverteria todo `onFocus` no mesmo render.
+    expect(
+      adotarSelecionado({
+        anterior: 7,
+        selecionado: 3,
+        selecionadoVisto: 3,
+        elegiveis: new Set([3, 7]),
+      }),
+    ).toBe(7);
+  });
+
+  it("declina quando o id não é elegível na região, e não tenta de novo depois", () => {
+    // Um id sem cartão alcançável naquela região não entra no sticky dela. E
+    // como a marca de "já visto" é escrita de todo jeito, a adoção não volta a
+    // ser oferecida em render nenhum — ela é um evento, e o evento passou.
+    expect(
+      adotarSelecionado({
+        anterior: 7,
+        selecionado: 3,
+        selecionadoVisto: null,
+        elegiveis: new Set([7]), // o 3 não tem cartão montado nesta região
+      }),
+    ).toBe(7);
+    // Render seguinte, agora COM o 3 elegível (a semana virou, o cartão montou):
+    // a marca de visto já foi escrita, e a adoção não se repete.
+    expect(
+      adotarSelecionado({
+        anterior: 7,
+        selecionado: 3,
+        selecionadoVisto: 3,
+        elegiveis: new Set([3, 7]),
+      }),
+    ).toBe(7);
+  });
+
+  it("gaveta fechando (selecionado null) devolve o sticky intacto", () => {
+    expect(
+      adotarSelecionado({
+        anterior: 7,
+        selecionado: null,
+        selecionadoVisto: 3,
+        elegiveis: new Set([7]),
+      }),
+    ).toBe(7);
+  });
+
+  it("primeiro render com ?ag= na URL adota mesmo sem sticky nenhum", () => {
+    // `selecionadoVisto` nasce `null` justamente para este caso: a página abre
+    // com a gaveta já aberta, e aquele cartão precisa virar o alvo do roving
+    // tabindex para o Tab voltar para ele quando a gaveta fechar.
+    expect(
+      adotarSelecionado({
+        anterior: null,
+        selecionado: 3,
+        selecionadoVisto: null,
+        elegiveis: new Set([3]),
+      }),
+    ).toBe(3);
+  });
+});
+
+describe("idsElegiveisNoTrilho", () => {
+  it("exclui os gêmeos das Propostas e tudo que não mora na fila visível", () => {
+    const grade = montar([
+      agendamento({ id: 1, data: "2026-08-11" }), // sem turma, na semana: gêmeo
+      agendamento({ id: 2, data: "2026-09-01" }), // sem turma, fora da semana: só trilho
+      agendamento({ id: 3, data: "2026-08-12", equipeId: 1 }), // com turma: célula
+    ]);
+    const elegiveis = idsElegiveisNoTrilho(grade.fila, idsNasPropostas(grade));
+    expect([...elegiveis]).toEqual([2]);
+  });
+});
+
+describe("a cadeia do trilho com a gaveta de detalhe", () => {
+  // Estes quatro exercitam a composição inteira (`adotarSelecionado` →
+  // `decidirCartaoAtivoTrilho` → `idAtivoNoTrilho`), que é a única forma em que
+  // o `TrilhoFila` vê o resultado.
+
+  it("um selecionado da GRADE não apaga o cartão que a pessoa focou no trilho", () => {
+    // O pior sintoma do defeito. Item 2 tem turma, logo NUNCA está em
+    // `filaVisivel`: com `selecionado` na precedência, o trilho não o achava,
+    // caía no PADRÃO e jogava a parada de Tab para o primeiro item da fila —
+    // apagando o cartão 3, que a pessoa acabou de focar ali para comparar com
+    // o detalhe aberto. A elegibilidade por região recusa a adoção e o sticky
+    // sobrevive.
+    const grade = montar([
+      agendamento({ id: 1, data: "2026-09-01" }), // o padrão, para onde o foco fugia
+      agendamento({ id: 3, data: "2026-09-02" }), // focado no trilho
+      agendamento({ id: 2, data: "2026-08-12", equipeId: 1 }), // aberto na gaveta
+    ]);
+    expect(grade.fila.map((i) => i.id)).toEqual([1, 3]); // o padrão seria o 1
+    expect(ativoDoTrilho(grade, { anterior: 3, emVoo: null, selecionado: 2 })).toBe(3);
+  });
+
+  it("com a gaveta aberta há vários renders, o trilho segue o onFocus", () => {
+    // Mesmo defeito da região "quadro", visto do trilho: aqui o id da gaveta
+    // até mora na fila, então o congelamento seria silencioso — o tab stop
+    // simplesmente não sairia do cartão 1.
+    const grade = montar([
+      agendamento({ id: 1, data: "2026-09-01" }),
+      agendamento({ id: 2, data: "2026-09-02" }),
+    ]);
+    expect(
+      ativoDoTrilho(grade, { anterior: 2, emVoo: null, selecionado: 1, selecionadoVisto: 1 }),
+    ).toBe(2);
+  });
+
+  it("na MUDANÇA, o trilho adota o id da gaveta que de fato mora nele", () => {
+    const grade = montar([
+      agendamento({ id: 1, data: "2026-09-01" }),
+      agendamento({ id: 2, data: "2026-09-02" }),
+    ]);
+    expect(ativoDoTrilho(grade, { anterior: 2, emVoo: null, selecionado: 1 })).toBe(1);
+  });
+
+  it("a gaveta abrindo num gêmeo não zera a parada de Tab do trilho", () => {
+    // Item 1 cai na semana visível: monta no trilho E nas Propostas. Adotá-lo
+    // no trilho seria pior que não adotar — o desempate o anularia no mesmo
+    // render e o trilho ficaria com ZERO paradas, em vez de manter a que tem.
+    // Nada se perde: o alvo da gaveta segue alcançável pelo gêmeo das
+    // Propostas, que é a região do QUADRO — a segunda expectativa mostra as
+    // duas regiões decidindo o mesmo `selecionado` de formas diferentes, na
+    // mesma passada de render, cada uma com o seu critério.
+    const grade = montar([
+      agendamento({ id: 1, data: "2026-08-11" }),
+      agendamento({ id: 2, data: "2026-09-01" }),
+    ]);
+    expect(ativoDoTrilho(grade, { anterior: 2, emVoo: null, selecionado: 1 })).toBe(2);
+    expect(decidir(grade, { anterior: null, emVoo: null, selecionado: 1 })).toBe(1);
+  });
+});
+
 describe("idAtivoNoTrilho", () => {
-  it("é null quando o id não está em voo/selecionado/etc.", () => {
+  it("é null quando a decisão do trilho não achou ativo nenhum", () => {
     expect(idAtivoNoTrilho(null, new Set())).toBeNull();
   });
 
