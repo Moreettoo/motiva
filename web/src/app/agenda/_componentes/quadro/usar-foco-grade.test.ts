@@ -240,7 +240,36 @@ describe("decidirCartaoAtivoTrilho", () => {
   // comentário em `useFocoGrade` sobre por que um sticky global único
   // deixava uma das duas regiões sem tab stop nenhum.
 
-  it("cai no primeiro item da fila visível quando não há anterior/em voo/selecionado", () => {
+  it("o padrão pula os gêmeos e cai no primeiro item que só existe no trilho", () => {
+    // Item 1 cai na semana visível, então monta TAMBÉM nas Propostas — é
+    // gêmeo, e `idAtivoNoTrilho` anularia o trilho se ele fosse o padrão.
+    // Item 2 está fora da janela: só existe no trilho. Sem pular o gêmeo, o
+    // trilho ficava com ZERO parada de Tab no caso comum (a fila vem ordenada
+    // por urgência, e o topo dela quase sempre cai na semana visível).
+    const grade = montar([
+      agendamento({ id: 1, data: "2026-08-11" }),
+      agendamento({ id: 2, data: "2026-09-01" }),
+    ]);
+    const idsPropostas = idsNasPropostas(grade);
+    expect(idsPropostas.has(1)).toBe(true);
+
+    const ativo = decidirCartaoAtivoTrilho({
+      anterior: null,
+      emVoo: null,
+      selecionado: null,
+      filaVisivel: grade.fila,
+      idsPropostas,
+    });
+
+    expect(ativo).toBe(2);
+    // A composição é o que importa: o valor que o `TrilhoFila` recebe de fato
+    // sobrevive ao desempate, em vez de virar `null` no mesmo render.
+    expect(idAtivoNoTrilho(ativo, idsPropostas)).toBe(2);
+  });
+
+  it("devolve null quando toda a fila visível é gêmea das Propostas", () => {
+    // Não há tab stop possível no trilho: cada cartão dele também está montado
+    // nas Propostas, que ganham o desempate por não terem teto de exibição.
     const grade = montar([
       agendamento({ id: 1, data: "2026-08-11" }),
       agendamento({ id: 2, data: "2026-08-12" }),
@@ -251,11 +280,14 @@ describe("decidirCartaoAtivoTrilho", () => {
         emVoo: null,
         selecionado: null,
         filaVisivel: grade.fila,
+        idsPropostas: idsNasPropostas(grade),
       }),
-    ).toBe(grade.fila[0].id);
+    ).toBeNull();
   });
 
-  it("mantém o anterior (sticky) enquanto ele existir na fila visível", () => {
+  it("mantém o anterior (sticky) mesmo sendo gêmeo — só o PADRÃO pula", () => {
+    // Um alvo explícito continua passando pelo desempate normalmente: ali o
+    // gêmeo das Propostas é mesmo quem deve receber o foco.
     const grade = montar([
       agendamento({ id: 1, data: "2026-08-11" }),
       agendamento({ id: 2, data: "2026-08-12" }),
@@ -266,6 +298,7 @@ describe("decidirCartaoAtivoTrilho", () => {
         emVoo: null,
         selecionado: null,
         filaVisivel: grade.fila,
+        idsPropostas: idsNasPropostas(grade),
       }),
     ).toBe(2);
   });
@@ -276,7 +309,7 @@ describe("decidirCartaoAtivoTrilho", () => {
     // original. O cálculo escopado ao trilho recusa e cai no primeiro item
     // que de fato mora na fila.
     const grade = montar([
-      agendamento({ id: 1, data: "2026-08-11" }),
+      agendamento({ id: 1, data: "2026-09-01" }),
       agendamento({ id: 2, data: "2026-08-12", equipeId: 1 }),
     ]);
     expect(
@@ -285,6 +318,7 @@ describe("decidirCartaoAtivoTrilho", () => {
         emVoo: 2,
         selecionado: null,
         filaVisivel: grade.fila,
+        idsPropostas: idsNasPropostas(grade),
       }),
     ).toBe(1);
   });
@@ -297,6 +331,7 @@ describe("decidirCartaoAtivoTrilho", () => {
         emVoo: null,
         selecionado: null,
         filaVisivel: grade.fila, // vazia: o único item tem equipe
+        idsPropostas: idsNasPropostas(grade),
       }),
     ).toBeNull();
   });

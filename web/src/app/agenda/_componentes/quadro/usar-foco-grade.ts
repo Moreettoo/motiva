@@ -134,16 +134,29 @@ export function decidirCartaoAtivoTrilho({
   emVoo,
   selecionado,
   filaVisivel,
+  idsPropostas,
 }: {
   anterior: number | null;
   emVoo: number | null;
   selecionado: number | null;
   filaVisivel: ItemAgenda[];
+  /** Quem monta também nas Propostas desta semana — ver `idAtivoNoTrilho`. */
+  idsPropostas: ReadonlySet<number>;
 }): number | null {
   const ids = new Set(filaVisivel.map((i) => i.id));
   const alvo = emVoo ?? selecionado ?? anterior;
   if (alvo != null && ids.has(alvo)) return alvo;
-  return filaVisivel[0]?.id ?? null;
+
+  // O PADRÃO pula os gêmeos, e é isto que dá ao trilho um tab stop de verdade.
+  // `grade.propostas` é o recorte de `grade.fila` que cai na semana visível, e
+  // a fila vem ordenada por urgência — então o topo dela quase sempre É um
+  // gêmeo. Com o padrão caindo no topo cru, `idAtivoNoTrilho` anulava logo em
+  // seguida (as Propostas ganham o desempate, porque não têm teto de exibição)
+  // e o trilho ficava com ZERO parada de Tab no caso comum, em vez de uma.
+  // Um alvo explícito — em voo, selecionado ou o sticky anterior — continua
+  // passando pelo desempate normalmente: ali o gêmeo das Propostas é mesmo o
+  // que deve receber o foco.
+  return filaVisivel.find((item) => !idsPropostas.has(item.id))?.id ?? null;
 }
 
 /**
@@ -269,6 +282,7 @@ export function useFocoGrade({
     emVoo,
     selecionado,
     filaVisivel,
+    idsPropostas,
   });
   if (idAtivoTrilhoProprio !== focoTrilhoId) setFocoTrilhoId(idAtivoTrilhoProprio);
 
