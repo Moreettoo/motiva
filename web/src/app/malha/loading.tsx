@@ -9,8 +9,7 @@ export default function CarregandoMalha() {
     <div role="status" aria-label="Carregando a malha…" className="flex flex-col gap-6">
       <div className="flex flex-col gap-5 border-b border-border pb-5 lg:flex-row lg:items-end lg:justify-between lg:gap-8">
         <div className="min-w-0">
-          <Esqueleto className="h-6 w-32" />
-          <Esqueleto className="mt-3 h-3 w-full max-w-prose" />
+          <Esqueleto className="h-11 w-40" />
         </div>
 
         <div className="flex flex-wrap items-end gap-x-8 gap-y-4">

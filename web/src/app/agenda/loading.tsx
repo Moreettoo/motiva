@@ -8,9 +8,7 @@ export default function CarregandoAgenda() {
     <div role="status" aria-label="Carregando a agenda…" className="flex min-w-0 flex-col gap-6">
       <header className="flex flex-col gap-5 border-b border-border pb-5 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
-          <Esqueleto className="h-7 w-40" />
-          <Esqueleto className="mt-3 h-3 w-full max-w-prose" />
-          <Esqueleto className="mt-2 h-3 w-2/3 max-w-prose" />
+          <Esqueleto className="h-11 w-40" />
         </div>
 
         <div className="flex gap-8">

@@ -199,7 +199,7 @@ export default async function PaginaPainel() {
     <div className="flex flex-col gap-6">
       <CabecalhoPagina
         titulo="Painel"
-        descricao="O que exige decisão hoje na faixa de domínio: prazo até o limite de altura, roçadas sugeridas pela IA e carga das equipes."
+        destaque
         acoes={<CarimboDoLote proximaEm={proximaReanalise()} />}
       />
 

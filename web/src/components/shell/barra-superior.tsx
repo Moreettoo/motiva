@@ -57,14 +57,7 @@ function montarTrilha(pathname: string): Migalha[] {
   return trilha;
 }
 
-export function BarraSuperior({
-  trechos,
-  carimbo,
-}: {
-  trechos: TrechoNaPaleta[];
-  /** "Dados de …" — calculado no servidor. Chamar Date() aqui quebraria a hidratação. */
-  carimbo?: string | null;
-}) {
+export function BarraSuperior({ trechos }: { trechos: TrechoNaPaleta[] }) {
   const pathname = usePathname();
   const [paletaAberta, setPaletaAberta] = useState(false);
   const atalho = useSyncExternalStore(semAssinatura, lerAtalho, atalhoNeutro);
@@ -81,7 +74,7 @@ export function BarraSuperior({
         "bg-bg/80 px-4 backdrop-blur-md sm:px-6 lg:px-8",
       )}
     >
-      <Link href="/" aria-label="Solo — ir para o painel" className="shrink-0 rounded-md md:hidden">
+      <Link href="/" aria-label="HighwAI — ir para o painel" className="shrink-0 rounded-md md:hidden">
         <Marca tamanho={20} comTexto />
       </Link>
 
@@ -112,13 +105,6 @@ export function BarraSuperior({
       </nav>
 
       <div className="ml-auto flex shrink-0 items-center gap-3">
-        {carimbo ? (
-          <span className="hidden items-baseline gap-2 lg:flex">
-            <span className="text-2xs tracking-widest text-ink-3 uppercase">Dados de</span>
-            <span className="tnum font-mono text-xs text-ink-2">{carimbo}</span>
-          </span>
-        ) : null}
-
         <button
           type="button"
           onClick={abrir}

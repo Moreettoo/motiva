@@ -86,14 +86,13 @@ export default function CarregandoPainel() {
     <div role="status" aria-label="Carregando o painel…" className="flex flex-col gap-6">
       <div className="flex flex-col gap-5 border-b border-border pb-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <Esqueleto className="h-6 w-32" />
-          <Esqueleto className="mt-3 h-3 w-[36rem] max-w-full" />
+          <Esqueleto className="h-11 w-40" />
         </div>
         <Esqueleto className="h-9 w-40 rounded-md" />
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-        {Array.from({ length: 5 }, (_, i) => (
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {Array.from({ length: 4 }, (_, i) => (
           <EsqueletoIndicador key={i} />
         ))}
       </div>

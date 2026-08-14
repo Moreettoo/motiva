@@ -254,6 +254,14 @@ body {
   border-radius: var(--radius-sm);
 }
 
+/* Excecao: a busca da paleta de comandos abre com foco automatico e o cursor
+   ja piscando nela — o unico campo focavel do dialogo, Tab fica bloqueado.
+   O anel so duplicaria o que o cursor ja mostra, e pesa numa barra do
+   tamanho do modal inteiro. */
+.busca-paleta:focus-visible {
+  outline: none;
+}
+
 ::selection {
   background: var(--accent);
   color: var(--accent-ink);
@@ -334,6 +342,20 @@ p {
   pointer-events: none;
 }
 
+/* Brilho continuo na marca — identidade, nao feedback de estado. Mais lento e
+   com pausa entre voltas pra ficar discreto num elemento sempre visivel na
+   tela (diferente do `.sweep`, que so aparece durante uma acao). */
+.brilho-marca::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 50%;
+  background: linear-gradient(90deg, transparent, var(--accent-soft), transparent);
+  animation: sweep 3.6s var(--ease-out-quint) infinite;
+  animation-delay: 1.2s;
+  pointer-events: none;
+}
+
 /* Traco de linha desenhando no grafico. */
 .draw {
   stroke-dasharray: var(--dash, 1000);
@@ -360,7 +382,8 @@ p {
     stroke-dashoffset: 0;
   }
 
-  .sweep::after { animation: none; opacity: 0; }
+  .sweep::after,
+  .brilho-marca::after { animation: none; opacity: 0; }
 }
 
 /* ==========================================================================

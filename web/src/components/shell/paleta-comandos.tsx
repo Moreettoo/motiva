@@ -345,7 +345,7 @@ function ConteudoPaleta({
           autoComplete="off"
           autoCorrect="off"
           spellCheck={false}
-          className="h-12 min-w-0 flex-1 bg-transparent text-base text-ink placeholder:text-ink-3 focus:outline-none"
+          className="busca-paleta h-12 min-w-0 flex-1 bg-transparent text-base text-ink placeholder:text-ink-3"
         />
         <kbd
           aria-hidden="true"

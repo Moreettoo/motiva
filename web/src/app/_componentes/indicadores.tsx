@@ -40,7 +40,7 @@ export function Indicadores({
           nota={
             criticos === 0
               ? "Nenhum trecho a 7 dias ou menos do limite."
-              : `${fmt.km(kmEmRisco)} de faixa · ${acimaDoLimite === 1 ? "1 trecho já acima" : `${acimaDoLimite} trechos já acima`} do limite`
+              : `Somam ${fmt.km(kmEmRisco)} · ${acimaDoLimite === 1 ? "1 trecho já acima" : `${acimaDoLimite} trechos já acima`} do limite`
           }
         />
 

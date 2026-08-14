@@ -49,7 +49,7 @@ export default async function PaginaAgenda() {
     <div className="flex min-w-0 flex-col gap-6">
       <CabecalhoPagina
         titulo="Agenda"
-        descricao="O que cada equipe faz nas próximas semanas. A largura de cada bloco é o tempo estimado de serviço, e a hachura mostra onde o plano passa da capacidade da turma."
+        destaque
         metricas={
           <>
             <MetricaCabecalho rotulo="Em aberto" valor={fmt.n(emAberto.length)} unidade="roçadas" />

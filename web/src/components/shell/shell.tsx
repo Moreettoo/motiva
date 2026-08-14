@@ -51,7 +51,7 @@ export async function Shell({ children }: { children: React.ReactNode }) {
         <BarraLateral ultimaAnalise={ultimaAnalise} />
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <BarraSuperior trechos={trechos} carimbo={ultimaAnalise} />
+          <BarraSuperior trechos={trechos} />
 
           <main
             id="conteudo"

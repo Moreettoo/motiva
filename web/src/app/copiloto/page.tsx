@@ -49,7 +49,7 @@ export default async function PaginaCopiloto() {
     <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-6 lg:gap-8">
       <CabecalhoPagina
         titulo="Copiloto"
-        descricao="Pergunte em português sobre o planejamento de roçada. Esta tela também mostra o que o sistema sabe e o que ele não sabe — a resposta só vale o dado que existe atrás dela."
+        destaque
         metricas={
           <>
             <MetricaCabecalho rotulo="Malha" valor={fmt.n(painel.trechos_total)} unidade="trechos" />

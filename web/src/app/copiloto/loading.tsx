@@ -14,8 +14,7 @@ export default function CarregandoCopiloto() {
           mesmo documento — a página era servida com dois <h1> "Copiloto". */}
       <div className="flex flex-col gap-5 border-b border-border pb-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <Esqueleto className="h-6 w-32" />
-          <Esqueleto className="mt-3 h-3 w-[38rem] max-w-full" />
+          <Esqueleto className="h-11 w-44" />
         </div>
         <div className="flex gap-6">
           {[0, 1, 2].map((i) => (

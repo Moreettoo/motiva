@@ -30,7 +30,7 @@ export default async function PaginaMalha() {
     <div className="flex flex-col gap-6">
       <CabecalhoPagina
         titulo="Malha"
-        descricao="Onde a vegetação está perto do limite ao longo de cada rodovia — e quais trechos vizinhos cabem numa mesma saída de equipe."
+        destaque
         metricas={
           <>
             <MetricaCabecalho rotulo="Rodovias" valor={fmt.n(porRodovia.length)} />

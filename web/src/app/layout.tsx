@@ -9,12 +9,12 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "Solo — Motiva",
-    template: "%s · Solo",
+    default: "HighwAI",
+    template: "%s · HighwAI",
   },
   description:
     "Painel de regulação de solo da Motiva: previsão de crescimento da vegetação e agendamento de roçada por trecho de rodovia.",
-  applicationName: "Solo",
+  applicationName: "HighwAI",
   robots: { index: false, follow: false },
 };
 

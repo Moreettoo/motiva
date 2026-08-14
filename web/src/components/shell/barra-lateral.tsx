@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
@@ -55,8 +55,15 @@ function useExpandida() {
 
 export function BarraLateral({ ultimaAnalise }: { ultimaAnalise?: string | null }) {
   const pathname = usePathname();
-  const expandida = useExpandida();
+  const larguraGrande = useExpandida();
   const reduzido = useReducedMotion();
+  // Preferência manual: sobrepõe o breakpoint quando a pessoa clica no ícone da
+  // marca. Não persiste — o Shell nunca remonta entre navegações internas
+  // (fica fora do slot de `children`), então o estado sobrevive à troca de
+  // tela; só volta ao automático num recarregamento de página.
+  const [colapsadaManual, setColapsadaManual] = useState(false);
+
+  const expandida = larguraGrande && !colapsadaManual;
 
   return (
     <aside
@@ -65,29 +72,49 @@ export function BarraLateral({ ultimaAnalise }: { ultimaAnalise?: string | null 
         // `self-start` garante o sticky: sem ele o item de flex é esticado pela
         // altura da coluna de conteúdo e a lateral rola junto com a página.
         "sticky top-0 z-20 hidden h-dvh shrink-0 flex-col self-start border-r border-border bg-surface",
+        // A largura é a única coisa que anima fora do transform/opacity padrão:
+        // não dá pra fingir com transform, porque o conteúdo ao lado precisa
+        // fluir de verdade. `duration-150` já cobre hover; aqui o deslocamento é
+        // bem maior (176px), por isso um pouco mais de tempo.
+        "transition-[width] duration-200 ease-[var(--ease-out-quint)]",
         "md:flex md:w-16 lg:w-60",
+        colapsadaManual && "lg:w-16",
       )}
     >
-      <div className="flex h-14 shrink-0 items-center border-b border-border px-3 lg:px-4">
-        <Link
-          href="/"
-          aria-label="Solo — ir para o painel"
-          className="flex min-w-0 items-center gap-2.5 rounded-md py-1"
+      <div className="flex h-14 shrink-0 items-center gap-1 border-b border-border px-3 lg:px-4">
+        <button
+          type="button"
+          onClick={() => setColapsadaManual((valor) => !valor)}
+          aria-expanded={expandida}
+          aria-controls="navegacao-lateral"
+          aria-label={expandida ? "Recolher navegação" : "Expandir navegação"}
+          title={expandida ? "Recolher navegação" : "Expandir navegação"}
+          className={cn(
+            "flex shrink-0 items-center justify-center rounded-md p-1.5 text-ink",
+            "transition-[background-color] duration-150 ease-[var(--ease-out-quint)] hover:bg-surface-3",
+          )}
         >
           <Marca tamanho={22} />
-          <span className="hidden min-w-0 lg:block">
-            <span className="block truncate text-sm leading-none font-semibold tracking-tight text-ink">
-              Solo
-            </span>
-            <span className="mt-1 block truncate text-2xs leading-none tracking-widest text-ink-3 uppercase">
-              Motiva
-            </span>
+        </button>
+
+        <Link
+          href="/"
+          aria-label="HighwAI — ir para o painel"
+          className={cn("min-w-0 rounded-md py-1", expandida ? "fade block" : "hidden")}
+        >
+          <span className="brilho-marca relative block overflow-hidden truncate text-sm leading-none font-semibold tracking-tight text-ink">
+            HighwAI
           </span>
         </Link>
       </div>
 
-      <nav className="min-h-0 flex-1 overflow-y-auto px-2 py-4 scroll-thin">
-        <p className="mb-2 hidden px-2 text-2xs tracking-widest text-ink-3 uppercase lg:block">
+      <nav id="navegacao-lateral" className="min-h-0 flex-1 overflow-y-auto px-2 py-4 scroll-thin">
+        <p
+          className={cn(
+            "mb-2 px-2 text-2xs tracking-widest text-ink-3 uppercase",
+            expandida ? "fade block" : "hidden",
+          )}
+        >
           Operação
         </p>
 
@@ -101,9 +128,9 @@ export function BarraLateral({ ultimaAnalise }: { ultimaAnalise?: string | null 
                 href={item.href}
                 aria-current={ativo ? "page" : undefined}
                 className={cn(
-                  "relative flex size-10 items-center justify-center gap-3 rounded-md text-sm",
+                  "relative flex size-10 items-center gap-3 rounded-md text-sm",
                   "transition-[background-color,color] duration-150 ease-[var(--ease-out-quint)]",
-                  "lg:w-full lg:justify-start lg:px-3",
+                  expandida ? "w-full justify-start px-3" : "justify-center",
                   ativo
                     ? "bg-surface-2 font-medium text-ink"
                     : "text-ink-2 hover:bg-surface-3 hover:text-ink",
@@ -123,12 +150,14 @@ export function BarraLateral({ ultimaAnalise }: { ultimaAnalise?: string | null 
                 )}
 
                 <Icone aria-hidden="true" className="size-4 shrink-0" />
-                <span className="hidden min-w-0 truncate lg:block">{item.rotulo}</span>
+                <span className={cn("min-w-0 truncate", expandida ? "fade block" : "hidden")}>
+                  {item.rotulo}
+                </span>
               </Link>
             );
 
             return (
-              <li key={item.href} className="flex justify-center lg:block">
+              <li key={item.href} className={expandida ? "block" : "flex justify-center"}>
                 {expandida ? (
                   link
                 ) : (
@@ -142,20 +171,31 @@ export function BarraLateral({ ultimaAnalise }: { ultimaAnalise?: string | null 
         </ul>
       </nav>
 
-      <RodapeLateral ultimaAnalise={ultimaAnalise} />
+      <RodapeLateral ultimaAnalise={ultimaAnalise} expandida={expandida} />
     </aside>
   );
 }
 
-function RodapeLateral({ ultimaAnalise }: { ultimaAnalise?: string | null }) {
+function RodapeLateral({
+  ultimaAnalise,
+  expandida,
+}: {
+  ultimaAnalise?: string | null;
+  expandida: boolean;
+}) {
   return (
     <div className="shrink-0 border-t border-border px-2 py-3 lg:px-3">
       {ultimaAnalise ? (
-        <BlocoUltimaAnalise carimbo={ultimaAnalise} />
+        <BlocoUltimaAnalise carimbo={ultimaAnalise} expandida={expandida} />
       ) : null}
 
-      <div className="flex items-center justify-center lg:justify-between">
-        <span className="hidden text-2xs tracking-widest text-ink-3 uppercase lg:block">
+      <div className={cn("flex items-center", expandida ? "justify-between" : "justify-center")}>
+        <span
+          className={cn(
+            "text-2xs tracking-widest text-ink-3 uppercase",
+            expandida ? "fade block" : "hidden",
+          )}
+        >
           Tema
         </span>
         <AlternadorTema />
@@ -164,26 +204,28 @@ function RodapeLateral({ ultimaAnalise }: { ultimaAnalise?: string | null }) {
   );
 }
 
-function BlocoUltimaAnalise({ carimbo }: { carimbo: string }) {
-  return (
-    <>
-      {/* Expandida: o carimbo por extenso. Colapsada: só o ponto de acento, com
-          o texto na Dica — 64px não comportam a data. */}
-      <div className="mb-3 hidden rounded-md border border-border bg-surface-2 px-2.5 py-2 lg:block">
+function BlocoUltimaAnalise({ carimbo, expandida }: { carimbo: string; expandida: boolean }) {
+  // Expandida: o carimbo por extenso. Colapsada: só o ponto de acento, com o
+  // texto na Dica — 64px não comportam a data.
+  if (expandida) {
+    return (
+      <div className="fade mb-3 rounded-md border border-border bg-surface-2 px-2.5 py-2">
         <span className="block text-2xs leading-none tracking-widest text-ink-3 uppercase">
           Última análise
         </span>
         <span className="tnum mt-1.5 block font-mono text-xs leading-none text-ink">{carimbo}</span>
       </div>
+    );
+  }
 
-      <div className="mb-3 flex justify-center lg:hidden">
-        <Dica conteudo={`Última análise: ${carimbo}`} lado="direita">
-          <span className="inline-flex size-6 items-center justify-center">
-            <span aria-hidden="true" className="size-1.5 rounded-full bg-accent-line" />
-            <span className="sr-only">Última análise: {carimbo}</span>
-          </span>
-        </Dica>
-      </div>
-    </>
+  return (
+    <div className="mb-3 flex justify-center">
+      <Dica conteudo={`Última análise: ${carimbo}`} lado="direita">
+        <span className="inline-flex size-6 items-center justify-center">
+          <span aria-hidden="true" className="size-1.5 rounded-full bg-accent-line" />
+          <span className="sr-only">Última análise: {carimbo}</span>
+        </span>
+      </Dica>
+    </div>
   );
 }

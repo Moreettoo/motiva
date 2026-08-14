@@ -12,6 +12,7 @@ export function CabecalhoPagina({
   acoes,
   metricas,
   className,
+  destaque = false,
 }: {
   titulo: string;
   descricao?: string;
@@ -19,6 +20,8 @@ export function CabecalhoPagina({
   /** Faixa de números à direita do título — use `MetricaCabecalho`. */
   metricas?: React.ReactNode;
   className?: string;
+  /** Título como protagonista da tela, sem descrição abaixo — a porta de entrada usa. */
+  destaque?: boolean;
 }) {
   return (
     <header
@@ -29,7 +32,9 @@ export function CabecalhoPagina({
       )}
     >
       <div className="min-w-0">
-        <h1 className="text-xl font-semibold text-ink">{titulo}</h1>
+        <h1 className={cn("font-semibold text-ink", destaque ? "text-3xl" : "text-xl")}>
+          {titulo}
+        </h1>
         {descricao ? (
           <p className="mt-1.5 max-w-prose text-sm text-ink-2">{descricao}</p>
         ) : null}

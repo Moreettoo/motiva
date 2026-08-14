@@ -53,8 +53,8 @@ export function Marca({
       </svg>
 
       {comTexto ? (
-        <span className="text-base leading-none font-semibold tracking-tight text-ink">
-          Solo
+        <span className="brilho-marca relative overflow-hidden text-base leading-none font-semibold tracking-tight text-ink">
+          HighwAI
         </span>
       ) : null}
     </span>
