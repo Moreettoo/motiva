@@ -403,8 +403,23 @@ p {
 }
 
 .quadro-grade {
+  /* Conta contra o shell de verdade (Shell/BarraLateral), na largura de
+     referência de 1600px do plano de testes (docs/.../2026-08-13-quadro-
+     semana-agenda.md): max-w-[1600px] menos lg:px-8 (32px × 2 = 64px) dá
+     1536px dentro do <main>; menos a lateral EXPANDIDA (lg:w-60 = 240px) dá
+     1296px para o conteúdo da página; menos a borda de 1px dos dois lados do
+     quadro (2px) e o trilho da fila (w-60 = 240px, Tarefa 7) sobram 1054px
+     para esta grade — a conta ignora de propósito a barra de rolagem
+     vertical da própria pista, que come mais alguns px; é folga a mais, não
+     a menos.
+     --calha (144px) + 7 × --dia-min (104px) = 872px, ~182px de folga (~17%)
+     sobre os 1054px. Isso NÃO é a largura que a coluna renderiza a 1600px:
+     `1fr` reparte o que sobra, então cada coluna fica em (1054 − 144) / 7 =
+     130px — acima do piso e do limiar da container query abaixo. O piso
+     (--dia-min) só é alcançado quando a tela aperta mais que 1600px; abaixo
+     disso a pista rola, por desenho. */
   --calha: 9rem;
-  --dia-min: 9rem;
+  --dia-min: 6.5rem;
   --altura-linha: 4.5rem;
   display: grid;
   /* `1fr` reparte quando sobra largura; `--dia-min` é o piso que dispara a
@@ -419,8 +434,12 @@ p {
 }
 
 /* Ordem de sacrifício conforme a coluna encolhe. O nome da turma nunca sai: ele
-   está na calha, não na célula. */
-@container dia (max-width: 8rem) {
+   está na calha, não na célula. O limiar (7.5rem = 120px) fica ESTRITAMENTE
+   ACIMA do piso `--dia-min` (6.5rem = 104px): o chip some quando a coluna já
+   está a 16px do piso, não quando cruza o próprio piso — um limiar igual ou
+   abaixo do piso nunca dispara, porque a coluna nunca fica menor que ele
+   (era exatamente o defeito da versão anterior, 8rem contra um piso de 9rem). */
+@container dia (max-width: 7.5rem) {
   .chip-km { display: none; }
 }
 
@@ -434,8 +453,12 @@ html[data-arrastando] * { user-select: none; }
   to   { opacity: 0; }
 }
 
-/* A reversão do otimista é um salto — sob reduced-motion ela SEMPRE é um salto.
-   O anel é o que explica o salto; por isso ele é opacity e sobrevive à regra. */
+/* A reversão do otimista é um salto — sob reduced-motion ela SEMPRE é um salto,
+   porque a regra global força `animation-duration: 1ms` em QUALQUER
+   propriedade, `transform` incluso; usar `opacity` aqui não muda esse
+   tratamento nem "escapa" da regra. É `opacity`, não `transform`, porque o
+   anel só pisca — não desloca nem redimensiona nada — e a convenção do
+   projeto é não animar deslocamento/tamanho quando a mudança é só um realce. */
 .anel-erro::after {
   content: "";
   position: absolute;

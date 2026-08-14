@@ -48,16 +48,28 @@ export function MiniMapa({
                 />
               ) : null}
 
+              {/* Altura em porcentagem, não `scaleY`: as duas faixas são irmãs
+                  de flex com a mesma base, e `transform` é só pintura — não
+                  muda o tamanho de layout, então cada uma escalaria dentro da
+                  própria caixa e sobraria um vão entre elas em todo dia que
+                  não fosse o pico exato dos 28. Altura real empilha de
+                  verdade. O arredondamento do topo mora no envoltório
+                  (`overflow-hidden`), não numa das faixas: assim o canto
+                  aparece sobre qualquer uma que toque o topo — a clara, a
+                  escura, ou nenhuma, no dia zerado. */}
               <span
                 aria-hidden="true"
-                style={{ transform: `scaleY(${r.semEquipe / teto})` }}
-                className="block h-8 origin-bottom rounded-t-xs border border-border-strong bg-surface-3"
-              />
-              <span
-                aria-hidden="true"
-                style={{ transform: `scaleY(${r.comEquipe / teto})` }}
-                className="block h-8 origin-bottom bg-ink-3"
-              />
+                className="flex h-8 w-full flex-col justify-end overflow-hidden rounded-t-xs border border-border-strong"
+              >
+                <span
+                  style={{ height: `${(r.semEquipe / teto) * 100}%` }}
+                  className="block w-full shrink-0 bg-surface-3"
+                />
+                <span
+                  style={{ height: `${(r.comEquipe / teto) * 100}%` }}
+                  className="block w-full shrink-0 bg-ink-3"
+                />
+              </span>
               <span className="mt-0.5 block h-px w-full bg-transparent group-hover:bg-accent-line" />
               <span className="sr-only">{fmt.n(total)}</span>
             </button>

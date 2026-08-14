@@ -277,12 +277,54 @@ export function previaDoMovimento(
   return previa;
 }
 
+/**
+ * Em quais dos `dias` alguma equipe passa da própria capacidade — mesma
+ * matemática de `montarGrade` (fatias por item, km por célula), mas sem
+ * produzir `Celula`/`LinhaEquipe`: o mini-mapa de 28 dias só precisa do sinal
+ * booleano por dia, não do objeto inteiro.
+ *
+ * Não compartilha código com `montarGrade` por decisão, não por descuido:
+ * aquele loop constrói `itensPorCelula` e `fatiasPorItem` na MESMA passada que
+ * `kmPorCelula`, e os dois têm uso próprio ali (célula por linha, prévia de
+ * arrasto) que esta função não precisa. Extrair só o pedaço de km forçaria
+ * `montarGrade` a chamar `fatiasEm` de novo ou a ler de uma estrutura externa
+ * — trocar código já testado por uma dedupe cosmética não compensa o risco.
+ */
+function diasComExcesso(itensEmAberto: ItemAgenda[], equipes: Equipe[], dias: string[]): Set<string> {
+  const porId = new Map(equipes.map((e) => [e.id, e]));
+  const kmPorCelula = new Map<ChaveCelula, number>();
+
+  for (const item of itensEmAberto) {
+    if (item.equipeId == null) continue;
+    const equipe = porId.get(item.equipeId);
+    if (!equipe) continue;
+
+    for (const fatia of fatiasEm(item, item.data, equipe)) {
+      kmPorCelula.set(fatia.chave, (kmPorCelula.get(fatia.chave) ?? 0) + fatia.km);
+    }
+  }
+
+  const excedidos = new Set<string>();
+  for (const dia of dias) {
+    for (const equipe of equipes) {
+      const capacidade = Number(equipe.capacidade_km_dia) || 0;
+      const km = kmPorCelula.get(chaveCelula(dia, equipe.id)) ?? 0;
+      if (km > capacidade + 1e-6) {
+        excedidos.add(dia);
+        break;
+      }
+    }
+  }
+  return excedidos;
+}
+
 /** Quatro semanas a partir da segunda da âncora. Ancorada na semana VISÍVEL e não
  *  na de hoje: navegar seis semanas à frente com a faixa parada em agosto
  *  apontaria para um intervalo que não contém o quadro. */
-export function resumo28(itens: ItemAgenda[], ancora: string): ResumoDia[] {
+export function resumo28(itens: ItemAgenda[], ancora: string, equipes: Equipe[]): ResumoDia[] {
   const janela = montarJanela(ancora, 28);
   const abertos = itens.filter((i) => EM_ABERTO.has(i.status));
+  const excedidos = diasComExcesso(abertos, equipes, janela.dias);
 
   return janela.dias.map((dia) => {
     const doDia = abertos.filter((i) => i.data === dia);
@@ -290,7 +332,7 @@ export function resumo28(itens: ItemAgenda[], ancora: string): ResumoDia[] {
       dia,
       comEquipe: doDia.filter((i) => i.equipeId != null).length,
       semEquipe: doDia.filter((i) => i.equipeId == null).length,
-      algumaExcedida: false,
+      algumaExcedida: excedidos.has(dia),
     };
   });
 }

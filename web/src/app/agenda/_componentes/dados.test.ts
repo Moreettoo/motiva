@@ -260,7 +260,7 @@ describe("previaDoMovimento", () => {
 
 describe("resumo28", () => {
   it("cobre 28 dias a partir da segunda-feira da âncora", () => {
-    const r = resumo28([], "2026-08-13");
+    const r = resumo28([], "2026-08-13", []);
     expect(r).toHaveLength(28);
     expect(r[0].dia).toBe("2026-08-10");
     expect(r[27].dia).toBe("2026-09-06");
@@ -277,8 +277,27 @@ describe("resumo28", () => {
       eqs,
     );
 
-    const dia = resumo28(lista, "2026-08-13").find((d) => d.dia === "2026-08-12");
+    const dia = resumo28(lista, "2026-08-13", eqs).find((d) => d.dia === "2026-08-12");
 
     expect(dia).toMatchObject({ comEquipe: 1, semEquipe: 2 });
+  });
+
+  it("marca `algumaExcedida` quando uma turma passa da capacidade no dia, e só nesse dia", () => {
+    const eqs = [equipe({ id: 1, capacidade_km_dia: 6 })];
+    const lista = itens(
+      [
+        // 4 + 3 = 7km no dia 12, contra 6km/dia de capacidade: excede.
+        agendamento({ id: 1, data: "2026-08-12", equipeId: 1, kmInicio: 0, kmFim: 4 }),
+        agendamento({ id: 2, data: "2026-08-12", equipeId: 1, kmInicio: 0, kmFim: 3 }),
+        // 3km no dia 13, dentro da capacidade: não excede.
+        agendamento({ id: 3, data: "2026-08-13", equipeId: 1, kmInicio: 0, kmFim: 3 }),
+      ],
+      eqs,
+    );
+
+    const r = resumo28(lista, "2026-08-13", eqs);
+
+    expect(r.find((d) => d.dia === "2026-08-12")?.algumaExcedida).toBe(true);
+    expect(r.find((d) => d.dia === "2026-08-13")?.algumaExcedida).toBe(false);
   });
 });
