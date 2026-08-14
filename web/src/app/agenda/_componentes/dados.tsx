@@ -58,9 +58,24 @@ export function diasDeServico(km: number, capacidade: number): number {
 export type ChaveCelula = string;
 
 /** `dia|equipeId`. O separador é pipe porque nenhum dos dois lados pode contê-lo.
- *  O id de DOM usa outro formato — ver `idDoGrupo` em `quadro-semana.tsx`. */
+ *  Chave de MEMÓRIA (`Map`, `data-celula`), nunca id de DOM — para o DOM existe
+ *  `idDoGrupo`, logo abaixo, com outro separador e o porquê escrito lá. */
 export function chaveCelula(dia: string, equipeId: number): ChaveCelula {
   return `${dia}|${equipeId}`;
+}
+
+/** `id` do rótulo do `<div role="group">` de um par (dia, equipe) — e o valor do
+ *  `aria-labelledby` que aponta para ele. Um helper só para as duas pontas: um
+ *  id montado à mão numa delas e pelo helper na outra é um grupo que perde o
+ *  nome sem quebrar nada visível, e ninguém percebe até alguém abrir a tela com
+ *  leitor de tela.
+ *
+ *  Hífen, não o pipe de `chaveCelula`: `getElementById` aceitaria o pipe, mas
+ *  `#grupo-2026-08-13|7` é seletor INVÁLIDO em `querySelector` sem `CSS.escape`
+ *  — e quem escrever esse seletor daqui a seis meses não vai lembrar de
+ *  escapar. */
+export function idDoGrupo(dia: string, equipeId: number): string {
+  return `grupo-${dia}-${equipeId}`;
 }
 
 /** A janela sempre abre na segunda-feira: a operação é planejada por semana.

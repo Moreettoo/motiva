@@ -59,19 +59,25 @@ export function LinhaTurma({
   return (
     <>
       {/* NÃO é `opacity-60` no bloco inteiro: essa opacidade compõe o TEXTO
-          contra o fundo também, e `text-ink-3` (linha de baixo) já mede
-          4,6:1/4,9:1 no piso — qualquer opacity a mais fura o mínimo de
-          contraste para texto pequeno (medido: ~2,4:1 no claro, ~2,5:1 no
-          escuro). Em vez disso, uma veladura por baixo do texto (mesmo
-          truque de `CelulaEquipe`, com a mesma variável `--velatura`) escurece
-          só o retângulo; o texto continua opaco por cima. A opacidade aqui é
-          BEM menor que a de `CelulaEquipe` (3% contra 10%) porque lá não há
-          texto nenhum sob a veladura — aqui há, e 3% ainda deixa `text-ink-3`
-          em ~4,68:1 no claro (medido a mão; escurecer o fundo só AUMENTA o
-          contraste no escuro, onde o texto é claro). A borda dimui junto,
-          via modificador `/60` do Tailwind — que baixa alfa só da borda, sem
-          tocar no texto, ao contrário do `opacity` do elemento. */}
+          contra o fundo também, e `text-ink-3` (a linha de baixo) sobre
+          `surface` já mede 4,99:1 no claro e 4,87:1 no escuro — quase no piso
+          de 4,5:1 para texto pequeno. A 60% o mesmo par desaba para 2,36:1 e
+          2,53:1. Em vez disso, uma veladura por baixo do texto (mesmo truque de
+          `CelulaEquipe`, mesma variável `--velatura` e a MESMA opacidade de 3%,
+          pelo motivo medido lá) escurece só o retângulo; o texto continua opaco
+          por cima e o par fica em 4,66:1 no claro e 4,90:1 no escuro —
+          escurecer o fundo custa contraste no claro e ganha no escuro, onde o
+          texto é o lado claro do par. A borda diminui junto, via modificador
+          `/60` do Tailwind — que baixa o alfa só da borda, sem tocar no texto,
+          ao contrário do `opacity` do elemento. */}
       <div
+        /* A calha gruda na borda esquerda da pista e come 144px dela. Sem este
+           marcador, com o quadro rolado para a direita a primeira coluna
+           visível cai inteira dentro da zona morta da auto-rolagem e a pista
+           foge do ponteiro em pleno arrasto. Quem lê é `medirInsets`, em
+           `usar-arrasto.ts`; por borda fica o maior, então as 11 calhas de
+           mesma largura contam como uma. */
+        data-obstaculo="esquerda"
         className={cn(
           "sticky left-0 z-10 flex flex-col justify-center border-r border-b bg-surface px-2 py-1.5",
           atenuada ? "border-border/60" : "border-border",
@@ -98,7 +104,8 @@ export function LinhaTurma({
           realcada={alvoAtual === celula.chave && !recusaAtual}
           recusada={alvoAtual === celula.chave && recusaAtual != null}
           atenuada={atenuada}
-          filhos={celula.itens.map((item) => (
+        >
+          {celula.itens.map((item) => (
             <CartaoServico
               key={item.id}
               item={item}
@@ -116,7 +123,7 @@ export function LinhaTurma({
               aoFocar={aoFocar(item.id)}
             />
           ))}
-        />
+        </CelulaEquipe>
       ))}
     </>
   );
