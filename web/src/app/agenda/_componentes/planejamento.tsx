@@ -376,6 +376,21 @@ export function PlanejamentoAgenda({
     [setSemana, hoje],
   );
 
+  // "Atrasado" só existe em `sugerido`/`aprovado` (ver `dados.tsx`), e o
+  // contador vem da malha INTEIRA, não do filtro de status ativo — de
+  // propósito, para o filtro não decidir se o alerta existe (ver o
+  // comentário de `totalAtrasados` acima). Mas isso cria uma promessa que o
+  // clique precisa cumprir: garantir os dois status no filtro antes de
+  // navegar, ou a semana de destino pode não ter o cartão que motivou o
+  // clique — o mesmo defeito do eixo tempo, só que no eixo status.
+  const irParaAtrasados = useCallback(() => {
+    if (!semanaAtraso) return;
+    const necessarios: StatusAgendamento[] = ["sugerido", "aprovado"];
+    const faltando = necessarios.filter((s) => !status.includes(s));
+    if (faltando.length > 0) setStatus([...status, ...faltando]);
+    aoNavegar(semanaAtraso);
+  }, [semanaAtraso, status, setStatus, aoNavegar]);
+
   const aoSelecionar = useCallback((id: number) => setSelecionado(id), [setSelecionado]);
 
   function restaurar() {
@@ -420,6 +435,7 @@ export function PlanejamentoAgenda({
         desfazerPorId={desfazerPorId}
         resumo28dias={resumo28dias}
         aoNavegar={aoNavegar}
+        aoIrParaAtrasados={irParaAtrasados}
         aoSelecionar={aoSelecionar}
         aoAlocar={alocar}
         aoDevolver={devolver}

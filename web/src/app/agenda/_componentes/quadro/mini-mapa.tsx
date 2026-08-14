@@ -56,18 +56,33 @@ export function MiniMapa({
                   verdade. O arredondamento do topo mora no envoltório
                   (`overflow-hidden`), não numa das faixas: assim o canto
                   aparece sobre qualquer uma que toque o topo — a clara, a
-                  escura, ou nenhuma, no dia zerado. */}
+                  escura, ou nenhuma, no dia zerado.
+
+                  As duas faixas usam `--ink-3`/`--ink` (cinzas puros, sem
+                  matiz nenhum — a paleta de tinta do projeto não tem hue) em
+                  vez de qualquer cor de status: a hierarquia de risco é
+                  reservada para o ÚNICO sinal que é status de verdade aqui
+                  (o ícone de excesso, abaixo). `--ink-3` sobre `--surface`
+                  mede ~4,9:1 nos dois temas — mesma folga que já era usada
+                  para "com equipe"; antes "sem equipe" ficava em `--surface-3`
+                  (~1,1:1, quase fundido ao fundo, e é a faixa que MAIS
+                  aparece: 62 dos 97 serviços não têm turma). Sendo cinza puro,
+                  a distinção sobrevive a quem não percebe matiz — só depende
+                  de luminância, que é justamente o canal que sobrou intacto.
+                  `border-t` em cada faixa (não só no envoltório) dá a cada uma
+                  um contorno próprio: sem ele, a faixa clara flutuava sem
+                  nenhuma borda quando não alcançava o topo do envoltório. */}
               <span
                 aria-hidden="true"
                 className="flex h-8 w-full flex-col justify-end overflow-hidden rounded-t-xs border border-border-strong"
               >
                 <span
                   style={{ height: `${(r.semEquipe / teto) * 100}%` }}
-                  className="block w-full shrink-0 bg-surface-3"
+                  className="block w-full shrink-0 border-t border-border-strong bg-ink-3"
                 />
                 <span
                   style={{ height: `${(r.comEquipe / teto) * 100}%` }}
-                  className="block w-full shrink-0 bg-ink-3"
+                  className="block w-full shrink-0 border-t border-border-strong bg-ink"
                 />
               </span>
               <span className="mt-0.5 block h-px w-full bg-transparent group-hover:bg-accent-line" />

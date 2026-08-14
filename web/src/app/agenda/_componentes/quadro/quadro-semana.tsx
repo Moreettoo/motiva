@@ -11,7 +11,6 @@ import type { Equipe } from "@/lib/types";
 
 import {
   chaveDia,
-  linhaAtenuada,
   previaDoMovimento,
   type ChaveCelula,
   type Grade,
@@ -24,7 +23,7 @@ import { CartaoServico } from "./cartao-servico";
 import { LinhaTurma } from "./linha-turma";
 import { MiniMapa } from "./mini-mapa";
 import { Sobrevoo } from "./sobrevoo";
-import { TrilhoFila } from "./trilho-fila";
+import { TrilhoResponsivo, useTrilhoEstreito } from "./trilho-responsivo";
 import { useArrasto, type Alvo, type CargaArrasto } from "./usar-arrasto";
 import { useFocoGrade } from "./usar-foco-grade";
 
@@ -51,6 +50,7 @@ export function QuadroSemana({
   desfazerPorId,
   resumo28dias,
   aoNavegar,
+  aoIrParaAtrasados,
   aoSelecionar,
   aoAlocar,
   aoDevolver,
@@ -75,6 +75,12 @@ export function QuadroSemana({
   desfazerPorId: ReadonlyMap<number, () => void>;
   resumo28dias: ResumoDia[];
   aoNavegar: (semana: string) => void;
+  /** Clique em "X vencidos · ir para a semana". Diferente de `aoNavegar`
+   *  puro: "atrasado" só existe em `sugerido`/`aprovado` (ver `dados.tsx`),
+   *  então quem chama também precisa garantir os dois no filtro de status —
+   *  senão o número promete um cartão que o filtro escondeu, e o clique leva
+   *  a uma semana onde ele não está na grade. */
+  aoIrParaAtrasados: () => void;
   aoSelecionar: (id: number) => void;
   aoAlocar: (item: ItemAgenda, dia: string, equipe: Equipe) => void;
   aoDevolver: (item: ItemAgenda) => void;
@@ -83,14 +89,39 @@ export function QuadroSemana({
   const [desfecho, setDesfecho] = useState("");
   const [anuncioDestaque, setAnuncioDestaque] = useState("");
   const [filaExpandida, setFilaExpandida] = useState(false);
+  // Fechada por padrão: a doca não deveria cobrir a grade assim que a página
+  // abre no estreito. Independente de `filaExpandida` — ver o comentário em
+  // `TrilhoResponsivo` sobre por que são dois eixos, não um.
+  const [docaAberta, setDocaAberta] = useState(false);
+  const estreito = useTrilhoEstreito();
+  // Abaixo de `lg`, o trilho só é um alvo de navegação alcançável quando a
+  // doca está aberta — colapsada ele é `inert` (ver `TrilhoResponsivo`).
+  // Sem isto, `proximoAlvo` continuaria oferecendo "fila" como destino de
+  // Shift+seta/seta simples e `validar` aceitaria, apontando para um cartão
+  // que existe no DOM mas não pode receber foco.
+  const filaDisponivel = !estreito || docaAberta;
   const porId = useMemo(() => new Map(itens.map((i) => [i.id, i])), [itens]);
   const equipePorId = useMemo(() => new Map(equipes.map((e) => [e.id, e])), [equipes]);
   const equipeFocoNome = equipeFoco != null ? (equipePorId.get(equipeFoco)?.nome ?? null) : null;
+
+  // Mesma condição de `linhaAtenuada` (dados.tsx): equipe em foco sem
+  // NENHUMA linha nesta semana não atenua ninguém — atenuar a semana toda
+  // sem nada para contrastar seria o oposto de "destacar". O anúncio
+  // precisa concordar com isso, senão descreve um destaque que a tela não
+  // está mostrando.
+  const focoVisivelNaSemana = useMemo(
+    () => equipeFoco != null && grade.linhas.some((l) => l.equipe.id === equipeFoco),
+    [equipeFoco, grade.linhas],
+  );
 
   // Quem não vê a tela não percebe a opacidade das linhas atenuadas — só o
   // aria-live abaixo conta essa história. Pula o PRIMEIRO commit (a guarda de
   // `montado`) para não anunciar "destaque removido" assim que a página abre
   // sem nenhum filtro na URL, que não é uma MUDANÇA, é o estado inicial.
+  // Depende de `focoVisivelNaSemana`, não só do nome: trocar de SEMANA com o
+  // MESMO destaque ativo pode fazer a equipe em foco ganhar ou perder a
+  // linha, e o anúncio precisa reavaliar nesse momento — não só quando o
+  // destaque em si muda.
   const montado = useRef(false);
   useEffect(() => {
     if (!montado.current) {
@@ -98,11 +129,13 @@ export function QuadroSemana({
       return;
     }
     setAnuncioDestaque(
-      equipeFocoNome
-        ? `${equipeFocoNome} em destaque. As demais equipes aparecem atenuadas no quadro.`
-        : "Destaque de equipe removido.",
+      !equipeFocoNome
+        ? "Destaque de equipe removido."
+        : focoVisivelNaSemana
+          ? `${equipeFocoNome} em destaque. As demais equipes aparecem atenuadas no quadro.`
+          : `${equipeFocoNome} em destaque. Nenhum serviço desta equipe nesta semana — nada atenuado.`,
     );
-  }, [equipeFocoNome]);
+  }, [equipeFocoNome, focoVisivelNaSemana]);
   const filaVisivel = useMemo(
     () => (filaExpandida ? grade.fila : grade.fila.slice(0, TETO_TRILHO)),
     [grade.fila, filaExpandida],
@@ -173,6 +206,7 @@ export function QuadroSemana({
     descrever,
     anunciar: setPasso,
     aoNavegarSemana: navegarSemana,
+    filaDisponivel,
   });
 
   const emVoo =
@@ -245,10 +279,9 @@ export function QuadroSemana({
           {totalAtrasados > 0 && semanaAtraso ? (
             <Botao
               tamanho="sm"
-              variante="fantasma"
-              className="text-critical-ink hover:text-critical-ink"
+              variante="perigo"
               iconeEsquerda={<OctagonAlert />}
-              onClick={() => aoNavegar(semanaAtraso)}
+              onClick={aoIrParaAtrasados}
             >
               {fmt.contar(totalAtrasados, "vencido")} · ir para a semana
             </Botao>
@@ -276,25 +309,25 @@ export function QuadroSemana({
       />
 
       <div className="flex min-w-0 overflow-hidden rounded-lg border border-border bg-surface">
-        <div className="hidden w-60 shrink-0 overflow-y-auto lg:block scroll-thin max-h-[min(78vh,760px)]">
-          <TrilhoFila
-            itens={filaVisivel}
-            total={grade.fila.length}
-            expandido={filaExpandida}
-            aoExpandir={() => setFilaExpandida(true)}
-            janelaFim={grade.janela.fim}
-            realcado={alvoAtual === "fila" && !recusaAtual}
-            idEmVoo={emVoo}
-            idAtivo={idAtivoNoTrilho}
-            selecionado={selecionado}
-            salvandoIds={salvandoIds}
-            aoPegar={iniciar}
-            aoTeclar={aoTeclar}
-            aoAbrir={aoSelecionar}
-            engolirClique={engolirClique}
-            refCartao={refCartaoTrilho}
-          />
-        </div>
+        <TrilhoResponsivo
+          docaAberta={docaAberta}
+          aoAlternarDoca={() => setDocaAberta((atual) => !atual)}
+          itens={filaVisivel}
+          total={grade.fila.length}
+          expandido={filaExpandida}
+          aoExpandir={() => setFilaExpandida(true)}
+          janelaFim={grade.janela.fim}
+          realcado={alvoAtual === "fila" && !recusaAtual}
+          idEmVoo={emVoo}
+          idAtivo={idAtivoNoTrilho}
+          selecionado={selecionado}
+          salvandoIds={salvandoIds}
+          aoPegar={iniciar}
+          aoTeclar={aoTeclar}
+          aoAbrir={aoSelecionar}
+          engolirClique={engolirClique}
+          refCartao={refCartaoTrilho}
+        />
 
         <div className="quadro-pista scroll-thin max-h-[min(78vh,760px)] min-w-0 flex-1">
           <div
@@ -350,7 +383,7 @@ export function QuadroSemana({
               <LinhaTurma
                 key={linha.equipe.id}
                 linha={linha}
-                atenuada={linhaAtenuada(linha.equipe.id, equipeFoco, grade.linhas)}
+                atenuada={focoVisivelNaSemana && linha.equipe.id !== equipeFoco}
                 previa={previa}
                 alvoAtual={alvoAtual}
                 recusaAtual={recusaAtual}

@@ -10,7 +10,7 @@ import { fmt } from "@/lib/format";
 import { STATUS_AGENDAMENTO, type Equipe, type StatusAgendamento } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-import type { FiltroEquipe } from "./dados";
+import type { EquipeNaUrl } from "./dados";
 
 export function Controles({
   status,
@@ -24,8 +24,8 @@ export function Controles({
 }: {
   status: StatusAgendamento[];
   aoMudarStatus: (valor: StatusAgendamento[]) => void;
-  equipe: FiltroEquipe;
-  aoMudarEquipe: (valor: FiltroEquipe) => void;
+  equipe: EquipeNaUrl;
+  aoMudarEquipe: (valor: EquipeNaUrl) => void;
   equipes: Equipe[];
   porStatus: Record<StatusAgendamento, number>;
   alterado: boolean;

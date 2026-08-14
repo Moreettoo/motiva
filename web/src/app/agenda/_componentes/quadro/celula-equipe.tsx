@@ -50,8 +50,15 @@ export const CelulaEquipe = memo(function CelulaEquipe({
           por baixo) atenua o quadro sem esse risco. A hachura de excesso,
           pintada DEPOIS, fica por cima de propósito: um alerta de
           capacidade não deveria sumir só porque outra equipe está em foco. */}
+      {/* `bg-velatura` (preto puro nos dois temas), nao `bg-ink`: no escuro
+          `--ink` e quase branco, e sombrear com ele CLAREIA a linha fora de
+          foco em vez de recua-la — o olho e puxado pro lado errado. Preto
+          sempre escurece, nos dois temas. Sem texto aqui dentro (so os
+          cartoes, que pintam por cima, e o `sr-only` fora do fluxo visual),
+          entao a opacidade nao precisa respeitar piso de contraste — livre
+          pra ficar mais forte que a de `linha-turma.tsx`, que tem texto. */}
       {atenuada ? (
-        <span aria-hidden="true" className="pointer-events-none absolute inset-0 bg-ink opacity-10" />
+        <span aria-hidden="true" className="pointer-events-none absolute inset-0 bg-velatura opacity-10" />
       ) : null}
 
       {leitura.excedida ? (

@@ -27,7 +27,18 @@ function partes(alvo: ChaveCelula): { dia: string; equipeId: number } {
   return { dia, equipeId: Number(id) };
 }
 
-export function proximoAlvo(grade: Grade, atual: Alvo, direcao: Direcao): PassoNavegacao {
+export function proximoAlvo(
+  grade: Grade,
+  atual: Alvo,
+  direcao: Direcao,
+  /** `false` quando o trilho está colapsado numa doca fora da tela — abaixo
+   *  de `lg`, sem a doca aberta (ver `trilho-responsivo.tsx`). Nesse estado o
+   *  trilho existe no DOM mas está `inert`, então apontar pra ele por teclado
+   *  levaria a um alvo que `validar` aceita mas nenhum cartão real representa
+   *  na tela. Default `true` preserva o comportamento de coluna, onde o
+   *  trilho está sempre montado e interativo. */
+  filaDisponivel: boolean = true,
+): PassoNavegacao {
   const linhas = grade.linhas;
   if (linhas.length === 0) return { tipo: "borda", alvo: atual };
 
@@ -47,7 +58,10 @@ export function proximoAlvo(grade: Grade, atual: Alvo, direcao: Direcao): PassoN
     case "esquerda":
       // Sair do primeiro dia pela esquerda leva ao trilho, não à semana anterior:
       // o trilho está fisicamente ali, e a semana anterior é sempre passado.
-      if (d === 0) return { tipo: "alvo", alvo: "fila" };
+      // Mas só quando o trilho está de fato alcançável (ver `filaDisponivel`).
+      if (d === 0) {
+        return filaDisponivel ? { tipo: "alvo", alvo: "fila" } : { tipo: "borda", alvo: atual };
+      }
       return { tipo: "alvo", alvo: chaveCelula(grade.janela.dias[d - 1], equipeId) };
 
     case "direita":

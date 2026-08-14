@@ -28,6 +28,17 @@
   --ink-2: #5a625d;    /*  6.1:1 */
   --ink-3: #676f6a;    /*  4.6:1 — minimo para texto pequeno */
 
+  /* Veladura: SEMPRE escurece, nunca clareia — "recuar" é a mesma operacao
+     fisica nos dois temas. `--ink`/`--bg` nao servem aqui porque cada um
+     resolve so metade do problema: `--ink` INVERTE de sentido no escuro (fica
+     quase branco, clareia em vez de recuar) e `--bg` e quase idêntico a
+     `--surface` no claro (a diferenca e imperceptivel — o mesmo defeito,
+     espelhado). Preto puro em ambos os temas, com a INTENSIDADE calibrada por
+     quem usa (`opacity`/`/NN` no ponto de uso): contraste calculado a mao
+     (WCAG, formula relativa) porque o validador da skill dataviz nao esta
+     neste repositorio — ver o comentario de uso em cada arquivo. */
+  --velatura: #000000;
+
   /* Marca — verde-limao asfaltado. No claro o passo escuro carrega texto. */
   --accent: #4d7c0f;        /* 4.8:1 sobre superficie */
   --accent-hover: #3f6212;
@@ -98,6 +109,9 @@
   --ink-2: #a8b0ac;    /*  8.4:1 */
   --ink-3: #7b8580;    /*  4.9:1 */
 
+  /* Mesmo valor do claro, de proposito — ver o comentario em `:root`. */
+  --velatura: #000000;
+
   --accent: #a3e635;   /* 12.3:1 sobre superficie */
   --accent-hover: #bef264;
   --accent-ink: #0a0d0c;
@@ -155,6 +169,7 @@
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
   --color-ink-3: var(--ink-3);
+  --color-velatura: var(--velatura);
 
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);

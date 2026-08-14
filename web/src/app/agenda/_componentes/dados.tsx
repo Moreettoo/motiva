@@ -466,14 +466,19 @@ export function semanaDoAtrasoMaisAntigo(itens: ItemAgenda[]): string | null {
   return chaveDia(inicioDaSemana(maisAntigo.data));
 }
 
-export type FiltroEquipe = string;
+/** Valor cru do `?equipe=` na URL — string, não id: pode ser "" (sem
+ *  destaque), um id que não existe mais, ou lixo de uma versão anterior do
+ *  seletor. O nome já foi `FiltroEquipe`, de quando `?equipe=` ESCONDIA
+ *  linha; hoje só destaca (ver `linhaAtenuada`), e o tipo ficou com nome de
+ *  uma semântica que não é mais a dele. */
+export type EquipeNaUrl = string;
 
 /** Resolve o `?equipe=` da URL para o id que o quadro deve DESTACAR, ou
  *  `null` sem destaque. Nunca lança: um valor de uma versão anterior do
  *  seletor ("sem", de quando a equipe ainda filtrava por esconder) ou um id
  *  de equipe que não existe mais degrada em silêncio para "sem destaque", em
  *  vez de deixar a URL num estado inválido para quem tiver o link salvo. */
-export function resolverEquipeFoco(filtro: FiltroEquipe, equipes: Equipe[]): number | null {
+export function resolverEquipeFoco(filtro: EquipeNaUrl, equipes: Equipe[]): number | null {
   if (!filtro) return null;
   return equipes.find((e) => String(e.id) === filtro)?.id ?? null;
 }

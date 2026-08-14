@@ -156,7 +156,13 @@ export const CartaoServico = memo(function CartaoServico({
                 acima já carrega "Data vencida" no nome acessível do botão,
                 então nada se perde para quem usa leitor de tela. */}
             {compacto && item.atrasado ? (
-              <OctagonAlert aria-hidden="true" className="size-3 shrink-0 text-critical-ink" />
+              // `title` no `<span>`, não no ícone: `LucideProps` não aceita
+              // `title` (colidiria com o `<title>` de acessibilidade do
+              // próprio SVG). Quem passa o mouse por cima vê a dica; quem usa
+              // leitor de tela já tem "Data vencida" em `rotuloCompleto`.
+              <span aria-hidden="true" title="Data vencida">
+                <OctagonAlert className="size-3 shrink-0 text-critical-ink" />
+              </span>
             ) : null}
           </span>
 

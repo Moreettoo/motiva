@@ -39,6 +39,9 @@ type OpcoesArrasto = {
   descrever: (alvo: Alvo, carga: CargaArrasto) => string;
   anunciar: (texto: string) => void;
   aoNavegarSemana: (delta: -1 | 1) => void;
+  /** `false` com o trilho colapsado numa doca fora da tela — ver o mesmo
+   *  parâmetro em `proximoAlvo` (`navegacao.ts`). Default `true`. */
+  filaDisponivel?: boolean;
 };
 
 /** Elementos roláveis que participam da auto-rolagem, do mais interno ao mais externo. */
@@ -147,6 +150,7 @@ export function useArrasto({
   descrever,
   anunciar,
   aoNavegarSemana,
+  filaDisponivel = true,
 }: OpcoesArrasto) {
   const [estado, setEstado] = useState<EstadoArrasto>({ fase: "ocioso" });
 
@@ -527,7 +531,7 @@ export function useArrasto({
         return;
       }
 
-      const passo = proximoAlvo(grade, atual.alvo, direcao);
+      const passo = proximoAlvo(grade, atual.alvo, direcao, filaDisponivel);
 
       if (passo.tipo === "semana") {
         aoNavegarSemana(passo.delta);
@@ -560,7 +564,18 @@ export function useArrasto({
       definirEstado({ fase: "carregando", carga: atual.carga, alvo: passo.alvo, recusa });
       anunciar(recusa ?? descrever(passo.alvo, atual.carga));
     },
-    [grade, validar, aoSoltar, descrever, anunciar, aoNavegarSemana, fechar, definirEstado, realinhar],
+    [
+      grade,
+      validar,
+      aoSoltar,
+      descrever,
+      anunciar,
+      aoNavegarSemana,
+      fechar,
+      definirEstado,
+      realinhar,
+      filaDisponivel,
+    ],
   );
 
   return { estado, iniciar, aoTeclar, engolirClique, cancelar: fechar };

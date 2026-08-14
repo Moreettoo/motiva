@@ -71,6 +71,21 @@ describe("proximoAlvo", () => {
   it("não sai do trilho pelo eixo vertical", () => {
     expect(proximoAlvo(grade, "fila", "baixo")).toEqual({ tipo: "borda", alvo: "fila" });
   });
+
+  it("para na borda em vez de ir para o trilho quando ele não está disponível", () => {
+    // Doca colapsada abaixo de `lg`: o trilho existe no DOM mas está `inert`.
+    expect(proximoAlvo(grade, chaveCelula("2026-08-10", 1), "esquerda", false)).toEqual({
+      tipo: "borda",
+      alvo: chaveCelula("2026-08-10", 1),
+    });
+  });
+
+  it("continua indo para o trilho quando disponível é omitido (coluna, padrão true)", () => {
+    expect(proximoAlvo(grade, chaveCelula("2026-08-10", 1), "esquerda")).toEqual({
+      tipo: "alvo",
+      alvo: "fila",
+    });
+  });
 });
 
 describe("realinharAlvo", () => {
