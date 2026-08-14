@@ -13,8 +13,12 @@ export type { Alvo, Direcao } from "./navegacao";
 const LIMIAR_PX = 8;
 /** Pressão longa que compromete o gesto no toque, sem competir com a rolagem. */
 const PRESSAO_MS = 250;
-/** Faixa da borda que dispara auto-rolagem, e velocidade máxima em px por quadro. */
-const BORDA_PX = 56;
+/** Faixa que dispara auto-rolagem DENTRO da área útil, e velocidade máxima em px
+ *  por quadro. Fora da área útil — o ponteiro atrás de um obstáculo grudado, ou
+ *  fora do rolador — não há faixa: a rolagem é a máxima direto. As duas metades
+ *  e a aritmética que fixa os 24px estão em `velocidadeDeRolagem`, no fim deste
+ *  arquivo; um número só para as duas era o defeito que isto conserta. */
+const FAIXA_INTERNA_PX = 24;
 const VELOCIDADE_MAX = 18;
 /** Espera do anúncio de PASSO na região assertiva (ver `anunciarPasso`). Uma
  *  região `assertive` INTERROMPE a fala em curso, e a seta repete ~30 vezes por
@@ -82,9 +86,18 @@ function roladores(alvo: Element | null): HTMLElement[] {
    existir, o que mantém a árvore de pé enquanto os componentes ainda não
    carregam o atributo.
 
-   Por que existe: com a pista rolada, a primeira linha de turma visível fica
-   inteira dentro dos `BORDA_PX` de zona morta e não dá para soltar nela — a
-   pista foge do ponteiro. O mesmo na horizontal, atrás da calha de 144px. */
+   Por que existe: sem descontar o grudado, a faixa que dispara auto-rolagem
+   nasce na borda da caixa CRUA, e ali ela cai quase toda atrás do obstáculo. A
+   1920px, medido: dos 56px de faixa que existiam, 49 ficavam escondidos sob o
+   cabeçalho do dia e sobravam 7 sobre conteúdo; na horizontal os 56 caíam
+   inteiros dentro dos 144px da calha, e só o terço esquerdo dela rolava. Ou
+   seja, a faixa mirava o lugar errado nos dois eixos.
+
+   Descontado o grudado, o ponteiro atrás dele passa a dar distância NEGATIVA, e
+   é esse o sinal que a auto-rolagem precisava: quem aponta para o cabeçalho está
+   apontando para a célula que ele esconde. A faixa que sobra SOBRE o conteúdo é
+   outra coisa, e é bem menor — ver `FAIXA_INTERNA_PX` e as duas metades de
+   `velocidadeDeRolagem`. */
 
 const BORDAS_OBSTACULO = ["topo", "baixo", "esquerda", "direita"] as const;
 export type BordaObstaculo = (typeof BORDAS_OBSTACULO)[number];
@@ -506,8 +519,9 @@ export function useArrasto({
     // Auto-rolagem nos dois eixos. `scroll-behavior: auto` local no container
     // (globals.css) — o `smooth` global animaria cada quadro deste laço.
     // As distâncias medem contra a ÁREA ÚTIL, não contra a caixa crua: o que
-    // está atrás do cabeçalho grudado e da calha não é área onde se solta, e
-    // medir de lá punha a primeira linha visível inteira dentro da zona morta.
+    // está atrás do cabeçalho grudado e da calha não é área onde se solta, e é
+    // de lá que sai a distância NEGATIVA que manda rolar na velocidade máxima
+    // (ver as duas metades em `velocidadeDeRolagem`).
     for (const no of roladores(document.elementFromPoint(s.x, s.y))) {
       const caixa = no.getBoundingClientRect();
       // Ainda na fase de LEITURA deste quadro: os retângulos dos obstáculos
@@ -901,19 +915,53 @@ export function useArrasto({
  * ÁREA ÚTIL. Chamava-se `passo`; ganhou nome próprio ao virar export para
  * teste, porque `passo` já é o resultado de `proximoAlvo` dentro de `aoTeclar`.
  *
- * As distâncias podem chegar NEGATIVAS agora que a área útil encolheu: o
- * ponteiro sobre o próprio cabeçalho grudado está atrás da borda de cima. Isso
- * é legítimo — quem aponta ali aponta para uma célula escondida, e rolar até ela
- * é a resposta certa — mas a razão passa de 1 e a velocidade dispararia com a
- * distância: 500px atrás do obstáculo dariam ~160px por quadro, uma pista que
- * foge do ponteiro. Daí o teto em `VELOCIDADE_MAX`.
+ * DUAS METADES, e é de propósito que elas não compartilham mais um número só.
+ *
+ * 1. Distância NEGATIVA — o ponteiro está atrás de um obstáculo grudado (o
+ *    cabeçalho do dia, a calha da turma) ou fora do rolador. Rola na velocidade
+ *    máxima, sem rampa: é o caso inequívoco, porque quem aponta para o grudado
+ *    está apontando para a célula que ele esconde, e trazê-la à tela é a única
+ *    resposta possível. O teto em `VELOCIDADE_MAX` (o `min(1, …)` abaixo) segura
+ *    a razão, que passa de 1 aqui — 500px atrás do obstáculo dariam ~160px por
+ *    quadro, uma pista que foge do ponteiro.
+ *
+ * 2. Distância POSITIVA, dentro da área útil — o ponteiro está sobre conteúdo em
+ *    que se SOLTA um cartão, e por isso a faixa aqui tem que ser pequena. O
+ *    critério é o centro da célula: é onde as pessoas miram, e ele precisa ficar
+ *    fora da faixa. `--altura-linha` é 4.5rem (72px) e é um PISO (`minmax`), então
+ *    uma linha inteira colada na borda da área útil tem o centro a 36px dela; na
+ *    horizontal `--dia-min` é 6.5rem (104px) e o centro fica a 52px. Os 24px
+ *    ficam 12px abaixo do pior dos dois, e essa folga não é enfeite: o inset é
+ *    medido UMA vez por gesto (ver `medirInsets`), e um refluxo que ENCURTE o
+ *    cabeçalho no meio do arrasto empurra a faixa para baixo, para dentro do
+ *    conteúdo, pela diferença de altura. Até 12px de cabeçalho a menos, o centro
+ *    continua parado. 24 também é um terço redondo da linha de 72px: o terço de
+ *    cima rola, os dois de baixo são alvo de solta.
+ *
+ * O que estava errado antes: as duas metades eram os mesmos 56px. Medir contra a
+ * área útil está certo, mas na mesma largura a faixa deixou de cobrir o obstáculo
+ * e passou a cobrir o CONTEÚDO — 56 dos 72px da primeira linha visível, o centro
+ * dela incluído, que rolava a 6px por quadro em vez de esperar a solta. Com
+ * `scrollTop` em zero o `scrollBy` é no-op e ninguém sentia; no meio da lista, a
+ * pista fugia do ponteiro exatamente onde ele mirava.
+ *
+ * Onde se aponta para rolar, então: no eixo que tem obstáculo, no obstáculo — 49px
+ * de cabeçalho e 144px de calha, medidos, e são elementos VISÍVEIS, alvo melhor
+ * que uma faixa invisível de 56px descoberta por acidente. Nas bordas sem
+ * obstáculo (o fim da pista, embaixo e à direita) sobram os 24px, e é só ali que
+ * a mudança custa alcance; em troca é ali que a ÚLTIMA linha inteira parou de
+ * fugir do ponteiro — o mesmo defeito da primeira, que ninguém notou porque no
+ * fim da lista o `scrollBy` também costuma ser no-op.
  */
 export function velocidadeDeRolagem(distanciaInicio: number, distanciaFim: number): number {
-  if (distanciaInicio < BORDA_PX) return -passoDaBorda(distanciaInicio);
-  if (distanciaFim < BORDA_PX) return passoDaBorda(distanciaFim);
+  if (distanciaInicio < FAIXA_INTERNA_PX) return -passoDaBorda(distanciaInicio);
+  if (distanciaFim < FAIXA_INTERNA_PX) return passoDaBorda(distanciaFim);
   return 0;
 }
 
+/** A rampa: 1px por quadro na entrada da faixa, `VELOCIDADE_MAX` na borda da
+ *  área útil e em qualquer distância negativa — é o `min(1, …)` que junta a
+ *  segunda metade com a primeira numa conta só. */
 function passoDaBorda(distancia: number): number {
-  return Math.round(Math.min(1, (BORDA_PX - distancia) / BORDA_PX) * VELOCIDADE_MAX);
+  return Math.round(Math.min(1, (FAIXA_INTERNA_PX - distancia) / FAIXA_INTERNA_PX) * VELOCIDADE_MAX);
 }

@@ -237,13 +237,13 @@ describe("velocidadeDeRolagem", () => {
   });
 
   it("o limiar é exclusivo: exatamente na faixa ainda não rola", () => {
-    expect(velocidadeDeRolagem(56, 500)).toBe(0);
-    expect(velocidadeDeRolagem(500, 56)).toBe(0);
+    expect(velocidadeDeRolagem(24, 500)).toBe(0);
+    expect(velocidadeDeRolagem(500, 24)).toBe(0);
   });
 
   it("negativo perto do início, positivo perto do fim", () => {
-    expect(velocidadeDeRolagem(28, 500)).toBe(-9);
-    expect(velocidadeDeRolagem(500, 28)).toBe(9);
+    expect(velocidadeDeRolagem(12, 500)).toBe(-9);
+    expect(velocidadeDeRolagem(500, 12)).toBe(9);
   });
 
   it("chega na velocidade máxima na borda", () => {
@@ -260,10 +260,56 @@ describe("velocidadeDeRolagem", () => {
     expect(velocidadeDeRolagem(500, -500)).toBe(18);
   });
 
+  it("a faixa interna acaba antes da metade da menor célula, nos dois eixos", () => {
+    // Este é O critério da faixa interna, e a razão de ela não ser a mesma da
+    // metade de fora: o centro da célula é onde se mira para soltar, e ele
+    // precisa ficar parado. `--altura-linha` é 4.5rem (72px) e é um PISO
+    // (`minmax`), então o centro de uma linha colada na borda da área útil está
+    // a 36px dela; `--dia-min` é 6.5rem (104px) e dá 52px na horizontal.
+    expect(velocidadeDeRolagem(36, 500)).toBe(0);
+    expect(velocidadeDeRolagem(52, 500)).toBe(0);
+    // Onde a faixa termina de verdade: 24 exclusivo, 12px de folga sobre os 36
+    // — o bastante para absorver um refluxo que encurte o cabeçalho no meio do
+    // gesto, já que o inset é medido uma vez por gesto (ver `medirInsets`).
+    expect(velocidadeDeRolagem(23, 500)).toBe(-1);
+  });
+
+  it("os números medidos a 1920px: o centro da primeira linha visível fica parado e o cabeçalho rola a toda velocidade", () => {
+    // Medido no DOM real com a `.quadro-pista` rolada: caixa crua em top=555 e
+    // o cabeçalho do dia grudado com 49px de altura, então a área útil começa em
+    // 604 e a primeira linha de turma visível ocupa [604, 676] (`--altura-linha`,
+    // 72px). A pista tem `max-h-[min(78vh,760px)]` e nenhum obstáculo embaixo,
+    // então a área útil termina na caixa crua, em 1315.
+    // `velocidadeDeRolagem` não conhece coordenada absoluta — recebe as duas
+    // distâncias —, e é `laco()` que faz esta tradução a cada quadro.
+    const utilTop = 604;
+    const utilBottom = 1315;
+    const dy = (y: number) => velocidadeDeRolagem(y - utilTop, utilBottom - y);
+
+    // O centro da linha, que é onde o ponteiro mira: parado. Com a faixa única
+    // de 56px isto devolvia −6, ou seja ~360px por segundo de pista fugindo do
+    // ponteiro em cima do alvo que ele estava tentando acertar.
+    expect(dy(640)).toBe(0);
+    // A borda de cima da MESMA linha continua rolando — 24 dos 72px, o terço de
+    // cima —, e a rampa acaba antes da metade.
+    expect(dy(604)).toBe(-18);
+    expect(dy(616)).toBe(-9);
+    expect(dy(628)).toBe(0);
+    // Um ponto sobre o cabeçalho grudado (49px acima da área útil): distância
+    // negativa, velocidade máxima. É a metade de fora, e ela não mudou.
+    expect(dy(580)).toBe(-18);
+    // A borda de BAIXO não tem obstáculo nenhum e sofria o mesmo defeito: a
+    // última linha inteira ocupa [1243, 1315] e o centro dela (1279) também
+    // rolava (+6). Ninguém notou porque no fim da lista o `scrollBy` é no-op.
+    expect(dy(1279)).toBe(0);
+    expect(dy(1315)).toBe(18);
+  });
+
   it("a borda de início vence quando as duas distâncias são curtas", () => {
-    // Rolador mais estreito que duas zonas mortas: alguma direção tem que
-    // ganhar, e a documentada é a do início.
-    expect(velocidadeDeRolagem(10, 10)).toBe(-15);
+    // Rolador mais estreito que duas faixas internas — com 24px isso exige menos
+    // de 48px de área útil no eixo, mais degenerado que antes, mas alguma direção
+    // tem que ganhar e a documentada é a do início.
+    expect(velocidadeDeRolagem(8, 8)).toBe(-12);
   });
 });
 
