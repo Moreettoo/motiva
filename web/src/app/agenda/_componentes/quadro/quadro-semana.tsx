@@ -144,7 +144,14 @@ export function QuadroSemana({
   // para `usar-foco-grade.ts` (Ruling 14) — é a única parte deste arquivo que
   // mexe com foco/refs de DOM, e separá-la também isola as supressões do
   // eslint que essa mexida exige.
-  const { idAtivo, refCartao } = useFocoGrade({ grade, emVoo, selecionado, porId });
+  const { idAtivo, idAtivoNoTrilho, refCartao } = useFocoGrade({ grade, emVoo, selecionado });
+
+  // `TrilhoFila`/`LinhaTurma` recebem `refCartao` de aridade 1 (contrato já
+  // fixado nas Tarefas 5/6) — estes wrappers só fixam a REGIÃO de cada
+  // chamador. Estáveis porque `refCartao` (o hook) é estável; o cache real
+  // mora nele, chaveado por (região, id) — ver `usar-foco-grade.ts`.
+  const refCartaoTrilho = useCallback((id: number) => refCartao("trilho", id), [refCartao]);
+  const refCartaoGrid = useCallback((id: number) => refCartao("grid", id), [refCartao]);
 
   const desfazerDe = useCallback(
     (id: number) => desfazerPorId.get(id) ?? null,
@@ -200,14 +207,14 @@ export function QuadroSemana({
             janelaFim={grade.janela.fim}
             realcado={alvoAtual === "fila" && !recusaAtual}
             idEmVoo={emVoo}
-            idAtivo={idAtivo}
+            idAtivo={idAtivoNoTrilho}
             selecionado={selecionado}
             salvandoIds={salvandoIds}
             aoPegar={iniciar}
             aoTeclar={aoTeclar}
             aoAbrir={aoSelecionar}
             engolirClique={engolirClique}
-            refCartao={refCartao}
+            refCartao={refCartaoTrilho}
           />
         </div>
 
@@ -254,7 +261,7 @@ export function QuadroSemana({
                       aoTeclar={aoTeclar}
                       aoAbrir={aoSelecionar}
                       engolirClique={engolirClique}
-                      refCartao={refCartao(item.id)}
+                      refCartao={refCartao("propostas", item.id)}
                     />
                   ))}
                 </ul>
@@ -276,7 +283,7 @@ export function QuadroSemana({
                 aoTeclar={aoTeclar}
                 aoAbrir={aoSelecionar}
                 engolirClique={engolirClique}
-                refCartao={refCartao}
+                refCartao={refCartaoGrid}
                 desfazerDe={desfazerDe}
               />
             ))}

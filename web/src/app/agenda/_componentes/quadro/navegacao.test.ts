@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Equipe } from "@/lib/types";
 
 import { chaveCelula, montarGrade, montarJanela, type Grade } from "../dados";
-import { proximoAlvo, realinharAlvo } from "./navegacao";
+import { alvoNaBordaDaSemana, proximoAlvo, realinharAlvo } from "./navegacao";
 
 function equipe(id: number, nome: string): Equipe {
   return {
@@ -86,5 +86,30 @@ describe("realinharAlvo", () => {
   it("não desloca o trilho — ele existe em qualquer semana", () => {
     expect(realinharAlvo("fila", 1)).toBe("fila");
     expect(realinharAlvo("fila", -1)).toBe("fila");
+  });
+});
+
+describe("alvoNaBordaDaSemana", () => {
+  // A janela de `grade` é 2026-08-10 (segunda) a 2026-08-16 (domingo).
+  it("pousa no primeiro dia da semana nova indo para a direita — um dia, não uma semana", () => {
+    expect(alvoNaBordaDaSemana(grade, chaveCelula("2026-08-16", 1), 1)).toBe(
+      chaveCelula("2026-08-17", 1),
+    );
+  });
+
+  it("pousa no último dia da semana anterior indo para a esquerda", () => {
+    expect(alvoNaBordaDaSemana(grade, chaveCelula("2026-08-10", 1), -1)).toBe(
+      chaveCelula("2026-08-09", 1),
+    );
+  });
+
+  it("preserva a turma", () => {
+    expect(alvoNaBordaDaSemana(grade, chaveCelula("2026-08-16", 2), 1)).toBe(
+      chaveCelula("2026-08-17", 2),
+    );
+  });
+
+  it("não desloca o trilho", () => {
+    expect(alvoNaBordaDaSemana(grade, "fila", 1)).toBe("fila");
   });
 });

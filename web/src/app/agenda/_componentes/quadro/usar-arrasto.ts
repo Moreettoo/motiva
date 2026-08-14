@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { Grade } from "../dados";
-import { proximoAlvo, realinharAlvo, type Alvo, type Direcao } from "./navegacao";
+import { alvoNaBordaDaSemana, proximoAlvo, realinharAlvo, type Alvo, type Direcao } from "./navegacao";
 
 // Os componentes importam interação de um lugar só; espalhar o conhecimento de
 // que existem dois módulos (navegação pura + hook) seria pior.
@@ -280,14 +280,16 @@ export function useArrasto({
   }, []);
 
   /* Realinha `estado.alvo` para a semana nova ao atravessar semana em pleno
-     movimento: mesmo dia da semana, mesma turma (ver `realinharAlvo`, em
-     `navegacao.ts`, para a aritmética e a razão do bug sem isto). Otimista —
-     a grade nova só existe no próximo render, então não dá para validar a
-     chave nova aqui contra dado fresco; ela é determinística (±7 dias) e
-     `recusa: null` assume que continua valendo o que valia antes de cruzar a
-     semana. Se a suposição estiver errada (por exemplo, a turma ficou
-     desativada só na semana nova), a PRÓXIMA seta já revalida contra a grade
-     fresca, através do caminho normal (`validar` mais abaixo). */
+     movimento por SHIFT+seta (que significa "uma semana"; a seta simples no
+     fim/início da semana significa "um dia" e usa `alvoNaBordaDaSemana` mais
+     abaixo, não isto): mesmo dia da semana, mesma turma (ver `realinharAlvo`,
+     em `navegacao.ts`, para a aritmética e a razão do bug sem isto).
+     Otimista — a grade nova só existe no próximo render, então não dá para
+     validar a chave nova aqui contra dado fresco; ela é determinística
+     (±7 dias) e `recusa: null` assume que continua valendo o que valia antes
+     de cruzar a semana. O efeito `revalidarAoTrocarGrade`, mais abaixo,
+     corrige essa suposição assim que a grade nova chega — não é preciso
+     esperar a PRÓXIMA seta do usuário. */
   const realinhar = useCallback(
     (atual: { carga: CargaArrasto; alvo: Alvo }, delta: -1 | 1) => {
       definirEstado({
@@ -300,17 +302,85 @@ export function useArrasto({
     [definirEstado],
   );
 
+  /* A troca de semana em pleno movimento (`realinhar` acima e o ramo
+     "semana" abaixo) seta `recusa: null` de forma otimista, ANTES de existir
+     grade nova para validar contra. Essa suposição alimenta o DESENHO, não só
+     o Enter: `recusa` vira o anel de aceitação na célula (`realcada`) — uma
+     suposição errada pinta a célula como válida quando não é (por exemplo,
+     "Esse dia já passou." depois de um Shift+← comum, que quase sempre cai
+     no passado) e o erro fica escondido até a PRÓXIMA seta, que pode nunca
+     vir. Este efeito corrige assim que a grade nova chega: revalida de
+     verdade e, se o resultado mudou, atualiza o estado e anuncia — fechando
+     também o buraco de quem só ouve a tela (nenhuma das duas trocas de
+     semana anunciava nada antes desta correção).
+     Duas guardas, nessa ordem: primeiro contra o estado AO VIVO (nada a
+     corrigir se a recusa já bate com o que a tela mostra); só então contra o
+     ÚLTIMO par alvo/recusa já processado, para não repetir a MESMA correção
+     se este efeito refirar à toa — grade instável (recriada a cada render
+     sem mudar de conteúdo, por exemplo pela Tarefa 8) não deve virar spam de
+     anúncio. Checar o cache ANTES do estado ao vivo deixaria escapar uma
+     correção de verdade sempre que dois arrastos diferentes coincidissem no
+     mesmo par (alvo, recusa). */
+  const ultimoRevalidado = useRef<{ alvo: Alvo; recusa: string | null } | null>(null);
+  useEffect(() => {
+    const atual = estadoRef.current;
+    if (atual.fase !== "carregando") return;
+
+    const recusa = validar(atual.carga, atual.alvo);
+    // Contra o estado AO VIVO primeiro, não contra o cache: se a tela já
+    // mostra a recusa certa para este alvo, não há nada para corrigir,
+    // INDEPENDENTE de qualquer sessão de arrasto anterior ter passado por
+    // este mesmo par (alvo, recusa) — checar o cache antes disto deixaria
+    // uma correção de verdade escapar só por coincidência de valores entre
+    // dois arrastos diferentes.
+    if (recusa === atual.recusa) return;
+
+    // Só a partir daqui existe uma correção pendente de verdade. O cache
+    // evita repeti-la se este efeito refirar para o MESMO (alvo, recusa)
+    // antes de `estadoRef` refletir a correção — grade instável (recriada a
+    // cada render sem mudar de conteúdo, por exemplo pela Tarefa 8) não deve
+    // virar spam de anúncio.
+    const anterior = ultimoRevalidado.current;
+    if (anterior && anterior.alvo === atual.alvo && anterior.recusa === recusa) return;
+    ultimoRevalidado.current = { alvo: atual.alvo, recusa };
+
+    definirEstado({ fase: "carregando", carga: atual.carga, alvo: atual.alvo, recusa });
+    anunciar(recusa ?? descrever(atual.alvo, atual.carga));
+  }, [grade, validar, definirEstado, anunciar, descrever]);
+
   const aoTeclar = useCallback(
     (evento: React.KeyboardEvent<HTMLElement>, carga: CargaArrasto) => {
       // Lido do espelho, não de `estado`: `estado` recriaria este callback a
       // cada quadro de um arrasto por ponteiro em andamento (ver `estadoRef`).
       const atual = estadoRef.current.fase === "carregando" ? estadoRef.current : null;
 
+      // Confirma a solta (Espaço de novo, ou Enter) — compartilhado pelos
+      // dois porque os dois tinham o MESMO buraco: nenhum guardava contra
+      // destino igual à origem (o caminho do ponteiro guarda, logo abaixo em
+      // `soltar`). `validar` aceita voltar para a própria origem de propósito
+      // (não seria certo recusar enquanto o gestor só está OLHANDO ao redor
+      // com as setas), então `recusa` fica `null` — sem este `soltarOuAvisar`,
+      // Espaço-Enter sem mover nenhuma seta disparava `aoAlocar` idêntico ao
+      // estado atual, com "alocado para…" e um "Desfazer" para um no-op.
+      function soltarOuAvisar() {
+        if (!atual) return;
+        if (atual.recusa) {
+          anunciar(atual.recusa);
+          return;
+        }
+        if (atual.alvo === atual.carga.origem) {
+          anunciar("Nada mudou. O serviço já estava aqui.");
+          fechar();
+          return;
+        }
+        aoSoltar(atual.carga, atual.alvo);
+        fechar();
+      }
+
       if (evento.key === " " || evento.key === "Spacebar") {
         evento.preventDefault();
         if (atual) {
-          if (!atual.recusa) aoSoltar(atual.carga, atual.alvo);
-          fechar();
+          soltarOuAvisar();
           return;
         }
         definirEstado({ fase: "carregando", carga, alvo: carga.origem, recusa: null });
@@ -331,12 +401,7 @@ export function useArrasto({
       // detalhe e a gaveta abre por cima do quadro que acabou de mudar.
       if (evento.key === "Enter") {
         evento.preventDefault();
-        if (atual.recusa) {
-          anunciar(atual.recusa);
-          return;
-        }
-        aoSoltar(atual.carga, atual.alvo);
-        fechar();
+        soltarOuAvisar();
         return;
       }
 
@@ -362,7 +427,15 @@ export function useArrasto({
 
       if (passo.tipo === "semana") {
         aoNavegarSemana(passo.delta);
-        realinhar(atual, passo.delta);
+        // Seta SIMPLES: "um dia", não "uma semana" — pousa na borda da
+        // semana nova (ver `alvoNaBordaDaSemana`), nunca em `realinharAlvo`
+        // (que é só para o Shift+seta acima e pularia a semana inteira).
+        definirEstado({
+          fase: "carregando",
+          carga: atual.carga,
+          alvo: alvoNaBordaDaSemana(grade, atual.alvo, passo.delta),
+          recusa: null,
+        });
         return;
       }
       if (passo.tipo === "borda") {

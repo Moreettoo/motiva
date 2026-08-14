@@ -79,3 +79,25 @@ export function realinharAlvo(alvo: Alvo, delta: -1 | 1): Alvo {
   const { dia, equipeId } = partes(alvo);
   return chaveCelula(chaveDia(somarDias(dia, delta * 7)), equipeId);
 }
+
+/**
+ * Alvo de BORDA da semana nova quando a SETA SIMPLES (sem Shift) atravessa o
+ * fim da semana — o caminho `proximoAlvo` → `{tipo: "semana"}` (só ocorre
+ * indo para a direita, no último dia; ver `proximoAlvo` acima). Diferente de
+ * `realinharAlvo`: Shift+seta significa "uma semana" (mesmo dia da semana,
+ * sete dias adiante); seta simples significa "um dia" — o vizinho imediato
+ * do dia atual, que é o primeiro dia da semana nova (`delta === 1`) ou o
+ * último (`delta === -1`). Usar `realinharAlvo` aqui pularia a semana nova
+ * inteira (segunda a sábado) e pousaria sete dias à frente, no MESMO dia da
+ * semana — um salto, não um passo.
+ *
+ * `alvoAtual` nunca é `"fila"` neste caminho (`proximoAlvo` só produz
+ * `{tipo: "semana"}` a partir de uma célula), mas o parâmetro aceita `Alvo`
+ * e devolve sem tocar por simetria defensiva com `realinharAlvo`.
+ */
+export function alvoNaBordaDaSemana(grade: Grade, alvoAtual: Alvo, delta: -1 | 1): Alvo {
+  if (alvoAtual === "fila") return alvoAtual;
+  const { equipeId } = partes(alvoAtual);
+  const bordaAtual = delta === 1 ? grade.janela.dias[grade.janela.dias.length - 1] : grade.janela.dias[0];
+  return chaveCelula(chaveDia(somarDias(bordaAtual, delta)), equipeId);
+}
