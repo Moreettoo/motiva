@@ -21,6 +21,7 @@ export function TrilhoFila({
   idAtivo,
   selecionado,
   salvandoIds,
+  anelErroPorId,
   aoPegar,
   aoTeclar,
   aoAbrir,
@@ -49,6 +50,9 @@ export function TrilhoFila({
   idAtivo: number | null;
   selecionado: number | null;
   salvandoIds: ReadonlySet<number>;
+  /** id → geração do último erro de escrita. Mesma forma de `salvandoIds`: a
+   *  coleção desce e o CARTÃO recebe o escalar. */
+  anelErroPorId: ReadonlyMap<number, number>;
   aoPegar: (e: React.PointerEvent<HTMLElement>, carga: CargaArrasto) => void;
   aoTeclar: (e: React.KeyboardEvent<HTMLElement>, carga: CargaArrasto) => void;
   aoAbrir: (id: number) => void;
@@ -80,6 +84,7 @@ export function TrilhoFila({
       fantasma={item.id === idEmVoo}
       selecionado={item.id === selecionado}
       salvando={salvandoIds.has(item.id)}
+      anelErro={anelErroPorId.get(item.id) ?? 0}
       ativo={item.id === idAtivo}
       desfazer={null}
       aoPegar={aoPegar}

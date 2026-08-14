@@ -21,6 +21,25 @@ export function cargaDoItem(item: ItemAgenda, origem: Alvo): CargaArrasto {
   };
 }
 
+/**
+ * Qual classe de anel de erro o cartão veste, dada a GERAÇÃO de erro dele
+ * (`0` = nenhum erro; ver `anelErroPorId`, em `planejamento.tsx`).
+ *
+ * Alterna entre duas classes de propósito. Uma animação CSS não reinicia porque
+ * a classe já está aplicada, então uma segunda falha do MESMO cartão dentro dos
+ * 450 ms não piscaria nada — o anel estaria lá, parado no fim da animação, com
+ * `opacity: 0`. Trocar a classe troca o `animation-name` (as duas keyframes de
+ * `globals.css` são idênticas e existem só para isso) e o navegador reinicia.
+ *
+ * O que isto evita é um remonte: `key` novo reiniciaria a animação também, e
+ * levaria o foco embora junto — a restauração de foco desta grade é delicada
+ * (ver `usar-foco-grade.ts`).
+ */
+export function classeAnelErro(geracao: number): string | null {
+  if (geracao <= 0) return null;
+  return geracao % 2 === 1 ? "anel-erro" : "anel-erro-alt";
+}
+
 function rotuloCompleto(item: ItemAgenda): string {
   const t = item.ag.trecho;
   const partes = [
@@ -45,6 +64,7 @@ export const CartaoServico = memo(function CartaoServico({
   fantasma,
   selecionado,
   salvando,
+  anelErro,
   ativo,
   desfazer,
   aoPegar,
@@ -64,6 +84,11 @@ export const CartaoServico = memo(function CartaoServico({
    *  selecionado é `painel-agendamento.tsx`, este componente só reflete. */
   selecionado: boolean;
   salvando: boolean;
+  /** Geração do último erro de escrita DESTE serviço (`0` = nenhum). Escalar de
+   *  propósito, como `salvando`: ~130 cartões dependem do `memo`, e um valor
+   *  recriado a cada render derrubaria todos no meio de um `pointermove`. Quem
+   *  conta as gerações e apaga o anel depois de 450 ms é `planejamento.tsx`. */
+  anelErro: number;
   /** Roving tabindex da grade: só o cartão ativo entra no Tab (os outros ~129
    *  ficam em -1). Calculado em `usar-foco-grade.ts`; este componente só
    *  consome o resultado pronto. */
@@ -87,11 +112,27 @@ export const CartaoServico = memo(function CartaoServico({
   const t = item.ag.trecho;
   const tabIndex = ativo ? 0 : -1;
 
+  /* O `relative` do `<li>` abaixo existe para o ANEL DE ERRO: `.anel-erro::after`
+     é `position: absolute` e, sem ancestral posicionado, sobe até o viewport.
+     Fica no `<li>` porque o `<div>` de dentro tem `overflow-hidden` — o filete de
+     risco e os cantos arredondados dependem dele — e uma caixa que recorta corta
+     um pseudoelemento em `inset: -2px`.
+
+     Consequência aceita: com o "Desfazer" montado, o anel envolve o `<li>`
+     inteiro, botão incluso. Só acontece dentro dos 8 s de um desfazer já
+     oferecido — uma alocação que deu certo e uma escrita seguinte que falhou, ou
+     o próprio desfazer falhando — e o anel continua dizendo a verdade: os dois
+     pertencem a ESTE serviço. Encolher o anel para só o cartão custaria um nó
+     posicionado a mais em cada um dos ~130 cartões.
+
+     Nada mais muda de lugar: o `<div>` interno já era `relative`, então o selo
+     "2 d" continua se resolvendo contra ele, e o `<li>` posicionado pinta na
+     mesma camada em que o `<div>` já pintava. */
   return (
     <li
       aria-busy={salvando || undefined}
       style={{ visibility: fantasma ? "hidden" : undefined }}
-      className="min-w-0"
+      className={cn("relative min-w-0", classeAnelErro(anelErro))}
       onFocus={aoFocar}
     >
       {/* Container puro: nenhum papel, nenhum tabIndex, nenhum onKeyDown aqui.
@@ -141,9 +182,43 @@ export const CartaoServico = memo(function CartaoServico({
                `aria-disabled` avisa o leitor de tela sem tirar o nó do lugar. */
             onPointerDown={salvando ? undefined : (evento) => aoPegar(evento, carga)}
             onKeyDown={salvando ? undefined : (evento) => aoTeclar(evento, carga)}
+            /* A alça é `text-current` — a tinta do RISCO — sobre o fundo do
+               RISCO, então a `opacity` do botão compõe as duas: a cor efetiva é
+               `tinta*a + fundo*(1-a)`. Medido contra o fundo, para os quatro
+               riscos, nos dois temas, contra o piso de 3:1 de WCAG 1.4.11
+               (informação visual necessária para IDENTIFICAR um componente de
+               interface — a alça é o que identifica o controle de arrastar; ela é
+               `aria-hidden` e o nome acessível vive no `<button>`, então não cai
+               no piso de texto):
+
+                 opacidade   pior par (claro)   pior par (escuro)
+                 30%              1,56               1,83
+                 45%              2,01               2,59     ← repouso anterior
+                 60%              2,65               3,60
+                 70%              3,23               4,42     ← repouso agora
+                 80%              3,93               5,32     ← sobrevoo anterior
+                100%              5,86               7,60     ← sobrevoo agora
+
+               70% é o MÍNIMO que limpa o piso nos dois temas; 60% ainda falha no
+               claro. O sobrevoo foi para 100% para continuar existindo como
+               PASSO: de 70% para 80% a tinta efetiva muda pouco demais para se
+               ver, e a 100% a alça fica exatamente com a tinta do risco, o mesmo
+               peso do ícone ao lado.
+
+               E não é só conformidade. A alça existe porque é DESCOBRÍVEL, ao
+               contrário da pressão longa (spec §3): a 45% ela era quase
+               invisível em repouso, o que contrariava a própria razão de ela
+               estar ali — quem não passa o mouse (toque, ou olho de passagem)
+               não descobria que o cartão se arrasta.
+
+               O `opacity-30` de "salvando" fica: 1,56:1 e 1,83:1 estão longe do
+               piso, mas neste estado o botão tem `aria-disabled` e nenhum
+               handler (nem `onPointerDown` nem `onKeyDown`), e 1.4.11 dispensa
+               componente INATIVO. O estado dura uma ida ao servidor e tem outro
+               canal: o `animate-pulse` do ícone. */
             className={cn(
               "flex w-5 shrink-0 touch-none items-center justify-center text-current",
-              salvando ? "cursor-wait opacity-30" : "cursor-grab opacity-45 group-hover:opacity-80",
+              salvando ? "cursor-wait opacity-30" : "cursor-grab opacity-70 group-hover:opacity-100",
             )}
           >
             <GripVertical aria-hidden="true" className={cn("size-3.5", salvando && "animate-pulse")} />

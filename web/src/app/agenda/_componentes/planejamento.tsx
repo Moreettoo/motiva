@@ -46,6 +46,12 @@ import { ResumoJanela } from "./resumo";
 
 const STATUS_PADRAO: StatusAgendamento[] = ["sugerido", "aprovado"];
 
+/** Quanto tempo o anel de erro fica no cartão revertido (spec §4, passo 3).
+ *  Igual à duração da animação em `globals.css` — e é este número, não o CSS,
+ *  que manda: sob `prefers-reduced-motion` o anel vira ESTADO estático
+ *  (`animation: none`), então quem o apaga é sempre o temporizador daqui. */
+const ANEL_ERRO_MS = 450;
+
 /** Só o que a tela precisa ler da resposta das Server Actions. */
 type Resposta = { ok: true; dados: unknown } | { ok: false; erro: string };
 
@@ -129,14 +135,25 @@ export function PlanejamentoAgenda({
   const [salvandoIds, setSalvandoIds] = useState<ReadonlySet<number>>(new Set());
   const [desfazerPorId, setDesfazerPorId] = useState<ReadonlyMap<number, () => void>>(new Map());
 
-  // O desfazer mora no cartão por 8s (ver `registrarDesfazer`). Sem cancelar o
-  // timer no desmonte, sair da Agenda dentro da janela dispara `setState` num
-  // componente que já saiu da árvore.
+  // Passo 3 da reversão (spec §4): o cartão que voltou para a origem pisca um
+  // anel `--critical`. O valor é a GERAÇÃO do erro, não um booleano, porque uma
+  // animação CSS não reinicia com a classe já aplicada — a geração faz o cartão
+  // alternar entre duas classes e o navegador reiniciar sem remontar nada (ver
+  // `classeAnelErro`, em `cartao-servico.tsx`). Cada cartão recebe só o escalar.
+  const [anelErroPorId, setAnelErroPorId] = useState<ReadonlyMap<number, number>>(new Map());
+
+  // Dois temporizadores por id, com vidas diferentes: o desfazer mora no cartão
+  // por 8 s (ver `registrarDesfazer`) e o anel por 450 ms. Mapas SEPARADOS de
+  // propósito — num mapa só, um erro logo depois de uma alocação bem-sucedida
+  // cancelaria o desfazer dela ao gravar sob a mesma chave. Sem cancelar no
+  // desmonte, sair da Agenda dentro de qualquer das duas janelas dispara
+  // `setState` num componente que já saiu da árvore.
   const timers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
+  const timersAnel = useRef(new Map<number, ReturnType<typeof setTimeout>>());
   useEffect(() => {
-    const mapa = timers.current;
+    const mapas = [timers.current, timersAnel.current];
     return () => {
-      for (const t of mapa.values()) clearTimeout(t);
+      for (const mapa of mapas) for (const t of mapa.values()) clearTimeout(t);
     };
   }, []);
 
@@ -166,32 +183,123 @@ export function PlanejamentoAgenda({
     [limparDesfazer],
   );
 
-  const executar = useCallback(
-    (ajuste: Ajuste, acao: () => Promise<Resposta>, id: number, aviso: Aviso | null) => {
-      setSalvandoIds((atual) => new Set(atual).add(id));
-      iniciar(async () => {
-        ajustar(ajuste);
-        const resultado = await acao();
+  // Passo 3 da reversão. Incrementa a geração do id e agenda o apagamento; um
+  // erro novo no MESMO cartão cancela o temporizador anterior, então a janela de
+  // 450 ms conta sempre a partir do último erro.
+  const marcarErro = useCallback((id: number) => {
+    setAnelErroPorId((atual) => new Map(atual).set(id, (atual.get(id) ?? 0) + 1));
 
-        if (resultado.ok) {
-          if (aviso) mostrar({ tom: "good", ...aviso });
-        } else {
-          mostrar({
-            tom: "critical",
-            titulo: "A alteração não foi salva",
-            descricao: resultado.erro,
-            duracao: 0,
-          });
-        }
-
-        setSalvandoIds((atual) => {
-          const novo = new Set(atual);
+    const anterior = timersAnel.current.get(id);
+    if (anterior) clearTimeout(anterior);
+    timersAnel.current.set(
+      id,
+      setTimeout(() => {
+        timersAnel.current.delete(id);
+        setAnelErroPorId((atual) => {
+          if (!atual.has(id)) return atual; // sem isto, cada limpeza remonta a grade à toa
+          const novo = new Map(atual);
           novo.delete(id);
           return novo;
         });
+      }, ANEL_ERRO_MS),
+    );
+  }, []);
+
+  /**
+   * O caminho único de escrita da tela: aplica o otimista, chama a ação, e
+   * fecha o desfecho (toast de sucesso opcional, toast de erro persistente,
+   * anel de erro, fim do `salvando`).
+   *
+   * `aoSucesso` é o contrato que mudou. Antes, `executar` devolvia `void` e
+   * engolia o resultado dentro da transição, então `alocar`/`devolver`
+   * registravam o desfazer ANTES de saber se a escrita passou: numa recusa do
+   * servidor o cartão voltava para o lugar antigo e mostrava um "Desfazer" ao
+   * lado de um toast dizendo que nada foi salvo — um botão para desfazer o que
+   * não aconteceu.
+   *
+   * É um callback e não um `Promise<boolean>` por duas razões. Uma:
+   * `startTransition` descarta o valor de retorno da função async, então
+   * devolver a promessa exigiria um `Promise` diferido só para atravessar a
+   * transição. Duas: assim `registrarDesfazer` roda DENTRO da mesma transição,
+   * e o botão aparece no mesmo commit em que o dado revalidado chega, em vez de
+   * num render extra depois dele.
+   *
+   * Só o sucesso tem gancho. A falha é tratada aqui (toast + anel) porque é
+   * igual para todas as seis chamadas — e é isso que faz um desfazer que FALHA
+   * pintar o anel sem precisar de gancho nenhum: ele chama `executar` de novo,
+   * sem `aoSucesso`, então não há laço.
+   */
+  const executar = useCallback(
+    (
+      ajuste: Ajuste,
+      acao: () => Promise<Resposta>,
+      id: number,
+      aviso: Aviso | null,
+      aoSucesso?: () => void,
+    ) => {
+      setSalvandoIds((atual) => new Set(atual).add(id));
+      iniciar(async () => {
+        ajustar(ajuste);
+
+        /* A recusa que a ação DEVOLVE (`ok: false`) e a que ela LANÇA precisam
+           terminar do mesmo jeito, e antes deste `try` só a primeira terminava.
+           Uma Server Action lança quando a requisição nem chega a completar —
+           rede caindo, servidor reiniciando, deploy no meio do caminho — e nesse
+           caso não havia toast, não havia anel, e o `setSalvandoIds` de baixo
+           nunca rodava: o cartão ficava preso em "salvando" PARA SEMPRE. E preso
+           nesse estado ele não tem alça nem `onKeyDown` (ver `cartao-servico.tsx`,
+           que os omite enquanto `salvando`), então não havia como pegá-lo de novo
+           nem por mouse nem por teclado — irrecuperável sem recarregar a página.
+           O `finally` é o que fecha essa porta; o `catch` é o que faz a falha
+           contar a mesma história que a recusa devolvida. */
+        try {
+          const resultado = await acao();
+
+          if (resultado.ok) {
+            if (aviso) mostrar({ tom: "good", ...aviso });
+            aoSucesso?.();
+          } else {
+            // Cor de status nunca aparece sozinha, e o anel É cor sozinha: um
+            // retângulo `--critical` de 450 ms, sem ícone e sem rótulo. Quem
+            // carrega ícone e rótulo é este toast — `tom: "critical"` já entra
+            // com `OctagonAlert` e o rótulo "Erro" (ver `notificacoes.tsx`) —, e
+            // ele é PERSISTENTE (`duracao: 0`), então sobrevive ao anel e não
+            // depende de reflexo para ser lido. O anel não é o canal da
+            // mensagem: é o LOCALIZADOR dela, a resposta a "qual dos ~130
+            // cartões?", que o toast não tem como dar. Por isso os dois são
+            // incondicionais e nascem juntos.
+            mostrar({
+              tom: "critical",
+              titulo: "A alteração não foi salva",
+              descricao: resultado.erro,
+              duracao: 0,
+            });
+            marcarErro(id);
+          }
+        } catch {
+          /* Mensagem própria, e não a do erro lançado: o que a exceção carrega
+             aqui é texto de infraestrutura ("Failed to fetch", uma pilha do
+             Next) que não diz ao gestor o que fazer. O desfecho é o mesmo da
+             recusa devolvida — toast persistente com ícone e rótulo, mais o anel
+             localizando o cartão —, e o otimista reverte igual quando a
+             transição fecha. */
+          mostrar({
+            tom: "critical",
+            titulo: "A alteração não foi salva",
+            descricao: "A conexão com o servidor falhou. Confira a rede e tente de novo.",
+            duracao: 0,
+          });
+          marcarErro(id);
+        } finally {
+          setSalvandoIds((atual) => {
+            const novo = new Set(atual);
+            novo.delete(id);
+            return novo;
+          });
+        }
       });
     },
-    [ajustar, mostrar],
+    [ajustar, mostrar, marcarErro],
   );
 
   const itens = useMemo(
@@ -367,11 +475,29 @@ export function PlanejamentoAgenda({
   // ANTERIOR, não `null`: com `null` fixo, a tela perderia a turma enquanto
   // `desfazerAlocacao` restaura a antiga no banco — tela e banco divergiriam
   // até o próximo `revalidatePath`.
+  //
+  // O desfazer é registrado no `aoSucesso` de `executar`, nunca ao lado dele: o
+  // botão é o remédio para uma mudança que ACONTECEU. Antes ele nascia junto com
+  // a chamada, então uma recusa do servidor devolvia o cartão para o lugar antigo
+  // e ainda oferecia "Desfazer" ao lado do toast dizendo que nada foi salvo. O
+  // preço é que o botão aparece uma ida ao servidor mais tarde — e é um preço
+  // baixo: os 8 s passam a contar do momento em que a mudança está confirmada (o
+  // gestor ganha a janela inteira, em vez de gastar parte dela esperando), a
+  // confirmação que o olho acompanha continua sendo o movimento do cartão, que é
+  // instantâneo, e durante essa espera o cartão está `salvando` — sem alça e sem
+  // `onKeyDown` —, então não havia nada que um botão mais cedo permitisse fazer.
   const alocar = useCallback(
     (item: ItemAgenda, dia: string, equipe: Equipe) => {
       const anterior = { data: item.data, equipeId: item.equipeId };
       const equipeAnterior =
         anterior.equipeId != null ? (equipes.find((e) => e.id === anterior.equipeId) ?? null) : null;
+      const ajusteAnterior: Ajuste = {
+        id: item.id,
+        data_sugerida: anterior.data,
+        equipe: equipeAnterior
+          ? { id: equipeAnterior.id, nome: equipeAnterior.nome, base_uf: equipeAnterior.base_uf }
+          : null,
+      };
 
       executar(
         {
@@ -382,21 +508,17 @@ export function PlanejamentoAgenda({
         () => alocarAgendamento(item.id, dia, equipe.id),
         item.id,
         null, // silencioso — ver o comentário do tipo `Aviso`
-      );
-
-      registrarDesfazer(item.id, () =>
-        executar(
-          {
-            id: item.id,
-            data_sugerida: anterior.data,
-            equipe: equipeAnterior
-              ? { id: equipeAnterior.id, nome: equipeAnterior.nome, base_uf: equipeAnterior.base_uf }
-              : null,
-          },
-          () => desfazerAlocacao(item.id, anterior.data, anterior.equipeId),
-          item.id,
-          { titulo: "Alocação desfeita", descricao: item.ag.trecho.rodovia },
-        ),
+        () =>
+          registrarDesfazer(item.id, () =>
+            // Sem `aoSucesso`: o desfazer não registra outro desfazer, então não
+            // há laço. Se ELE falhar, o `else` de `executar` pinta o anel igual.
+            executar(
+              ajusteAnterior,
+              () => desfazerAlocacao(item.id, anterior.data, anterior.equipeId),
+              item.id,
+              { titulo: "Alocação desfeita", descricao: item.ag.trecho.rodovia },
+            ),
+          ),
       );
     },
     [equipes, executar, registrarDesfazer],
@@ -407,22 +529,28 @@ export function PlanejamentoAgenda({
       const anterior = { data: item.data, equipeId: item.equipeId };
       const equipeAnterior =
         anterior.equipeId != null ? (equipes.find((e) => e.id === anterior.equipeId) ?? null) : null;
+      const ajusteAnterior: Ajuste = {
+        id: item.id,
+        data_sugerida: anterior.data,
+        equipe: equipeAnterior
+          ? { id: equipeAnterior.id, nome: equipeAnterior.nome, base_uf: equipeAnterior.base_uf }
+          : null,
+      };
 
-      executar({ id: item.id, equipe: null }, () => devolverParaFila(item.id), item.id, null);
-
-      registrarDesfazer(item.id, () =>
-        executar(
-          {
-            id: item.id,
-            data_sugerida: anterior.data,
-            equipe: equipeAnterior
-              ? { id: equipeAnterior.id, nome: equipeAnterior.nome, base_uf: equipeAnterior.base_uf }
-              : null,
-          },
-          () => desfazerAlocacao(item.id, anterior.data, anterior.equipeId),
-          item.id,
-          { titulo: "Devolução desfeita", descricao: item.ag.trecho.rodovia },
-        ),
+      executar(
+        { id: item.id, equipe: null },
+        () => devolverParaFila(item.id),
+        item.id,
+        null,
+        () =>
+          registrarDesfazer(item.id, () =>
+            executar(
+              ajusteAnterior,
+              () => desfazerAlocacao(item.id, anterior.data, anterior.equipeId),
+              item.id,
+              { titulo: "Devolução desfeita", descricao: item.ag.trecho.rodovia },
+            ),
+          ),
       );
     },
     [equipes, executar, registrarDesfazer],
@@ -490,6 +618,7 @@ export function PlanejamentoAgenda({
         selecionado={selecionado}
         salvandoIds={salvandoIds}
         desfazerPorId={desfazerPorId}
+        anelErroPorId={anelErroPorId}
         resumo28dias={resumo28dias}
         aoNavegar={aoNavegar}
         aoIrParaAtrasados={irParaAtrasados}

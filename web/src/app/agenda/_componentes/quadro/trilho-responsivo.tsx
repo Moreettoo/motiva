@@ -53,6 +53,7 @@ type PropsTrilho = {
   idAtivo: number | null;
   selecionado: number | null;
   salvandoIds: ReadonlySet<number>;
+  anelErroPorId: ReadonlyMap<number, number>;
   aoPegar: (e: React.PointerEvent<HTMLElement>, carga: CargaArrasto) => void;
   aoTeclar: (e: React.KeyboardEvent<HTMLElement>, carga: CargaArrasto) => void;
   aoAbrir: (id: number) => void;

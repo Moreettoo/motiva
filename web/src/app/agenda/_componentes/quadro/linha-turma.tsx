@@ -26,6 +26,7 @@ export function LinhaTurma({
   selecionado,
   idAtivo,
   salvandoIds,
+  anelErroPorId,
   aoPegar,
   aoTeclar,
   aoAbrir,
@@ -46,6 +47,10 @@ export function LinhaTurma({
   selecionado: number | null;
   idAtivo: number | null;
   salvandoIds: ReadonlySet<number>;
+  /** id → geração do último erro de escrita. Mesma forma de `salvandoIds`: a
+   *  coleção desce e o CARTÃO recebe o escalar, para o `memo` dos ~130 cartões
+   *  não cair a cada `pointermove`. */
+  anelErroPorId: ReadonlyMap<number, number>;
   aoPegar: (e: React.PointerEvent<HTMLElement>, carga: CargaArrasto) => void;
   aoTeclar: (e: React.KeyboardEvent<HTMLElement>, carga: CargaArrasto) => void;
   aoAbrir: (id: number) => void;
@@ -113,6 +118,7 @@ export function LinhaTurma({
               fantasma={item.id === emVoo}
               selecionado={item.id === selecionado}
               salvando={salvandoIds.has(item.id)}
+              anelErro={anelErroPorId.get(item.id) ?? 0}
               ativo={item.id === idAtivo}
               desfazer={desfazerDe(item.id)}
               aoPegar={aoPegar}

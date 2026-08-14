@@ -463,25 +463,72 @@ p {
 html[data-arrastando] { cursor: grabbing; }
 html[data-arrastando] * { user-select: none; }
 
+/* O passo 3 da reversão (spec §4): quando o servidor recusa a escrita, o cartão
+   que voltou para a origem ganha um anel `--critical` de 450 ms.
+
+   DOIS nomes de keyframe idênticos, e não um. Uma animação CSS não reinicia
+   porque a classe já está aplicada: duas falhas do MESMO cartão dentro dos
+   450 ms deixariam a segunda sem piscar — o anel ainda estaria lá, já no fim da
+   animação, isto é, invisível. `classeAnelErro` (em `cartao-servico.tsx`)
+   alterna as duas classes por geração de erro, e é o `animation-name` diferente
+   que força o reinício. A alternativa era remontar o cartão com um `key` novo,
+   que reinicia tudo e PERDE O FOCO — a restauração de foco desta grade é
+   delicada de propósito (ver `usar-foco-grade.ts`) e não se paga por um
+   pisca. */
 @keyframes anel-erro {
   from { opacity: 0.9; }
   to   { opacity: 0; }
 }
 
-/* A reversão do otimista é um salto — sob reduced-motion ela SEMPRE é um salto,
-   porque a regra global força `animation-duration: 1ms` em QUALQUER
-   propriedade, `transform` incluso; usar `opacity` aqui não muda esse
-   tratamento nem "escapa" da regra. É `opacity`, não `transform`, porque o
-   anel só pisca — não desloca nem redimensiona nada — e a convenção do
-   projeto é não animar deslocamento/tamanho quando a mudança é só um realce. */
-.anel-erro::after {
+/* Cópia deliberada da de cima. Só o NOME muda, e é só o nome que interessa. */
+@keyframes anel-erro-alt {
+  from { opacity: 0.9; }
+  to   { opacity: 0; }
+}
+
+/* O anel mora no `<li>` do cartão, que por isto ganhou `relative` — sem
+   ancestral posicionado, um `position: absolute` sobe até o viewport. NÃO pode
+   morar no `<div>` interno: ele tem `overflow-hidden` (o filete de risco e os
+   cantos arredondados dependem dele) e um pseudoelemento em `inset` negativo
+   dentro de uma caixa que recorta é simplesmente cortado.
+
+   É `opacity`, não `transform`, porque o anel só pisca — não desloca nem
+   redimensiona nada — e a convenção do projeto é não animar
+   deslocamento/tamanho quando a mudança é só um realce. */
+.anel-erro::after,
+.anel-erro-alt::after {
   content: "";
   position: absolute;
   inset: -2px;
   border-radius: var(--radius-sm);
   border: 2px solid var(--critical);
-  animation: anel-erro 450ms var(--ease-exit) both;
   pointer-events: none;
+}
+.anel-erro::after     { animation: anel-erro     450ms var(--ease-exit) both; }
+.anel-erro-alt::after { animation: anel-erro-alt 450ms var(--ease-exit) both; }
+
+/* Sob movimento reduzido o anel CONTINUA VISÍVEL, e é aqui que ele deixa de ser
+   enfeite: a reversão do otimista é um salto sem transição, e a spec (§4) põe
+   justamente no anel e no toast a explicação que a animação não dá.
+
+   A regra geral do bloco `prefers-reduced-motion` força
+   `animation-duration: 1ms !important` em `*::after` também, e o keyframe vai de
+   `opacity: 0.9` a `0` com `both`: o anel saltaria para o estado final, ou seja,
+   para invisível. `animation: none` + `opacity` fixa transforma o anel em ESTADO
+   estático enquanto a classe estiver aplicada — o mesmo remédio que
+   `.rise`/`.fade`/`.draw` já recebem lá em cima. Quem controla a duração passa a
+   ser o estado em React (`ANEL_ERRO_MS`, em `planejamento.tsx`), não o CSS.
+
+   O bloco fica AQUI e não junto dos outros porque a especificidade é a mesma
+   (uma classe + um pseudoelemento) e `@media` não soma nada: dentro do bloco de
+   cima, as duas regras de `animation` logo acima — posteriores no arquivo —
+   reporiam o `animation-name` e o remédio não valeria nada. */
+@media (prefers-reduced-motion: reduce) {
+  .anel-erro::after,
+  .anel-erro-alt::after {
+    animation: none;
+    opacity: 0.9;
+  }
 }
 
 /* ==========================================================================

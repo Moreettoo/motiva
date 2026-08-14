@@ -107,6 +107,7 @@ export function QuadroSemana({
   selecionado,
   salvandoIds,
   desfazerPorId,
+  anelErroPorId,
   resumo28dias,
   aoNavegar,
   aoIrParaAtrasados,
@@ -132,6 +133,13 @@ export function QuadroSemana({
   selecionado: number | null;
   salvandoIds: ReadonlySet<number>;
   desfazerPorId: ReadonlyMap<number, () => void>;
+  /** id → geração do último erro de escrita (`0`/ausente = nenhum). É o passo 3
+   *  da reversão (spec §4): o cartão que voltou para a origem pisca um anel
+   *  `--critical`. A coleção desce inteira, como `salvandoIds`, e cada cartão
+   *  recebe só o escalar `anelErro` — a geração existe para que uma segunda
+   *  falha do mesmo cartão dentro dos 450 ms reinicie a animação sem remontar o
+   *  nó (ver `classeAnelErro`, em `cartao-servico.tsx`). */
+  anelErroPorId: ReadonlyMap<number, number>;
   resumo28dias: ResumoDia[];
   aoNavegar: (semana: string) => void;
   /** Clique em "X vencidos · ir para a semana". Diferente de `aoNavegar`
@@ -416,6 +424,7 @@ export function QuadroSemana({
           idAtivo={idAtivoNoTrilho}
           selecionado={selecionado}
           salvandoIds={salvandoIds}
+          anelErroPorId={anelErroPorId}
           aoPegar={iniciar}
           aoTeclar={aoTeclar}
           aoAbrir={aoSelecionar}
@@ -501,6 +510,7 @@ export function QuadroSemana({
                         fantasma={item.id === emVoo}
                         selecionado={item.id === selecionado}
                         salvando={salvandoIds.has(item.id)}
+                        anelErro={anelErroPorId.get(item.id) ?? 0}
                         ativo={item.id === idAtivo}
                         desfazer={null}
                         aoPegar={iniciar}
@@ -528,6 +538,7 @@ export function QuadroSemana({
                 selecionado={selecionado}
                 idAtivo={idAtivo}
                 salvandoIds={salvandoIds}
+                anelErroPorId={anelErroPorId}
                 aoPegar={iniciar}
                 aoTeclar={aoTeclar}
                 aoAbrir={aoSelecionar}
