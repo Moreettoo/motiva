@@ -69,6 +69,34 @@ function alvoSob(x: number, y: number): Alvo | null {
   return null;
 }
 
+type Vivo = {
+  carga: CargaArrasto;
+  ponteiroId: number;
+  x0: number;
+  y0: number;
+  x: number;
+  y: number;
+  comprometido: boolean;
+  temporizador: number | null;
+  quadro: number | null;
+  houveArrasto: boolean;
+};
+
+/**
+ * Cancela o que um gesto deixou pendente — temporizador, rAF, o atributo que
+ * trava cursor e seleção — sem tocar em `estado`. Uma cópia só, dois
+ * chamadores: o fim normal do gesto (`fechar`) e o desmonte do componente.
+ * `iniciar` também chama, para o gesto ANTERIOR, quando um segundo ponteiro
+ * chega antes de o primeiro soltar — sem isto o temporizador do primeiro
+ * sobrevive à troca e compromete o ponteiro errado quando dispara.
+ */
+function limparRecursos(s: Vivo | null): void {
+  if (!s) return;
+  if (s.temporizador != null) clearTimeout(s.temporizador);
+  if (s.quadro != null) cancelAnimationFrame(s.quadro);
+  delete document.documentElement.dataset.arrastando;
+}
+
 export function useArrasto({
   grade,
   validar,
@@ -79,31 +107,26 @@ export function useArrasto({
 }: OpcoesArrasto) {
   const [estado, setEstado] = useState<EstadoArrasto>({ fase: "ocioso" });
 
+  // Espelho de `estado` para leitura em `aoTeclar` sem entrar no array de
+  // deps: durante um arrasto por ponteiro, `laco()` chama `definirEstado` a
+  // ~60 quadros por segundo, e `estado` no array recriaria `aoTeclar` junto —
+  // o mesmo furo que o comentário abaixo já evita para o próprio `laco`.
+  // Atualizado sempre no mesmo lugar em que `estado` muda, nunca à parte.
+  const estadoRef = useRef<EstadoArrasto>({ fase: "ocioso" });
+  const definirEstado = useCallback((novo: EstadoArrasto) => {
+    estadoRef.current = novo;
+    setEstado(novo);
+  }, []);
+
   // Tudo que o loop de animação lê mora em ref: ler de estado recriaria os
   // callbacks a cada quadro e derrubaria o `memo` dos ~130 cartões.
-  const vivo = useRef<{
-    carga: CargaArrasto;
-    ponteiroId: number;
-    x0: number;
-    y0: number;
-    x: number;
-    y: number;
-    comprometido: boolean;
-    temporizador: number | null;
-    quadro: number | null;
-    houveArrasto: boolean;
-  } | null>(null);
+  const vivo = useRef<Vivo | null>(null);
 
   const fechar = useCallback(() => {
-    const s = vivo.current;
-    if (s) {
-      if (s.temporizador != null) clearTimeout(s.temporizador);
-      if (s.quadro != null) cancelAnimationFrame(s.quadro);
-    }
+    limparRecursos(vivo.current);
     vivo.current = null;
-    delete document.documentElement.dataset.arrastando;
-    setEstado({ fase: "ocioso" });
-  }, []);
+    definirEstado({ fase: "ocioso" });
+  }, [definirEstado]);
 
   const laco = useCallback(() => {
     const s = vivo.current;
@@ -114,7 +137,7 @@ export function useArrasto({
     const alvo = alvoSob(s.x, s.y);
     const recusa = alvo == null ? null : validar(s.carga, alvo);
 
-    setEstado({ fase: "arrastando", carga: s.carga, alvo, recusa, x: s.x, y: s.y });
+    definirEstado({ fase: "arrastando", carga: s.carga, alvo, recusa, x: s.x, y: s.y });
 
     // Auto-rolagem nos dois eixos. `scroll-behavior: auto` local no container
     // (globals.css) — o `smooth` global animaria cada quadro deste laço.
@@ -133,7 +156,7 @@ export function useArrasto({
     // compilador não se aplica aqui; é o idioma padrão de loop de rAF autorreferente.
     // eslint-disable-next-line react-hooks/immutability
     s.quadro = requestAnimationFrame(laco);
-  }, [validar]);
+  }, [validar, definirEstado]);
 
   const comprometer = useCallback(() => {
     const s = vivo.current;
@@ -157,6 +180,12 @@ export function useArrasto({
       if (evento.button !== 0 && evento.pointerType === "mouse") return;
       evento.preventDefault();
 
+      // Um segundo ponteiro pode chegar antes de o primeiro soltar ou
+      // cancelar: sem limpar aqui, o temporizador do gesto anterior (ainda
+      // não comprometido) sobrevive à troca e comprometeria o ponteiro ERRADO
+      // quando disparasse. Não é suporte a dois dedos — é não vazar recurso.
+      limparRecursos(vivo.current);
+
       vivo.current = {
         carga,
         ponteiroId: evento.pointerId,
@@ -173,9 +202,9 @@ export function useArrasto({
         houveArrasto: false,
       };
 
-      setEstado({ fase: "candidato", carga });
+      definirEstado({ fase: "candidato", carga });
     },
-    [comprometer],
+    [comprometer, definirEstado],
   );
 
   // Os ouvintes ficam em `window` e não no quadro: entre o `pointerdown` e o
@@ -230,20 +259,16 @@ export function useArrasto({
     };
   }, [comprometer, fechar, validar, aoSoltar]);
 
-  // Efeito só de desmontagem: cancela temporizador e rAF pendentes se o quadro
-  // sumir da tela no meio de um arrasto (troca de rota, por exemplo). Sem isto
-  // o laço de `requestAnimationFrame` continuaria se rechamando para sempre —
-  // os ouvintes de `window` já teriam sumido, então nada mais o pararia.
+  // Efeito só de desmontagem: cancela temporizador e rAF pendentes, e solta o
+  // atributo de cursor, se o quadro sumir da tela no meio de um arrasto (troca
+  // de rota, por exemplo). Sem isto o laço de `requestAnimationFrame`
+  // continuaria se rechamando para sempre — os ouvintes de `window` já
+  // teriam sumido, então nada mais o pararia — e `data-arrastando` ficaria
+  // preso no `<html>`, travando cursor e seleção para a próxima página.
   // Separado do efeito acima porque aquele reexecuta a cada troca de callback;
   // cancelar o arrasto nesse momento derrubaria um gesto em andamento à toa.
   useEffect(() => {
-    return () => {
-      const s = vivo.current;
-      if (s) {
-        if (s.temporizador != null) clearTimeout(s.temporizador);
-        if (s.quadro != null) cancelAnimationFrame(s.quadro);
-      }
-    };
+    return () => limparRecursos(vivo.current);
   }, []);
 
   /** Espalhar no botão de detalhe do cartão: engole o clique que fecha um arrasto. */
@@ -256,7 +281,9 @@ export function useArrasto({
 
   const aoTeclar = useCallback(
     (evento: React.KeyboardEvent<HTMLElement>, carga: CargaArrasto) => {
-      const atual = estado.fase === "carregando" ? estado : null;
+      // Lido do espelho, não de `estado`: `estado` recriaria este callback a
+      // cada quadro de um arrasto por ponteiro em andamento (ver `estadoRef`).
+      const atual = estadoRef.current.fase === "carregando" ? estadoRef.current : null;
 
       if (evento.key === " " || evento.key === "Spacebar") {
         evento.preventDefault();
@@ -265,7 +292,7 @@ export function useArrasto({
           fechar();
           return;
         }
-        setEstado({ fase: "carregando", carga, alvo: carga.origem, recusa: null });
+        definirEstado({ fase: "carregando", carga, alvo: carga.origem, recusa: null });
         anunciar(`${carga.rotulo} pego. Setas escolhem o dia e a equipe, Enter solta.`);
         return;
       }
@@ -315,15 +342,23 @@ export function useArrasto({
         return;
       }
       if (passo.tipo === "borda") {
-        anunciar(`${descrever(passo.alvo, atual.carga)} Fim da semana; Shift e seta para a próxima.`);
+        // "Fim da semana" só faz sentido no eixo horizontal. No vertical (uma
+        // ponta da coluna de equipes) e a partir do trilho (que não tem
+        // eixo vertical e só sai pela direita) o motivo é outro — dizer "fim
+        // da semana" ali confundiria quem usa leitor de tela à toa.
+        const semEixoHorizontal = direcao === "cima" || direcao === "baixo" || atual.alvo === "fila";
+        const sufixo = semEixoHorizontal
+          ? "Não há equipe nessa direção."
+          : "Fim da semana; Shift e seta para a próxima.";
+        anunciar(`${descrever(passo.alvo, atual.carga)} ${sufixo}`);
         return;
       }
 
       const recusa = validar(atual.carga, passo.alvo);
-      setEstado({ fase: "carregando", carga: atual.carga, alvo: passo.alvo, recusa });
+      definirEstado({ fase: "carregando", carga: atual.carga, alvo: passo.alvo, recusa });
       anunciar(recusa ?? descrever(passo.alvo, atual.carga));
     },
-    [estado, grade, validar, aoSoltar, descrever, anunciar, aoNavegarSemana, fechar],
+    [grade, validar, aoSoltar, descrever, anunciar, aoNavegarSemana, fechar, definirEstado],
   );
 
   return { estado, iniciar, aoTeclar, engolirClique, cancelar: fechar };
