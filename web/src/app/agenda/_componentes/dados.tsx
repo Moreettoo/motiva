@@ -23,13 +23,6 @@ export type TrechoResumo = {
   crescimento_cm_dia: number | null;
 };
 
-export type CargaEquipe = {
-  equipeId: number;
-  ocupacao: number;
-  km: number;
-  agendamentos: number;
-};
-
 /** Chave de dia, não texto de tela: comparável, ordenável e igual à do banco. */
 export function chaveDia(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;

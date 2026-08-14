@@ -7,6 +7,7 @@ import {
   contarAtrasados,
   diasDeServico,
   fatiasEm,
+  idDoGrupo,
   linhaAtenuada,
   montarGrade,
   montarItens,
@@ -93,6 +94,30 @@ describe("montarJanela", () => {
 
   it("mantém a segunda-feira quando a âncora já é segunda", () => {
     expect(montarJanela("2026-08-10").inicio).toBe("2026-08-10");
+  });
+});
+
+/* ---------- chaves ---------- */
+
+describe("idDoGrupo", () => {
+  it("não usa pipe, para o id servir como seletor CSS sem escapar", () => {
+    // A chave de MEMÓRIA usa pipe; a de DOM não pode, senão qualquer
+    // `querySelector("#" + id)` futuro precisaria de `CSS.escape` — e quem
+    // escrever esse seletor daqui a seis meses não vai lembrar.
+    expect(chaveCelula("2026-08-13", 7)).toBe("2026-08-13|7");
+    expect(idDoGrupo("2026-08-13", 7)).toBe("grupo-2026-08-13-7");
+    expect(idDoGrupo("2026-08-13", 7)).not.toContain("|");
+  });
+
+  it("distingue dias e turmas diferentes", () => {
+    // Colisão aqui daria a duas células o MESMO rótulo acessível, e o segundo
+    // grupo herdaria o nome do primeiro sem quebrar nada visível.
+    const chaves = new Set([
+      idDoGrupo("2026-08-13", 7),
+      idDoGrupo("2026-08-13", 8),
+      idDoGrupo("2026-08-14", 7),
+    ]);
+    expect(chaves.size).toBe(3);
   });
 });
 
