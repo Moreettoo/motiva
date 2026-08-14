@@ -16,6 +16,11 @@ const PRESSAO_MS = 250;
 /** Faixa da borda que dispara auto-rolagem, e velocidade máxima em px por quadro. */
 const BORDA_PX = 56;
 const VELOCIDADE_MAX = 18;
+/** Espera do anúncio de PASSO na região assertiva (ver `anunciarPasso`). Uma
+ *  região `assertive` INTERROMPE a fala em curso, e a seta repete ~30 vezes por
+ *  segundo com a tecla presa: sem espera, cada anúncio cortava o anterior na
+ *  primeira sílaba e nenhuma frase chegava inteira em quem ouve a tela. */
+const ANUNCIO_MS = 150;
 
 export type CargaArrasto = {
   id: number;
@@ -52,6 +57,158 @@ function roladores(alvo: Element | null): HTMLElement[] {
     if (/(auto|scroll)/.test(estilo.overflowX + estilo.overflowY)) lista.push(no);
   }
   return lista;
+}
+
+/* ---------------------------------------------------------------------------
+   `data-obstaculo` — a área útil de um rolador
+   ---------------------------------------------------------------------------
+   O atributo marca um elemento GRUDADO (`sticky`/`fixed`) que cobre uma borda
+   do rolador em que ele vive e esconde parte da área visível. O valor lista as
+   bordas que ele come, separadas por espaço: `topo`, `baixo`, `esquerda`,
+   `direita`. Onde ele vai, no quadro da semana:
+
+     cabeçalho do dia    `sticky top-0`, ~52px   → data-obstaculo="topo"
+     calha da turma      `sticky left-0`, 144px  → data-obstaculo="esquerda"
+     cabeçalho da fila   `sticky top-0`          → data-obstaculo="topo"
+     canto do quadro     gruda nos dois eixos    → data-obstaculo="topo esquerda"
+
+   O canto é opcional: o cabeçalho já cobre a faixa de cima inteira e a calha a
+   da esquerda, e por borda fica o MAIOR. Quem lê é o rolador em que o elemento
+   está DENTRO — só faz sentido em elemento que gruda na borda de um rolador,
+   nunca num que gruda na viewport por cima de outro.
+
+   Token desconhecido é ignorado, e sem NENHUM elemento marcado os insets ficam
+   todos em zero — a auto-rolagem volta exatamente ao que era antes disto
+   existir, o que mantém a árvore de pé enquanto os componentes ainda não
+   carregam o atributo.
+
+   Por que existe: com a pista rolada, a primeira linha de turma visível fica
+   inteira dentro dos `BORDA_PX` de zona morta e não dá para soltar nela — a
+   pista foge do ponteiro. O mesmo na horizontal, atrás da calha de 144px. */
+
+const BORDAS_OBSTACULO = ["topo", "baixo", "esquerda", "direita"] as const;
+export type BordaObstaculo = (typeof BORDAS_OBSTACULO)[number];
+
+/** Os quatro lados de um retângulo: o que `getBoundingClientRect` devolve e o
+ *  que um teste monta à mão, sem DOM. */
+export type Caixa = { top: number; right: number; bottom: number; left: number };
+export type Insets = Record<BordaObstaculo, number>;
+export type Obstaculo = { bordas: string | null | undefined; caixa: Caixa };
+
+function ehBorda(token: string): token is BordaObstaculo {
+  return (BORDAS_OBSTACULO as readonly string[]).includes(token);
+}
+
+/** Quanto UM obstáculo cobre de UMA borda: a distância da borda até o fim dele,
+ *  limitada à extensão dele próprio. Ver `insetsDeObstaculos` para o porquê do
+ *  limite. */
+function coberturaDaBorda(rolador: Caixa, caixa: Caixa, borda: BordaObstaculo): number {
+  const vertical = borda === "topo" || borda === "baixo";
+  const extensao = vertical
+    ? Math.max(0, caixa.bottom - caixa.top)
+    : Math.max(0, caixa.right - caixa.left);
+  const distancia =
+    borda === "topo"
+      ? caixa.bottom - rolador.top
+      : borda === "baixo"
+        ? rolador.bottom - caixa.top
+        : borda === "esquerda"
+          ? caixa.right - rolador.left
+          : rolador.right - caixa.left;
+  return Math.min(Math.max(0, distancia), extensao);
+}
+
+/**
+ * Quanto cada borda do rolador está coberta — o MAIOR por borda, porque os
+ * obstáculos se repetem: a calha existe em toda linha (11 elementos de mesma
+ * largura) e o cabeçalho em toda coluna.
+ *
+ * O limite pela extensão do obstáculo não é decoração. `sticky` não está sempre
+ * onde a gente acha:
+ *  - um obstáculo que ainda NÃO colou (há conteúdo acima dele e a rolagem está
+ *    em zero) fica no meio do rolador; só a distância diria que a área útil
+ *    começa depois dele, reservando quase a pista inteira. Limitado, ele
+ *    reserva a própria altura, que é o pior caso honesto;
+ *  - um obstáculo rolado para FORA dá distância negativa e cai para zero;
+ *  - `display: none` (a navegação móvel no desktop) dá caixa toda zerada: a
+ *    extensão é zero, então o inset é zero mesmo quando a caixa do rolador está
+ *    acima da viewport — situação em que só a distância inventaria um número
+ *    grande, porque `rolador.top` é negativo;
+ *  - um rolador com borda ou `padding` empurra o grudado para dentro do próprio
+ *    scrollport, e a distância passaria da altura dele por essa folga.
+ *
+ * O limite também é o que segura o estrago se um obstáculo de rolador ANINHADO
+ * entrar na conta do rolador de fora (hoje a pista e o trilho são irmãos, não
+ * aninhados): reserva a altura de um cabeçalho, não meia tela.
+ */
+export function insetsDeObstaculos(rolador: Caixa, obstaculos: readonly Obstaculo[]): Insets {
+  const insets: Insets = { topo: 0, baixo: 0, esquerda: 0, direita: 0 };
+
+  for (const { bordas, caixa } of obstaculos) {
+    for (const token of (bordas ?? "").split(/\s+/)) {
+      if (!ehBorda(token)) continue;
+      insets[token] = Math.max(insets[token], coberturaDaBorda(rolador, caixa, token));
+    }
+  }
+
+  return insets;
+}
+
+/**
+ * A caixa do rolador menos o que os obstáculos cobrem.
+ *
+ * Se um eixo COLAPSA (obstáculo maior que o rolador, ou uma medida inventada),
+ * aquele eixo volta à caixa crua: uma área invertida deixaria as duas
+ * distâncias negativas e travaria a auto-rolagem na velocidade máxima numa
+ * direção só. Voltar à caixa crua degrada para o comportamento de antes deste
+ * conserto, não para um defeito novo.
+ */
+export function areaUtil(rolador: Caixa, insets: Insets): Caixa {
+  const top = rolador.top + insets.topo;
+  const bottom = rolador.bottom - insets.baixo;
+  const left = rolador.left + insets.esquerda;
+  const right = rolador.right - insets.direita;
+  const verticalOk = top < bottom;
+  const horizontalOk = left < right;
+
+  return {
+    top: verticalOk ? top : rolador.top,
+    bottom: verticalOk ? bottom : rolador.bottom,
+    left: horizontalOk ? left : rolador.left,
+    right: horizontalOk ? right : rolador.right,
+  };
+}
+
+/**
+ * Mede os obstáculos de um rolador. Lê layout — a aritmética pura está em
+ * `insetsDeObstaculos`, e `getBoundingClientRect` (não `offsetHeight`) porque a
+ * conta precisa da mesma geometria de viewport de `s.x`/`s.y`: `offsetHeight` é
+ * px de layout arredondado e ignora qualquer `transform` de ancestral.
+ *
+ * UMA vez por rolador por gesto, guardado em `Vivo.insets`. Não é economia
+ * cega: o inset é uma medida RELATIVA (borda do obstáculo menos borda do
+ * rolador), e as duas coisas que mudam 60 vezes por segundo durante um arrasto
+ * não a mexem — rolar a PÁGINA move rolador e obstáculo juntos, e rolar a PISTA
+ * mantém o obstáculo colado na borda (no quadro o cabeçalho é a primeira linha
+ * da grade e a calha a primeira coluna, então elas estão na borda também com a
+ * rolagem em zero). Reler 18 retângulos por quadro — 7 cabeçalhos e 11 calhas —
+ * mais um `querySelectorAll` numa subárvore de ~200 nós recalcularia uma
+ * constante, em cima do `elementsFromPoint` que o mesmo quadro já paga.
+ *
+ * O que a medida por gesto ERRA: um refluxo no meio do arrasto — girar o
+ * celular, abrir a doca da fila, a container query trocar a densidade da
+ * coluna — muda a altura do cabeçalho, e o inset fica velho até o fim daquele
+ * gesto (um a três segundos), com a zona morta errada pela diferença de altura.
+ * É aceitável porque o mesmo refluxo já moveu todas as células debaixo do
+ * ponteiro: a zona morta uns pixels fora de lugar é o menor dos problemas, e o
+ * gesto seguinte mede de novo.
+ */
+function medirInsets(no: HTMLElement, caixa: Caixa): Insets {
+  const obstaculos: Obstaculo[] = [];
+  for (const el of no.querySelectorAll<HTMLElement>("[data-obstaculo]")) {
+    obstaculos.push({ bordas: el.dataset.obstaculo, caixa: el.getBoundingClientRect() });
+  }
+  return insetsDeObstaculos(caixa, obstaculos);
 }
 
 /**
@@ -93,6 +250,12 @@ type Vivo = {
   comprometido: boolean;
   temporizador: number | null;
   quadro: number | null;
+  /** Insets por rolador, medidos na primeira vez que cada um participa DESTE
+   *  gesto (ver `medirInsets`). Mora aqui, e não num ref à parte, para morrer
+   *  com o gesto: `fechar()` zera `vivo.current` e o cache vai junto. Não entra
+   *  em `limparRecursos`, que existe para soltar recurso do navegador
+   *  (temporizador, rAF, atributo no `<html>`), não memória. */
+  insets: Map<HTMLElement, Insets>;
 };
 
 export type DecisaoSolta =
@@ -154,6 +317,64 @@ function limparRecursos(s: Vivo | null): void {
   delete document.documentElement.dataset.arrastando;
 }
 
+/** Relógio injetável: o teste passa o dele e não depende de temporizador de
+ *  verdade nem de `window`, que não existe no ambiente `node` do vitest. */
+export type Relogio = {
+  agendar: (efeito: () => void, ms: number) => number;
+  cancelar: (id: number) => void;
+};
+
+/** Arrow, e não a referência crua de `window.setTimeout`: método de WebIDL
+ *  chamado sem o `this` do `window` estoura "Illegal invocation" no navegador. */
+const RELOGIO: Relogio = {
+  agendar: (efeito, ms) => window.setTimeout(efeito, ms),
+  cancelar: (id) => window.clearTimeout(id),
+};
+
+export type Diferidor = {
+  /** Agenda para `ms` adiante; um `diferir` novo antes do prazo descarta o anterior. */
+  diferir: (efeito: () => void) => void;
+  /** Roda agora e DESCARTA o pendente — ver `anunciarAgora`, em `useArrasto`. */
+  agora: (efeito: () => void) => void;
+  cancelar: () => void;
+};
+
+/**
+ * Debounce de BORDA DE SAÍDA: emite o último da rajada, nunca o primeiro. Uma
+ * instância guarda um agendamento só — é uma vaga, não uma fila, e é isso que
+ * transforma trinta setas por segundo num anúncio no fim.
+ *
+ * Fábrica em vez de hook para poder ser testada sem React e sem DOM; o relógio
+ * entra por parâmetro pelo mesmo motivo.
+ */
+export function criarDiferidor(relogio: Relogio, ms: number): Diferidor {
+  let pendente: number | null = null;
+
+  function cancelar(): void {
+    if (pendente != null) relogio.cancelar(pendente);
+    pendente = null;
+  }
+
+  return {
+    diferir(efeito) {
+      cancelar();
+      pendente = relogio.agendar(() => {
+        // Zera ANTES de rodar: `pendente != null` significa "há fala
+        // esperando", e um id já disparado não representa mais isso —
+        // deixá-lo ali faria `agora()` e `cancelar()` mentirem sobre o que
+        // existe para descartar.
+        pendente = null;
+        efeito();
+      }, ms);
+    },
+    agora(efeito) {
+      cancelar();
+      efeito();
+    },
+    cancelar,
+  };
+}
+
 export function useArrasto({
   grade,
   validar,
@@ -213,10 +434,48 @@ export function useArrasto({
      arrasto deveria deixar um sinal pendente vazando para a próxima. */
   const precisaAnunciarChegada = useRef(false);
 
+  /* A vaga única de fala da região assertiva. Criada na PRIMEIRA fala e não no
+     render: escrever em ref durante o render é exatamente o que a regra de refs
+     proíbe, e toda fala sai de evento ou de efeito — nunca de render — então a
+     hora de criar sempre chega antes de a primeira precisar dela. */
+  const diferidor = useRef<Diferidor | null>(null);
+  const obterDiferidor = useCallback(() => {
+    diferidor.current ??= criarDiferidor(RELOGIO, ANUNCIO_MS);
+    return diferidor.current;
+  }, []);
+
+  /* Duas portas para o mesmo `anunciar`, e a escolha entre elas é de conteúdo.
+
+     `anunciarPasso` é o passo do movimento: a seta, a borda da semana, a
+     chegada depois de cruzar semana. Passa pelo debounce porque a seta REPETE
+     com a tecla presa e a região é `assertive`, que interrompe a fala em curso
+     — sem espera, cada anúncio cortava o anterior na primeira sílaba.
+
+     `anunciarAgora` é o que fecha um ciclo e não faz sentido atrasado: pegar o
+     cartão, cancelar, a recusa e o "nada mudou" do Enter. Não é medo de
+     PERDER o anúncio (um debounce de saída sempre emite o último); é ordem e
+     latência. São respostas a uma ação deliberada e única — ninguém repete
+     Enter trinta vezes por segundo —, e um passo pendente que falasse 150 ms
+     DEPOIS de "movimento cancelado" descreveria a célula para onde o cartão já
+     não vai. Por isso `agora` também descarta o pendente. */
+  const anunciarPasso = useCallback(
+    (texto: string) => obterDiferidor().diferir(() => anunciar(texto)),
+    [obterDiferidor, anunciar],
+  );
+  const anunciarAgora = useCallback(
+    (texto: string) => obterDiferidor().agora(() => anunciar(texto)),
+    [obterDiferidor, anunciar],
+  );
+
   const fechar = useCallback(() => {
     limparRecursos(vivo.current);
     vivo.current = null;
     precisaAnunciarChegada.current = false;
+    /* Passo pendente não sobrevive ao fim do gesto. Numa solta bem sucedida
+       quem anuncia o desfecho é a região polite (`quadro-semana.tsx`), e a
+       assertiva INTERROMPE a polite: o passo atrasado entraria por cima de
+       "alocado para quinta…" descrevendo a célula de onde o cartão já saiu. */
+    diferidor.current?.cancelar();
     // Diferido, não síncrono: o `click` sintético de um gesto arrastado (se
     // houver um) é despachado na MESMA tarefa deste `fechar()` — zerar aqui
     // apagaria o sinal ANTES de `engolirClique` (que roda nesse `click`) ter
@@ -246,10 +505,22 @@ export function useArrasto({
 
     // Auto-rolagem nos dois eixos. `scroll-behavior: auto` local no container
     // (globals.css) — o `smooth` global animaria cada quadro deste laço.
+    // As distâncias medem contra a ÁREA ÚTIL, não contra a caixa crua: o que
+    // está atrás do cabeçalho grudado e da calha não é área onde se solta, e
+    // medir de lá punha a primeira linha visível inteira dentro da zona morta.
     for (const no of roladores(document.elementFromPoint(s.x, s.y))) {
       const caixa = no.getBoundingClientRect();
-      const dx = passo(s.x - caixa.left, caixa.right - s.x);
-      const dy = passo(s.y - caixa.top, caixa.bottom - s.y);
+      // Ainda na fase de LEITURA deste quadro: os retângulos dos obstáculos
+      // saem antes do `scrollBy` abaixo, nunca depois. Uma medida por rolador
+      // por gesto — ver `medirInsets` para por que uma basta.
+      let insets = s.insets.get(no);
+      if (!insets) {
+        insets = medirInsets(no, caixa);
+        s.insets.set(no, insets);
+      }
+      const util = areaUtil(caixa, insets);
+      const dx = velocidadeDeRolagem(s.x - util.left, util.right - s.x);
+      const dy = velocidadeDeRolagem(s.y - util.top, util.bottom - s.y);
       if (dx || dy) {
         no.scrollBy(dx, dy);
         break;
@@ -277,8 +548,8 @@ export function useArrasto({
     s.comprometido = true;
     ultimoGestoArrastou.current = true;
     s.quadro = requestAnimationFrame(laco);
-    anunciar(`${s.carga.rotulo} pego.`);
-  }, [laco, anunciar]);
+    anunciarAgora(`${s.carga.rotulo} pego.`);
+  }, [laco, anunciarAgora]);
 
   const iniciar = useCallback(
     (evento: React.PointerEvent<HTMLElement>, carga: CargaArrasto) => {
@@ -314,6 +585,7 @@ export function useArrasto({
             ? null
             : window.setTimeout(comprometer, PRESSAO_MS),
         quadro: null,
+        insets: new Map(),
       };
 
       definirEstado({ fase: "candidato", carga });
@@ -387,12 +659,12 @@ export function useArrasto({
       if (evento.key !== "Escape") return;
       if (estadoRef.current.fase !== "arrastando") return;
       evento.preventDefault();
-      anunciar("Movimento cancelado. O serviço continua onde estava.");
+      anunciarAgora("Movimento cancelado. O serviço continua onde estava.");
       fechar();
     }
     window.addEventListener("keydown", teclado);
     return () => window.removeEventListener("keydown", teclado);
-  }, [anunciar, fechar]);
+  }, [anunciarAgora, fechar]);
 
   // Efeito só de desmontagem: cancela temporizador e rAF pendentes, e solta o
   // atributo de cursor, se o quadro sumir da tela no meio de um arrasto (troca
@@ -404,13 +676,16 @@ export function useArrasto({
   // cancelar o arrasto nesse momento derrubaria um gesto em andamento à toa.
   // O `setTimeout` de `fechar()` (`temporizadorLimpezaClique`) entra aqui pelo
   // mesmo motivo: sem cancelar, ele ainda dispara depois do desmonte e escreve
-  // num ref que sobrevive à troca de página, mas que ninguém mais lê.
+  // num ref que sobrevive à troca de página, mas que ninguém mais lê. O passo
+  // pendente do `diferidor` é o terceiro caso do mesmo padrão — ele escreveria
+  // numa região `aria-live` que já saiu da árvore.
   useEffect(() => {
     return () => {
       limparRecursos(vivo.current);
       if (temporizadorLimpezaClique.current != null) {
         window.clearTimeout(temporizadorLimpezaClique.current);
       }
+      diferidor.current?.cancelar();
     };
   }, []);
 
@@ -485,8 +760,11 @@ export function useArrasto({
     if (decisao.tipo === "corrigir-e-anunciar") {
       definirEstado({ fase: "carregando", carga: atual.carga, alvo: atual.alvo, recusa });
     }
-    anunciar(recusa ?? descrever(atual.alvo, atual.carga));
-  }, [grade, validar, definirEstado, anunciar, descrever]);
+    // Passo, não terminal: é a chegada de uma travessia de semana, e Shift+seta
+    // também repete com a tecla presa. Pela vaga única do diferidor, uma rajada
+    // de travessias fala só onde o cartão parou.
+    anunciarPasso(recusa ?? descrever(atual.alvo, atual.carga));
+  }, [grade, validar, definirEstado, anunciarPasso, descrever]);
 
   const aoTeclar = useCallback(
     (evento: React.KeyboardEvent<HTMLElement>, carga: CargaArrasto) => {
@@ -505,11 +783,11 @@ export function useArrasto({
         if (!atual) return;
         const decisao = decidirSolta(atual.alvo, atual.carga.origem, atual.recusa);
         if (decisao.tipo === "recusa") {
-          anunciar(decisao.motivo);
+          anunciarAgora(decisao.motivo);
           return;
         }
         if (decisao.tipo === "sem-mudanca") {
-          anunciar("Nada mudou. O serviço já estava aqui.");
+          anunciarAgora("Nada mudou. O serviço já estava aqui.");
           fechar();
           return;
         }
@@ -524,7 +802,7 @@ export function useArrasto({
           return;
         }
         definirEstado({ fase: "carregando", carga, alvo: carga.origem, recusa: null });
-        anunciar(`${carga.rotulo} pego. Setas escolhem o dia e a equipe, Enter solta.`);
+        anunciarAgora(`${carga.rotulo} pego. Setas escolhem o dia e a equipe, Enter solta.`);
         return;
       }
 
@@ -532,7 +810,7 @@ export function useArrasto({
 
       if (evento.key === "Escape") {
         evento.preventDefault();
-        anunciar("Movimento cancelado. O serviço continua onde estava.");
+        anunciarAgora("Movimento cancelado. O serviço continua onde estava.");
         fechar();
         return;
       }
@@ -588,20 +866,25 @@ export function useArrasto({
         const sufixo = semEixoHorizontal
           ? "Não há equipe nessa direção."
           : "Fim da semana; Shift e seta para a próxima.";
-        anunciar(`${descrever(passo.alvo, atual.carga)} ${sufixo}`);
+        anunciarPasso(`${descrever(passo.alvo, atual.carga)} ${sufixo}`);
         return;
       }
 
       const recusa = validar(atual.carga, passo.alvo);
       definirEstado({ fase: "carregando", carga: atual.carga, alvo: passo.alvo, recusa });
-      anunciar(recusa ?? descrever(passo.alvo, atual.carga));
+      // A rajada mora aqui: tecla presa em auto-repetição. Note que a RECUSA de
+      // um passo também é passo — ela descreve onde o cartão está pairando, não
+      // o desfecho de uma confirmação, e atrasar junto mantém as duas na mesma
+      // ordem em que aconteceram.
+      anunciarPasso(recusa ?? descrever(passo.alvo, atual.carga));
     },
     [
       grade,
       validar,
       aoSoltar,
       descrever,
-      anunciar,
+      anunciarPasso,
+      anunciarAgora,
       aoNavegarSemana,
       fechar,
       definirEstado,
@@ -613,13 +896,24 @@ export function useArrasto({
   return { estado, iniciar, aoTeclar, engolirClique, cancelar: fechar };
 }
 
-/** Velocidade da auto-rolagem num eixo: 0 no meio, cresce ao chegar na borda. */
-function passo(distanciaInicio: number, distanciaFim: number): number {
-  if (distanciaInicio < BORDA_PX) {
-    return -Math.round(((BORDA_PX - distanciaInicio) / BORDA_PX) * VELOCIDADE_MAX);
-  }
-  if (distanciaFim < BORDA_PX) {
-    return Math.round(((BORDA_PX - distanciaFim) / BORDA_PX) * VELOCIDADE_MAX);
-  }
+/**
+ * Velocidade da auto-rolagem num eixo: 0 no meio, cresce ao chegar na borda da
+ * ÁREA ÚTIL. Chamava-se `passo`; ganhou nome próprio ao virar export para
+ * teste, porque `passo` já é o resultado de `proximoAlvo` dentro de `aoTeclar`.
+ *
+ * As distâncias podem chegar NEGATIVAS agora que a área útil encolheu: o
+ * ponteiro sobre o próprio cabeçalho grudado está atrás da borda de cima. Isso
+ * é legítimo — quem aponta ali aponta para uma célula escondida, e rolar até ela
+ * é a resposta certa — mas a razão passa de 1 e a velocidade dispararia com a
+ * distância: 500px atrás do obstáculo dariam ~160px por quadro, uma pista que
+ * foge do ponteiro. Daí o teto em `VELOCIDADE_MAX`.
+ */
+export function velocidadeDeRolagem(distanciaInicio: number, distanciaFim: number): number {
+  if (distanciaInicio < BORDA_PX) return -passoDaBorda(distanciaInicio);
+  if (distanciaFim < BORDA_PX) return passoDaBorda(distanciaFim);
   return 0;
+}
+
+function passoDaBorda(distancia: number): number {
+  return Math.round(Math.min(1, (BORDA_PX - distancia) / BORDA_PX) * VELOCIDADE_MAX);
 }
