@@ -1,6 +1,7 @@
 "use client";
 
 import { memo } from "react";
+import { OctagonAlert } from "lucide-react";
 
 import { fmt } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -31,13 +32,21 @@ export const CelulaEquipe = memo(function CelulaEquipe({
 
   return (
     <div
-      /* Célula que não aceita solta NÃO emite `data-celula`: se emitisse, o
-         hit-test a encontraria e a recusa dependeria só de validação. */
+      /* Célula que não aceita solta NÃO emite `data-celula` — essa é a
+         defesa da regra de negócio no nível do DOM, e não deve relaxar.
+         Em vez disso emite `data-celula-recusada`, um atributo PRÓPRIO que o
+         hit-test (`alvoSob`, em `usar-arrasto.ts`) sabe ler sem tratar como
+         destino válido: carrega a MESMA `celula.chave`, então `validar`
+         (que já sabe dizer "Esse dia já passou."/"Essa turma está
+         desativada…") roda normalmente e o estado de recusa é desenhado de
+         verdade — em vez de resolver para `null` e a solta virar um no-op
+         silencioso. */
       data-celula={celula.aceitaSolta ? celula.chave : undefined}
+      data-celula-recusada={celula.aceitaSolta ? undefined : celula.chave}
       className={cn(
         "quadro-celula relative flex min-w-0 flex-col gap-1 border-b border-l border-grid p-1.5",
         realcada && "ring-2 ring-accent ring-inset",
-        recusada && "ring-2 ring-ink-3 ring-inset",
+        recusada && "ring-2 ring-ink-3 ring-inset cursor-not-allowed",
       )}
     >
       {/* Atenuação de "fora de destaque": SÓ o fundo, nunca `filhos`. Os
@@ -53,12 +62,13 @@ export const CelulaEquipe = memo(function CelulaEquipe({
       {/* `bg-velatura` (preto puro nos dois temas), nao `bg-ink`: no escuro
           `--ink` e quase branco, e sombrear com ele CLAREIA a linha fora de
           foco em vez de recua-la — o olho e puxado pro lado errado. Preto
-          sempre escurece, nos dois temas. Sem texto aqui dentro (so os
-          cartoes, que pintam por cima, e o `sr-only` fora do fluxo visual),
-          entao a opacidade nao precisa respeitar piso de contraste — livre
-          pra ficar mais forte que a de `linha-turma.tsx`, que tem texto. */}
+          sempre escurece, nos dois temas. O `<p>` de capacidade MAIS ABAIXO
+          pinta por cima desta veladura (texto real, `text-ink-3`) sempre que
+          a célula tem carga — por isso a opacidade aqui precisa da MESMA
+          medida de `linha-turma.tsx` (3%, não os 10% de antes: 10% media
+          ~3,99:1, abaixo do piso de 4.5:1 para texto pequeno). */}
       {atenuada ? (
-        <span aria-hidden="true" className="pointer-events-none absolute inset-0 bg-velatura opacity-10" />
+        <span aria-hidden="true" className="pointer-events-none absolute inset-0 bg-velatura opacity-[0.03]" />
       ) : null}
 
       {leitura.excedida ? (
@@ -90,6 +100,21 @@ export const CelulaEquipe = memo(function CelulaEquipe({
             {fmt.d1(leitura.km)}/{fmt.d1(celula.capacidade)}
           </span>
         </p>
+      ) : null}
+
+      {/* Cor de status nunca aparece sozinha (spec §2): a hachura acima é só
+          textura, e a barra de capacidade só troca de cor. O ícone é o sinal
+          visível de verdade — mesmo padrão de `cabecalho-dia.tsx` (ícone
+          visível + `aria-hidden`, rótulo completo no `sr-only` abaixo).
+          Depois do `<ul>`/`<p>` no DOM, não antes: os três são `relative`
+          (positioned), e entre positioned a ordem de pintura é a ordem do
+          DOM — antes deles, um cartão no canto superior direito da célula
+          cobriria o ícone. */}
+      {leitura.excedida ? (
+        <OctagonAlert
+          aria-hidden="true"
+          className="pointer-events-none absolute top-1 right-1 size-3 shrink-0 text-critical-ink"
+        />
       ) : null}
 
       <span className="sr-only">

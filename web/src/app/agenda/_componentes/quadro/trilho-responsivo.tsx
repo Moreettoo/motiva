@@ -58,6 +58,7 @@ type PropsTrilho = {
   aoAbrir: (id: number) => void;
   engolirClique: (e: React.MouseEvent) => void;
   refCartao: (id: number) => (no: HTMLElement | null) => void;
+  aoFocar: (id: number) => () => void;
 };
 
 /**
@@ -102,12 +103,24 @@ export function TrilhoResponsivo({
 
   return createPortal(
     <div
-      className="fixed inset-x-0 bottom-0 z-[35] flex flex-col items-stretch px-3"
-      style={{ paddingBottom: "calc(4.5rem + env(safe-area-inset-bottom) + 0.5rem)" }}
+      /* `pointer-events-none` aqui, `-auto` nos dois filhos: a caixa vai até
+         `bottom: 0` em largura cheia (o botão da doca precisa poder encostar
+         no chão), mas o espaço VAZIO abaixo do botão não deveria capturar
+         toque nenhum — é exatamente onde `NavegacaoMovel` (abaixo de `md`,
+         `z-30`) vive. Sem `pointer-events-none` aqui, este container
+         transparente em `z-[35]` cobria a faixa inferior inteira e engolia
+         os quatro links da navegação principal.
+         A folga de 4.5rem (altura da `NavegacaoMovel`) só se aplica abaixo
+         de `md` — o mesmo ponto de corte de `NavegacaoMovel` (`md:hidden`),
+         não o de `useTrilhoEstreito` (`lg`). Entre `md` e `lg` a doca ainda
+         aparece, mas sem navegação inferior para reservar espaço — era o
+         desalinhamento que sobrava vão à toa; `shell.tsx` já resolveu o
+         mesmo caso do lado do `<main>` (`md:pb-8`). */
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-[35] flex flex-col items-stretch px-3 pb-[calc(0.5rem+env(safe-area-inset-bottom))] max-md:pb-[calc(4.5rem+env(safe-area-inset-bottom)+0.5rem)]"
     >
       <Botao
         variante="secundario"
-        className="w-full justify-between shadow-lg"
+        className="pointer-events-auto w-full justify-between shadow-lg"
         iconeDireita={
           <ChevronUp
             aria-hidden="true"
@@ -125,7 +138,7 @@ export function TrilhoResponsivo({
         id="doca-fila-conteudo"
         inert={!docaAberta}
         className={cn(
-          "mt-2 min-h-0 overflow-hidden rounded-lg border border-border shadow-lg",
+          "pointer-events-auto mt-2 min-h-0 overflow-hidden rounded-lg border border-border shadow-lg",
           "transition-[max-height] duration-200 ease-[var(--ease-out-quint)]",
           docaAberta ? "max-h-[60vh] overflow-y-auto scroll-thin" : "max-h-0 border-transparent",
         )}

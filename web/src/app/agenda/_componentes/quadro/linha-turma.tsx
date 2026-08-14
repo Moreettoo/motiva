@@ -31,6 +31,7 @@ export function LinhaTurma({
   aoAbrir,
   engolirClique,
   refCartao,
+  aoFocar,
   desfazerDe,
 }: {
   linha: LinhaEquipe;
@@ -50,6 +51,7 @@ export function LinhaTurma({
   aoAbrir: (id: number) => void;
   engolirClique: (e: React.MouseEvent) => void;
   refCartao: (id: number) => (no: HTMLElement | null) => void;
+  aoFocar: (id: number) => () => void;
   desfazerDe: (id: number) => (() => void) | null;
 }) {
   const eq = linha.equipe;
@@ -111,6 +113,7 @@ export function LinhaTurma({
               aoAbrir={aoAbrir}
               engolirClique={engolirClique}
               refCartao={refCartao(item.id)}
+              aoFocar={aoFocar(item.id)}
             />
           ))}
         />

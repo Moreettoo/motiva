@@ -3,7 +3,13 @@ import { describe, expect, it } from "vitest";
 import type { AgendamentoDetalhado, Equipe } from "@/lib/types";
 
 import { montarGrade, montarItens, montarJanela, type Grade } from "../dados";
-import { decidirCartaoAtivo, idAtivoNoTrilho, idsDoQuadro, idsNasPropostas } from "./usar-foco-grade";
+import {
+  decidirCartaoAtivo,
+  decidirCartaoAtivoTrilho,
+  idAtivoNoTrilho,
+  idsDoQuadro,
+  idsNasPropostas,
+} from "./usar-foco-grade";
 
 /* ---------- fábricas mínimas: só os campos que o modelo lê ---------- */
 
@@ -187,6 +193,112 @@ describe("decidirCartaoAtivo", () => {
         idsRenderizados,
       }),
     ).toBe(1);
+  });
+
+  it("doca fechada / fila indisponível: o ativo do QUADRO não pode ser um id do trilho", () => {
+    // Item 1 está SÓ no trilho (sem equipe, data fora da janela visível —
+    // não vira proposta, e sem equipe nunca ocupa célula). Com a doca
+    // fechada no estreito (`filaDisponivel: false`), o trilho existe no DOM
+    // mas está `inert`: um Tab não alcança ele ali. Sem o gate, o padrão
+    // (`primeiroItemDoQuadro`) apontava para o item 1 mesmo assim — o
+    // "ativo" do quadro resolvia para um cartão que o teclado não alcança.
+    const grade = montar([agendamento({ id: 1, data: "2026-09-01" })]);
+    expect(
+      decidirCartaoAtivo({
+        anterior: null,
+        emVoo: null,
+        selecionado: null,
+        filaVisivel: grade.fila,
+        grade,
+        idsRenderizados: idsDoQuadro([], grade), // useFocoGrade também gateia isto quando filaDisponivel é falso
+        filaDisponivel: false,
+      }),
+    ).toBeNull(); // nada na grade (nenhuma equipe com serviço) e o trilho está fora de alcance.
+  });
+
+  it("doca aberta (ou largura ampla): o mesmo item volta a ser o padrão do quadro", () => {
+    // Mesma grade do teste acima, mas com `filaDisponivel` no valor default
+    // (`true`) — prova que o gate só muda o resultado quando explicitamente
+    // desligado, sem regredir o comportamento de coluna já testado acima.
+    const grade = montar([agendamento({ id: 1, data: "2026-09-01" })]);
+    expect(
+      decidirCartaoAtivo({
+        anterior: null,
+        emVoo: null,
+        selecionado: null,
+        filaVisivel: grade.fila,
+        grade,
+        idsRenderizados: idsDoQuadro(grade.fila, grade),
+      }),
+    ).toBe(1);
+  });
+});
+
+describe("decidirCartaoAtivoTrilho", () => {
+  // O trilho é uma região própria (spec §5): precisa do seu PRÓPRIO ativo,
+  // independente do que o "quadro" (propostas + células) resolveu — ver o
+  // comentário em `useFocoGrade` sobre por que um sticky global único
+  // deixava uma das duas regiões sem tab stop nenhum.
+
+  it("cai no primeiro item da fila visível quando não há anterior/em voo/selecionado", () => {
+    const grade = montar([
+      agendamento({ id: 1, data: "2026-08-11" }),
+      agendamento({ id: 2, data: "2026-08-12" }),
+    ]);
+    expect(
+      decidirCartaoAtivoTrilho({
+        anterior: null,
+        emVoo: null,
+        selecionado: null,
+        filaVisivel: grade.fila,
+      }),
+    ).toBe(grade.fila[0].id);
+  });
+
+  it("mantém o anterior (sticky) enquanto ele existir na fila visível", () => {
+    const grade = montar([
+      agendamento({ id: 1, data: "2026-08-11" }),
+      agendamento({ id: 2, data: "2026-08-12" }),
+    ]);
+    expect(
+      decidirCartaoAtivoTrilho({
+        anterior: 2,
+        emVoo: null,
+        selecionado: null,
+        filaVisivel: grade.fila,
+      }),
+    ).toBe(2);
+  });
+
+  it("ignora emVoo/selecionado que não pertencem ao trilho (item com equipe) e cai no padrão", () => {
+    // Item 2 TEM equipe: nunca aparece em `filaVisivel`. Um sticky global
+    // compartilhado com o "quadro" adotaria o id 2 aqui mesmo assim — o bug
+    // original. O cálculo escopado ao trilho recusa e cai no primeiro item
+    // que de fato mora na fila.
+    const grade = montar([
+      agendamento({ id: 1, data: "2026-08-11" }),
+      agendamento({ id: 2, data: "2026-08-12", equipeId: 1 }),
+    ]);
+    expect(
+      decidirCartaoAtivoTrilho({
+        anterior: null,
+        emVoo: 2,
+        selecionado: null,
+        filaVisivel: grade.fila,
+      }),
+    ).toBe(1);
+  });
+
+  it("devolve null quando a fila visível está vazia", () => {
+    const grade = montar([agendamento({ id: 1, data: "2026-08-11", equipeId: 1 })]);
+    expect(
+      decidirCartaoAtivoTrilho({
+        anterior: 1,
+        emVoo: null,
+        selecionado: null,
+        filaVisivel: grade.fila, // vazia: o único item tem equipe
+      }),
+    ).toBeNull();
   });
 });
 

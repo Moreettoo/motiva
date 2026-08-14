@@ -8,6 +8,7 @@ import { IconeDominio, Legenda } from "@/components/viz/legenda";
 import { ORDEM_RISCO, RISCO } from "@/lib/dominio";
 import { fmt, inicioDaSemana, somarDias } from "@/lib/format";
 import type { Equipe } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 import {
   chaveDia,
@@ -22,6 +23,7 @@ import { CabecalhoDia } from "./cabecalho-dia";
 import { CartaoServico } from "./cartao-servico";
 import { LinhaTurma } from "./linha-turma";
 import { MiniMapa } from "./mini-mapa";
+import { alvoPropostas, ehAlvoPropostas } from "./navegacao";
 import { Sobrevoo } from "./sobrevoo";
 import { TrilhoResponsivo, useTrilhoEstreito } from "./trilho-responsivo";
 import { useArrasto, type Alvo, type CargaArrasto } from "./usar-arrasto";
@@ -149,6 +151,11 @@ export function QuadroSemana({
           ? "Este serviço já está na fila."
           : null;
       }
+      // Pseudo-alvo da linha "Propostas da IA" (ver `alvoPropostas`, em
+      // `navegacao.ts`): nunca um destino real, `grade.porCelula` não o
+      // conhece. A regra 4 da spec (§1) proíbe marcar um dia sem equipe —
+      // esta é a frase literal que ela pede.
+      if (ehAlvoPropostas(alvo)) return "Escolha uma equipe — um dia só é marcado com turma.";
       const celula = grade.porCelula.get(alvo);
       if (!celula) return "Essa célula não existe mais. Recarregue a página.";
       if (celula.dia < hoje) return "Esse dia já passou.";
@@ -225,19 +232,22 @@ export function QuadroSemana({
   // para `usar-foco-grade.ts` porque é a única parte deste arquivo que mexe
   // com foco/refs de DOM, e separá-la também isola as supressões do eslint
   // que essa mexida exige.
-  const { idAtivo, idAtivoNoTrilho, refCartao } = useFocoGrade({
+  const { idAtivo, idAtivoNoTrilho, refCartao, aoFocar } = useFocoGrade({
     grade,
     filaVisivel,
     emVoo,
     selecionado,
+    filaDisponivel,
   });
 
-  // `TrilhoFila`/`LinhaTurma` recebem `refCartao` de aridade 1 — a região de
-  // cada chamador é fixa, então só falta fechar o id por chamada. Estáveis
-  // porque `refCartao` (o hook) é estável; o cache real mora nele, chaveado
-  // por (região, id) — ver `usar-foco-grade.ts`.
+  // `TrilhoFila`/`LinhaTurma` recebem `refCartao`/`aoFocar` de aridade 1 — a
+  // região de cada chamador é fixa, então só falta fechar o id por chamada.
+  // Estáveis porque os dois hooks são estáveis; o cache real mora neles,
+  // chaveado por (região, id) — ver `usar-foco-grade.ts`.
   const refCartaoTrilho = useCallback((id: number) => refCartao("trilho", id), [refCartao]);
   const refCartaoGrid = useCallback((id: number) => refCartao("grid", id), [refCartao]);
+  const aoFocarTrilho = useCallback((id: number) => aoFocar("trilho", id), [aoFocar]);
+  const aoFocarGrid = useCallback((id: number) => aoFocar("grid", id), [aoFocar]);
 
   const desfazerDe = useCallback(
     (id: number) => desfazerPorId.get(id) ?? null,
@@ -327,6 +337,7 @@ export function QuadroSemana({
           aoAbrir={aoSelecionar}
           engolirClique={engolirClique}
           refCartao={refCartaoTrilho}
+          aoFocar={aoFocarTrilho}
         />
 
         <div className="quadro-pista scroll-thin max-h-[min(78vh,760px)] min-w-0 flex-1">
@@ -354,30 +365,47 @@ export function QuadroSemana({
               <span className="block text-2xs text-ink-3">sem turma</span>
             </div>
 
-            {grade.janela.dias.map((dia) => (
-              <div key={`prop-${dia}`} className="border-b border-l border-grid p-1.5">
-                <ul className="flex min-w-0 flex-col gap-1">
-                  {(grade.propostas.get(dia) ?? []).map((item) => (
-                    <CartaoServico
-                      key={item.id}
-                      item={item}
-                      origem="fila"
-                      compacto
-                      fantasma={item.id === emVoo}
-                      selecionado={item.id === selecionado}
-                      salvando={salvandoIds.has(item.id)}
-                      ativo={item.id === idAtivo}
-                      desfazer={null}
-                      aoPegar={iniciar}
-                      aoTeclar={aoTeclar}
-                      aoAbrir={aoSelecionar}
-                      engolirClique={engolirClique}
-                      refCartao={refCartao("propostas", item.id)}
-                    />
-                  ))}
-                </ul>
-              </div>
-            ))}
+            {grade.janela.dias.map((dia) => {
+              // A linha de Propostas nunca aceita solta (regra 4, spec §1):
+              // soltar aqui marcaria um dia sem equipe. `data-celula-recusada`
+              // deixa o hit-test do ponteiro reconhecer a região SEM que ela
+              // vire um alvo válido — o mesmo atributo que `CelulaEquipe` usa
+              // para célula passada/turma desativada, ver `usar-arrasto.ts`.
+              const alvo = alvoPropostas(dia);
+              const recusadaAqui = alvoAtual === alvo && recusaAtual != null;
+              return (
+                <div
+                  key={`prop-${dia}`}
+                  data-celula-recusada={alvo}
+                  className={cn(
+                    "border-b border-l border-grid p-1.5",
+                    recusadaAqui && "ring-2 ring-ink-3 ring-inset cursor-not-allowed",
+                  )}
+                >
+                  <ul className="flex min-w-0 flex-col gap-1">
+                    {(grade.propostas.get(dia) ?? []).map((item) => (
+                      <CartaoServico
+                        key={item.id}
+                        item={item}
+                        origem="fila"
+                        compacto
+                        fantasma={item.id === emVoo}
+                        selecionado={item.id === selecionado}
+                        salvando={salvandoIds.has(item.id)}
+                        ativo={item.id === idAtivo}
+                        desfazer={null}
+                        aoPegar={iniciar}
+                        aoTeclar={aoTeclar}
+                        aoAbrir={aoSelecionar}
+                        engolirClique={engolirClique}
+                        refCartao={refCartao("propostas", item.id)}
+                        aoFocar={aoFocar("propostas", item.id)}
+                      />
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
 
             {grade.linhas.map((linha) => (
               <LinhaTurma
@@ -396,6 +424,7 @@ export function QuadroSemana({
                 aoAbrir={aoSelecionar}
                 engolirClique={engolirClique}
                 refCartao={refCartaoGrid}
+                aoFocar={aoFocarGrid}
                 desfazerDe={desfazerDe}
               />
             ))}

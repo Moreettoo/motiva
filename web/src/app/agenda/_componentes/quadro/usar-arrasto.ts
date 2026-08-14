@@ -68,6 +68,17 @@ function alvoSob(x: number, y: number): Alvo | null {
     const celula = no.closest<HTMLElement>("[data-celula]");
     if (celula?.dataset.celula) return celula.dataset.celula;
     if (no.closest("[data-trilho]")) return "fila";
+    // `data-celula-recusada` NUNCA é um destino de solta válido — é o outro
+    // atributo, de propósito (ver o comentário em `celula-equipe.tsx`): uma
+    // célula que não aceita solta, ou a linha de "Propostas da IA", carregam
+    // aqui a MESMA string que `validar` já sabe recusar (uma `ChaveCelula`
+    // de verdade para a primeira, `propostas:${dia}` para a segunda). Sem
+    // isto, pairar sobre essas regiões resolvia para `null` e a recusa
+    // nunca chegava a ser DESENHADA — o alvo continuava existindo (a região
+    // sob o ponteiro), só não era um alvo QUE ACEITA, e `validar` (chamado
+    // de qualquer forma, com este alvo) devolve o motivo certo.
+    const recusada = no.closest<HTMLElement>("[data-celula-recusada]");
+    if (recusada?.dataset.celulaRecusada) return recusada.dataset.celulaRecusada as Alvo;
   }
   return null;
 }
@@ -361,6 +372,27 @@ export function useArrasto({
       window.removeEventListener("lostpointercapture", cancelar);
     };
   }, [comprometer, fechar, validar, aoSoltar]);
+
+  /* `Esc` cancela um arrasto por PONTEIRO, não só por teclado. `aoTeclar`
+     (mais abaixo) só existe no `onKeyDown` do cartão, e um gesto de
+     mouse/toque não move o foco para lá — `comprometer()` captura o
+     ponteiro, não o foco, e `iniciar()` chama `preventDefault()` no
+     `pointerdown`, que em boa parte dos navegadores também suprime o foco
+     automático do clique. Sem este ouvinte em `window`, o único jeito de
+     desistir de um arrasto por mouse era soltar sobre um alvo que recusa —
+     e antes deste conserto isso não desenhava nada (ver o estado de recusa,
+     abaixo), então `Esc` era a única saída perceptível e não funcionava. */
+  useEffect(() => {
+    function teclado(evento: KeyboardEvent) {
+      if (evento.key !== "Escape") return;
+      if (estadoRef.current.fase !== "arrastando") return;
+      evento.preventDefault();
+      anunciar("Movimento cancelado. O serviço continua onde estava.");
+      fechar();
+    }
+    window.addEventListener("keydown", teclado);
+    return () => window.removeEventListener("keydown", teclado);
+  }, [anunciar, fechar]);
 
   // Efeito só de desmontagem: cancela temporizador e rAF pendentes, e solta o
   // atributo de cursor, se o quadro sumir da tela no meio de um arrasto (troca

@@ -34,7 +34,7 @@ export function MiniMapa({
               key={r.dia}
               type="button"
               onClick={() => aoEscolherSemana(r.dia)}
-              aria-label={`${fmt.dataLonga(r.dia)}. ${fmt.contar(r.comEquipe, "serviço com turma", "serviços com turma")}, ${fmt.contar(r.semEquipe, "sem turma")}. Ir para esta semana.`}
+              aria-label={`${fmt.dataLonga(r.dia)}. ${fmt.contar(r.comEquipe, "serviço com turma", "serviços com turma")}, ${fmt.contar(r.semEquipe, "sem turma", "sem turma")}.${r.algumaExcedida ? " Alguma turma acima da capacidade." : ""} Ir para esta semana.`}
               className={cn(
                 "group relative flex h-10 flex-1 flex-col justify-end rounded-xs",
                 ehFimDeSemana(r.dia) && "bg-surface-3",

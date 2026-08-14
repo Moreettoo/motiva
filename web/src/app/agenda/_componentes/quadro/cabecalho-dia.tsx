@@ -26,10 +26,18 @@ export function CabecalhoDia({
       className={cn(
         "sticky top-0 z-20 border-b border-l border-border bg-surface px-2 py-1.5",
         fds && "bg-surface-3",
-        passado && "opacity-60",
       )}
     >
-      <p className="flex items-baseline justify-between gap-1">
+      {/* Veladura, não `opacity` no container: `opacity` compunha com o TEXTO
+          também — `text-ink-3` a 60% cai para ~2,36:1, abaixo do piso, e
+          atinge o nome do dia, o número e as contagens em toda semana que
+          contém hoje (3 das 7 colunas). Mesma técnica de `linha-turma.tsx`:
+          a camada pinta ATRÁS por estar primeiro no DOM; o texto adiante
+          continua opaco por cima. */}
+      {passado ? (
+        <span aria-hidden="true" className="pointer-events-none absolute inset-0 bg-velatura opacity-[0.03]" />
+      ) : null}
+      <p className="relative flex items-baseline justify-between gap-1">
         <span
           className={cn(
             "truncate text-2xs tracking-widest uppercase",
@@ -48,7 +56,7 @@ export function CabecalhoDia({
         </span>
       </p>
 
-      <p className="tnum mt-1 flex items-center gap-1 font-mono text-2xs text-ink-3">
+      <p className="relative tnum mt-1 flex items-center gap-1 font-mono text-2xs text-ink-3">
         <span>{fmt.n(resumo.comEquipe)}</span>
         <span aria-hidden="true">·</span>
         <span className={resumo.semEquipe > 0 ? "text-ink-2" : undefined}>
@@ -61,7 +69,7 @@ export function CabecalhoDia({
 
       <span className="sr-only">
         {fmt.dataLonga(dia)}. {fmt.contar(resumo.comEquipe, "serviço com turma", "serviços com turma")},{" "}
-        {fmt.contar(resumo.semEquipe, "sem turma")}.
+        {fmt.contar(resumo.semEquipe, "sem turma", "sem turma")}.
         {resumo.algumaExcedida ? " Alguma turma está acima da capacidade." : ""}
         {ehHoje ? " Hoje." : ""}
       </span>

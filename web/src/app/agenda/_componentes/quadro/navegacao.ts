@@ -12,8 +12,25 @@ import { chaveCelula, chaveDia, type ChaveCelula, type Grade } from "../dados";
 
 export type Direcao = "esquerda" | "direita" | "cima" | "baixo";
 
-/** O trilho da fila é um alvo como qualquer outro, mas não tem eixo vertical. */
-export type Alvo = ChaveCelula | "fila";
+/** O trilho da fila é um alvo como qualquer outro, mas não tem eixo vertical.
+ *  `propostas:${dia}` é um pseudo-alvo (ver `alvoPropostas`, abaixo): nunca
+ *  um destino de solta de verdade, só existe para o hit-test do PONTEIRO
+ *  conseguir nomear "a linha de Propostas da IA no dia X" e cair na mesma
+ *  validação/mensagem que o teclado já usa. Nenhuma função de navegação por
+ *  teclado (`proximoAlvo`, `realinharAlvo`, `alvoNaBordaDaSemana`) o produz. */
+export type Alvo = ChaveCelula | "fila" | `propostas:${string}`;
+
+/** Constrói/reconhece o pseudo-alvo da linha "Propostas da IA" de um dia — a
+ *  MESMA string dos dois lados (produzida aqui, no atributo `data-*` que o
+ *  hit-test lê, e testada em `validar`), para não haver dois formatos
+ *  divergentes de um valor que nunca passa por `chaveCelula`. */
+export function alvoPropostas(dia: string): Alvo {
+  return `propostas:${dia}`;
+}
+
+export function ehAlvoPropostas(alvo: Alvo): boolean {
+  return alvo.startsWith("propostas:");
+}
 
 export type PassoNavegacao =
   | { tipo: "alvo"; alvo: Alvo }

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Equipe } from "@/lib/types";
 
 import { chaveCelula, montarGrade, montarJanela, type Grade } from "../dados";
-import { alvoNaBordaDaSemana, proximoAlvo, realinharAlvo } from "./navegacao";
+import { alvoNaBordaDaSemana, alvoPropostas, ehAlvoPropostas, proximoAlvo, realinharAlvo } from "./navegacao";
 
 function equipe(id: number, nome: string): Equipe {
   return {
@@ -126,5 +126,17 @@ describe("alvoNaBordaDaSemana", () => {
 
   it("não desloca o trilho", () => {
     expect(alvoNaBordaDaSemana(grade, "fila", 1)).toBe("fila");
+  });
+});
+
+describe("alvoPropostas / ehAlvoPropostas", () => {
+  it("produz um pseudo-alvo reconhecível pelo próprio dia", () => {
+    expect(alvoPropostas("2026-08-13")).toBe("propostas:2026-08-13");
+    expect(ehAlvoPropostas(alvoPropostas("2026-08-13"))).toBe(true);
+  });
+
+  it("nunca confunde uma célula de verdade (mesmo separador diferente) com propostas", () => {
+    expect(ehAlvoPropostas(chaveCelula("2026-08-13", 1))).toBe(false);
+    expect(ehAlvoPropostas("fila")).toBe(false);
   });
 });

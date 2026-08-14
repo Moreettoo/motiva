@@ -52,6 +52,7 @@ export const CartaoServico = memo(function CartaoServico({
   aoAbrir,
   engolirClique,
   refCartao,
+  aoFocar,
 }: {
   item: ItemAgenda;
   origem: Alvo;
@@ -73,6 +74,12 @@ export const CartaoServico = memo(function CartaoServico({
   aoAbrir: (id: number) => void;
   engolirClique: (e: React.MouseEvent) => void;
   refCartao: (no: HTMLElement | null) => void;
+  /** Dispara quando QUALQUER controle interno (alça ou botão de detalhe)
+   *  recebe foco — via Tab, clique do mouse, ou o cursor virtual de um
+   *  leitor de tela. Promove este cartão a ativo da sua região; ver
+   *  `usar-foco-grade.ts`. No `<li>`, não em cada botão: `onFocus` do React
+   *  delega para `focusin`, que sobe pelos dois controles igual. */
+  aoFocar: () => void;
 }) {
   const token = RISCO[item.risco];
   const encerrado = item.status === "executado" || item.status === "descartado";
@@ -85,6 +92,7 @@ export const CartaoServico = memo(function CartaoServico({
       aria-busy={salvando || undefined}
       style={{ visibility: fantasma ? "hidden" : undefined }}
       className="min-w-0"
+      onFocus={aoFocar}
     >
       {/* Container puro: nenhum papel, nenhum tabIndex, nenhum onKeyDown aqui.
           Um <button> (abrir detalhe) dentro de um role="button" (o antigo host

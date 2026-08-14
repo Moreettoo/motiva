@@ -26,6 +26,7 @@ export function TrilhoFila({
   aoAbrir,
   engolirClique,
   refCartao,
+  aoFocar,
 }: {
   /** Já cortado por quem chama (`TETO_TRILHO`, em `quadro-semana.tsx`) — o
    *  corte subiu pra lá porque o roving tabindex da grade inteira
@@ -53,6 +54,7 @@ export function TrilhoFila({
   aoAbrir: (id: number) => void;
   engolirClique: (e: React.MouseEvent) => void;
   refCartao: (id: number) => (no: HTMLElement | null) => void;
+  aoFocar: (id: number) => () => void;
 }) {
   // Grupos por FILTRO, não por índice de corte: risco e data são eixos
   // independentes (um trecho crítico pode ter `data_sugerida` distante), então
@@ -85,6 +87,7 @@ export function TrilhoFila({
       aoAbrir={aoAbrir}
       engolirClique={engolirClique}
       refCartao={refCartao(item.id)}
+      aoFocar={aoFocar(item.id)}
     />
   );
 

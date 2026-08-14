@@ -7,9 +7,19 @@ import type { Grade, ItemAgenda } from "../dados";
 /** Primeiro cartão do quadro inteiro (fila visível, senão a grade): o padrão
  *  do roving tabindex quando nada foi arrastado nem selecionado ainda, e o
  *  reserva quando o cartão memorizado sumiu da lista. Sem isso a grade
- *  ficaria sem NENHUM ponto de entrada por Tab na primeira visita. */
-function primeiroItemDoQuadro(filaVisivel: ItemAgenda[], grade: Grade): number | null {
-  if (filaVisivel[0]) return filaVisivel[0].id;
+ *  ficaria sem NENHUM ponto de entrada por Tab na primeira visita.
+ *
+ *  `filaDisponivel` (default `true`, espelha o mesmo parâmetro de
+ *  `proximoAlvo` em `navegacao.ts`) governa só o PRIMEIRO ramo: com a doca do
+ *  trilho fechada (estreito, sem abrir), `filaVisivel` existe no DOM mas está
+ *  `inert` — usá-la como padrão apontaria o ativo do QUADRO para um id que o
+ *  Tab não alcança ali. `false` pula direto para a grade. */
+function primeiroItemDoQuadro(
+  filaVisivel: ItemAgenda[],
+  grade: Grade,
+  filaDisponivel: boolean,
+): number | null {
+  if (filaDisponivel && filaVisivel[0]) return filaVisivel[0].id;
   for (const linha of grade.linhas) {
     for (const celula of linha.celulas) {
       if (celula.itens[0]) return celula.itens[0].id;
@@ -90,6 +100,7 @@ export function decidirCartaoAtivo({
   filaVisivel,
   grade,
   idsRenderizados,
+  filaDisponivel = true,
 }: {
   anterior: number | null;
   emVoo: number | null;
@@ -97,10 +108,42 @@ export function decidirCartaoAtivo({
   filaVisivel: ItemAgenda[];
   grade: Grade;
   idsRenderizados: ReadonlySet<number>;
+  /** Ver `primeiroItemDoQuadro`. Default `true` preserva o comportamento de
+   *  coluna (trilho sempre montado e interativo). */
+  filaDisponivel?: boolean;
 }): number | null {
   const alvo = emVoo ?? selecionado ?? anterior;
   if (alvo != null && idsRenderizados.has(alvo)) return alvo;
-  return primeiroItemDoQuadro(filaVisivel, grade);
+  return primeiroItemDoQuadro(filaVisivel, grade, filaDisponivel);
+}
+
+/**
+ * Como `decidirCartaoAtivo`, mas escopado ao TRILHO: o único universo de
+ * candidatos é `filaVisivel`, nunca a grade. Existe porque o trilho é uma
+ * REGIÃO própria (spec §5, "um tab stop por região: trilho, propostas,
+ * quadro") — com um único sticky global compartilhado entre as duas regiões
+ * (o desenho anterior), sempre que o foco resolve para um item da grade
+ * (com equipe, portanto nunca presente em `filaVisivel`) o trilho ficava sem
+ * NENHUM cartão ativo, e vice-versa: as duas regiões brigavam pelo mesmo
+ * valor e só uma por vez podia ganhar. Este cálculo independente é o que
+ * garante ao trilho um tab stop mesmo quando o "quadro" está ativo num
+ * cartão que mora numa célula.
+ */
+export function decidirCartaoAtivoTrilho({
+  anterior,
+  emVoo,
+  selecionado,
+  filaVisivel,
+}: {
+  anterior: number | null;
+  emVoo: number | null;
+  selecionado: number | null;
+  filaVisivel: ItemAgenda[];
+}): number | null {
+  const ids = new Set(filaVisivel.map((i) => i.id));
+  const alvo = emVoo ?? selecionado ?? anterior;
+  if (alvo != null && ids.has(alvo)) return alvo;
+  return filaVisivel[0]?.id ?? null;
 }
 
 /**
@@ -152,15 +195,27 @@ export function useFocoGrade({
   filaVisivel,
   emVoo,
   selecionado,
+  filaDisponivel = true,
 }: {
   grade: Grade;
   filaVisivel: ItemAgenda[];
   emVoo: number | null;
   selecionado: number | null;
+  /** `false` com a doca do trilho fechada no estreito — ver o mesmo parâmetro
+   *  em `proximoAlvo` (`navegacao.ts`) e em `decidirCartaoAtivo` acima. */
+  filaDisponivel?: boolean;
 }): {
   idAtivo: number | null;
   idAtivoNoTrilho: number | null;
   refCartao: (regiao: RegiaoFoco, id: number) => (no: HTMLElement | null) => void;
+  /** Handler de `onFocus` para o `<li>` do cartão: quando o cartão RECEBE
+   *  foco (Tab, clique do mouse, ou o cursor virtual de um leitor de tela
+   *  passando por um controle focável — nenhum dos três respeita `tabIndex`
+   *  da mesma forma que o Tab sequencial), ele passa a ser o ativo da PRÓPRIA
+   *  região. Sem isto (o bug original) só `emVoo`/`selecionado` moviam o
+   *  sticky, e o roving tabindex nunca "rovia": o único cartão alcançável
+   *  por Tab era sempre o padrão inicial. */
+  aoFocar: (regiao: RegiaoFoco, id: number) => () => void;
 } {
   const refsCartoes = useRef(new Map<string, HTMLElement>());
 
@@ -170,15 +225,32 @@ export function useFocoGrade({
   // a ~60 quadros/segundo durante um arrasto por ponteiro, e recalcular à
   // toa contraria a disciplina do módulo, não corrige um bug de performance
   // real.
-  const idsRenderizados = useMemo(() => idsDoQuadro(filaVisivel, grade), [filaVisivel, grade]);
+  const idsRenderizados = useMemo(
+    // `filaDisponivel` também gateia AQUI, não só em `primeiroItemDoQuadro`:
+    // sem isto, um id que só existe no trilho continuava validando como
+    // sticky do QUADRO (via `idsRenderizados.has(alvo)`, o primeiro ramo de
+    // `decidirCartaoAtivo`) mesmo com a doca fechada e o nó `inert`.
+    () => idsDoQuadro(filaDisponivel ? filaVisivel : [], grade),
+    [filaVisivel, grade, filaDisponivel],
+  );
   const idsPropostas = useMemo(() => idsNasPropostas(grade), [grade]);
 
   // Sticky por padrão: o valor guardado só muda quando `emVoo`/`selecionado`
-  // apontam para outra coisa, ou quando o id guardado deixa de existir entre
-  // os cartões renderizados. `null` no primeiro render dá o mesmo resultado
-  // que uma inicialização preguiçosa via `decidirCartaoAtivo` daria
-  // (`anterior: null` também ali), então o estado nasce simples e o cálculo
-  // abaixo já resolve certo na primeira passada, sem duplicar a chamada.
+  // apontam para outra coisa, quando `onFocus` dispara (ver `aoFocar`
+  // abaixo), ou quando o id guardado deixa de existir entre os cartões
+  // renderizados. `null` no primeiro render dá o mesmo resultado que uma
+  // inicialização preguiçosa via `decidirCartaoAtivo` daria (`anterior: null`
+  // também ali), então o estado nasce simples e o cálculo abaixo já resolve
+  // certo na primeira passada, sem duplicar a chamada.
+  //
+  // Dois stickies independentes, não um: `focoId` é do QUADRO (propostas +
+  // células — mutuamente exclusivos por item, então compartilhar um valor
+  // entre os dois não duplica tab stop nenhum) e `focoTrilhoId` é do
+  // TRILHO. Um sticky global único fazia as duas regiões DISPUTAREM o mesmo
+  // valor: sempre que o foco resolvia para um item da grade (com equipe,
+  // logo ausente de `filaVisivel`), o trilho ficava com ZERO cartões ativos,
+  // e vice-versa quando o valor apontava para um item só do trilho — só uma
+  // região por vez tinha tab stop, nunca as duas (ver `decidirCartaoAtivoTrilho`).
   const [focoId, setFocoId] = useState<number | null>(null);
   const idAtivo = decidirCartaoAtivo({
     anterior: focoId,
@@ -187,8 +259,18 @@ export function useFocoGrade({
     filaVisivel,
     grade,
     idsRenderizados,
+    filaDisponivel,
   });
   if (idAtivo !== focoId) setFocoId(idAtivo);
+
+  const [focoTrilhoId, setFocoTrilhoId] = useState<number | null>(null);
+  const idAtivoTrilhoProprio = decidirCartaoAtivoTrilho({
+    anterior: focoTrilhoId,
+    emVoo,
+    selecionado,
+    filaVisivel,
+  });
+  if (idAtivoTrilhoProprio !== focoTrilhoId) setFocoTrilhoId(idAtivoTrilhoProprio);
 
   /* O cartão remonta em outro pai depois de um movimento, então o foco se
      perde — inclusive de novo na reversão do `useOptimistic`, que chega bem
@@ -210,6 +292,14 @@ export function useFocoGrade({
   // logo abaixo) já ver `emVoo` de volta a `null`.
   // eslint-disable-next-line react-hooks/refs
   if (emVoo != null) idFocoRef.current = emVoo;
+
+  // Levantada ENQUANTO o `.focus()` programático abaixo está em curso: esse
+  // `.focus()` também dispara `onFocus` no cartão (síncrono), e sem esta
+  // guarda o handler de `aoFocar` reescreveria o sticky com o próprio id que
+  // a restauração já está usando — inofensivo neste desenho específico, mas
+  // é exatamente a receita de um laço se a restauração um dia passar a
+  // depender do valor que `aoFocar` escreve.
+  const restaurando = useRef(false);
   useLayoutEffect(() => {
     if (selecionado != null) return;
     const alvo = idFocoRef.current;
@@ -224,7 +314,18 @@ export function useFocoGrade({
       refsCartoes.current.get(`grid:${alvo}`) ??
       refsCartoes.current.get(`propostas:${alvo}`) ??
       refsCartoes.current.get(`trilho:${alvo}`);
-    no?.focus({ preventScroll: true });
+    if (!no) return;
+    restaurando.current = true;
+    no.focus({ preventScroll: true });
+    restaurando.current = false;
+    // Dívida corrigida: sem isto, `idFocoRef` nunca voltava a `null`, e como
+    // o efeito roda em TODO commit (sem array de deps), qualquer commit
+    // FUTURO e sem relação nenhuma com um arrasto — fechar a gaveta de
+    // detalhe, por exemplo — em que `activeElement` fosse `document.body`
+    // reancorava o foco no último cartão arrastado. Zera só quando a
+    // restauração de fato encontrou um nó; se `no` não existir ainda (o
+    // commit da remontagem não chegou), o próximo commit tenta de novo.
+    idFocoRef.current = null;
   });
 
   /* `refCartao(regiao, id)` precisa devolver A MESMA função entre renders
@@ -251,5 +352,28 @@ export function useFocoGrade({
     return fn;
   }, []);
 
-  return { idAtivo, idAtivoNoTrilho: idAtivoNoTrilho(idAtivo, idsPropostas), refCartao };
+  // Mesmo padrão de cache de `refCartao`, pelo mesmo motivo: o handler desce
+  // até ~130 cartões via `memo`, então precisa ser estável por (região, id) —
+  // uma closure nova a cada render derrubaria o `memo` do cartão inteiro.
+  const cacheAoFocar = useRef(new Map<string, () => void>());
+  const aoFocar = useCallback((regiao: RegiaoFoco, id: number) => {
+    const chave = `${regiao}:${id}`;
+    let fn = cacheAoFocar.current.get(chave);
+    if (!fn) {
+      fn = () => {
+        if (restaurando.current) return;
+        if (regiao === "trilho") setFocoTrilhoId(id);
+        else setFocoId(id);
+      };
+      cacheAoFocar.current.set(chave, fn);
+    }
+    return fn;
+  }, []);
+
+  return {
+    idAtivo,
+    idAtivoNoTrilho: idAtivoNoTrilho(idAtivoTrilhoProprio, idsPropostas),
+    refCartao,
+    aoFocar,
+  };
 }
