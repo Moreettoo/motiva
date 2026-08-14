@@ -57,8 +57,11 @@ export function Controles({
             contagem mudou de significado: ela era da semana e passou a ser da
             malha, o que multiplica o número por quase dez sem mudar nada na
             tela — sem este rótulo, a mudança pareceria um erro de cálculo. */}
+        {/* O `·` é separador de desenho, não palavra: fica `aria-hidden` para o
+            leitor de tela não verbalizar "ponto médio" no meio do rótulo. Mesmo
+            padrão do separador em `cabecalho-dia.tsx`. */}
         <span className="text-2xs font-medium tracking-widest text-ink-3 uppercase">
-          Status · toda a malha
+          Status <span aria-hidden="true">·</span> toda a malha
         </span>
 
         {STATUS_AGENDAMENTO.map((s) => {

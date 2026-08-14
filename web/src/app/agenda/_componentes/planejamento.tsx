@@ -91,7 +91,18 @@ export function PlanejamentoAgenda({
   const [selecionado, setSelecionado] = useQueryState("ag", parseAsInteger);
   const [semana, setSemana] = useQueryState("semana", parseAsString.withDefault(""));
 
-  const ancora = semanaValida(semana) ? semana : chaveDia(inicioDaSemana(hoje));
+  // Normalizada para a segunda-feira, não usada crua. `montarJanela` já abre na
+  // segunda de qualquer âncora, então a GRADE ficava certa com um `?semana=`
+  // apontando para uma quinta — mas duas outras coisas ficavam erradas: a
+  // aritmética de `navegarSemana` (`âncora ± 7 dias`) andava de quinta em
+  // quinta, e `aoNavegar` compara a âncora nova com a segunda-feira de hoje
+  // para decidir se APAGA o parâmetro da URL. Com âncora fora da segunda essa
+  // igualdade nunca casava: voltar para a semana corrente deixava `?semana=`
+  // pendurado na URL e "Restaurar padrão" continuava oferecido sem nada para
+  // restaurar. Normalizar aqui, na única leitura do valor, resolve os dois de
+  // uma vez — e mantém a URL que a pessoa colou funcionando, só deixando de
+  // tratá-la como canônica.
+  const ancora = chaveDia(inicioDaSemana(semanaValida(semana) ? semana : hoje));
 
   const { mostrar } = useNotificacao();
   const [, iniciar] = useTransition();
