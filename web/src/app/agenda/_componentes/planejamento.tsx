@@ -191,6 +191,32 @@ export function PlanejamentoAgenda({
   const janela = useMemo(() => montarJanela(ancora), [ancora]);
   const diasDaJanela = useMemo(() => new Set(janela.dias), [janela]);
 
+  /**
+   * A REGRA dos dois grupos de números desta tela. Leia antes de trocar a fonte
+   * de qualquer um deles — depois desta linha convivem números que seguem o
+   * filtro de status e números que não seguem, na mesma faixa, e as duas
+   * escolhas são deliberadas.
+   *
+   * SEGUE O FILTRO (`visiveis`) todo número que o gestor pode CONFERIR contando
+   * cartões no quadro. Grade, cabeçalho do dia, mini-mapa de 28 dias e a faixa
+   * `ResumoJanela` são recortes do MESMO conjunto exibidos lado a lado; se um
+   * contasse `itens` e o outro `visiveis`, com o filtro em "aprovado" a tela
+   * mostraria dois números diferentes para o mesmo dia a centímetros de
+   * distância — que é a contradição que `dados.tsx` existe para impedir.
+   *
+   * NÃO SEGUE O FILTRO (`itens`/`trechos`) todo número que ALERTA sobre algo
+   * fora da visão atual: vencidos (`totalAtrasados`, `semanaAtraso`) e críticos
+   * sem agendamento (`criticosSemData`). O filtro escolhe o que olhar e não pode
+   * decidir se o problema EXISTE. Nenhum dos dois é conferível contando cartões,
+   * então não há contradição possível: o de vencidos NAVEGA para a semana do
+   * problema — e `irParaAtrasados` liga os status necessários antes, cumprindo a
+   * promessa — e o de críticos leva para `/malha`, outra página.
+   *
+   * `porStatusNaMalha` fica de fora do filtro por um terceiro motivo, que não é
+   * "alerta": ele descreve o CONJUNTO QUE O PRÓPRIO FILTRO GOVERNA. Aplicar o
+   * filtro nele seria contar o resultado do próprio botão.
+   */
+
   // O filtro de equipe deixou de ESCONDER: filtrar removeria células que
   // precisam existir como destino de solta. `equipeFoco` (abaixo) é o
   // destaque visual que ocupa o lugar do filtro — ver `QuadroSemana`.
@@ -201,9 +227,9 @@ export function PlanejamentoAgenda({
 
   const equipeFoco = useMemo(() => resolverEquipeFoco(equipe, equipes), [equipe, equipes]);
 
-  // Da malha INTEIRA (`itens`), não de `visiveis`/`grade`: um serviço vencido
-  // que já tem equipe não passa pelo trilho nem pela janela de 28 dias, e o
-  // filtro de status ativo não deveria decidir se esse alerta existe.
+  // Grupo "alerta" da regra acima: `itens`, nunca `visiveis`. Um serviço
+  // vencido que já tem equipe não passa pelo trilho nem pela janela de 28
+  // dias — o filtro não pode decidir se esse alerta existe.
   const totalAtrasados = useMemo(() => contarAtrasados(itens), [itens]);
   const semanaAtraso = useMemo(() => semanaDoAtrasoMaisAntigo(itens), [itens]);
 
@@ -212,11 +238,23 @@ export function PlanejamentoAgenda({
     [visiveis, equipes, janela, hoje],
   );
 
-  const resumo28dias = useMemo(() => resumo28(itens, ancora, equipes), [itens, ancora, equipes]);
+  // Grupo "conferível": a MESMA fonte da grade. O mini-mapa fica logo ACIMA do
+  // quadro, e a coluna de um dia é lida junto com o cabeçalho daquele mesmo dia
+  // (`grade.porDia`, em `cabecalho-dia.tsx`) — com `itens`, o filtro em
+  // "aprovado" punha dois números diferentes para o mesmo dia a centímetros um
+  // do outro. Passar `visiveis` também alinha `equipesComLinha`: quem ganha
+  // linha na grade e quem entra no alerta de excesso dos 28 dias passa a ser
+  // decidido sobre o mesmo conjunto.
+  const resumo28dias = useMemo(
+    () => resumo28(visiveis, ancora, equipes),
+    [visiveis, ancora, equipes],
+  );
 
+  // Idem: a faixa `ResumoJanela` resume a semana que o quadro DESENHA, então
+  // "Roçadas planejadas" e "Km previstos" saem de `visiveis`.
   const naJanela = useMemo(
-    () => itens.filter((item) => diasDaJanela.has(item.data)),
-    [itens, diasDaJanela],
+    () => visiveis.filter((item) => diasDaJanela.has(item.data)),
+    [visiveis, diasDaJanela],
   );
 
   const planejadas = useMemo(
@@ -224,17 +262,25 @@ export function PlanejamentoAgenda({
     [naJanela],
   );
 
-  const porStatus = useMemo(() => {
+  // O escopo do filtro, não o da semana. Contava só `diasDaJanela` e descrevia
+  // um conjunto que o botão não governa: o filtro alimenta `visiveis`, e
+  // `visiveis` alimenta também o TRILHO (todos os ~62 sem turma, de todo o
+  // horizonte) e os 28 dias do mini-mapa. Desmarcar "sugerido" tirava dezenas de
+  // cartões do trilho enquanto o chip ao lado dizia "6". `controles.tsx` diz
+  // "toda a malha" em texto visível e no nome acessível de cada botão, porque um
+  // número com escopo diferente do resto da tela não se deduz — se deduziria
+  // "nesta semana", que é exatamente o erro que esta contagem veio consertar.
+  const porStatusNaMalha = useMemo(() => {
     const contagem = { sugerido: 0, aprovado: 0, executado: 0, descartado: 0 } as Record<
       StatusAgendamento,
       number
     >;
-    for (const item of itens) {
-      if (diasDaJanela.has(item.data)) contagem[item.status] += 1;
-    }
+    for (const item of itens) contagem[item.status] += 1;
     return contagem;
-  }, [itens, diasDaJanela]);
+  }, [itens]);
 
+  // Grupo "alerta" da regra acima: trecho crítico sem NENHUM agendamento em
+  // aberto é fato do mundo, não da visão filtrada.
   const criticosSemData = useMemo(() => {
     const comAgendamentoAberto = new Set(
       itens
@@ -378,8 +424,8 @@ export function PlanejamentoAgenda({
 
   // "Atrasado" só existe em `sugerido`/`aprovado` (ver `dados.tsx`), e o
   // contador vem da malha INTEIRA, não do filtro de status ativo — de
-  // propósito, para o filtro não decidir se o alerta existe (ver o
-  // comentário de `totalAtrasados` acima). Mas isso cria uma promessa que o
+  // propósito, para o filtro não decidir se o alerta existe (ver a REGRA dos
+  // dois grupos, acima). Mas isso cria uma promessa que o
   // clique precisa cumprir: garantir os dois status no filtro antes de
   // navegar, ou a semana de destino pode não ter o cartão que motivou o
   // clique — o mesmo defeito do eixo tempo, só que no eixo status.
@@ -407,7 +453,7 @@ export function PlanejamentoAgenda({
         equipe={equipe}
         aoMudarEquipe={(valor) => setEquipe(valor || null)}
         equipes={equipes}
-        porStatus={porStatus}
+        porStatusNaMalha={porStatusNaMalha}
         alterado={alterado}
         aoRestaurar={restaurar}
       />

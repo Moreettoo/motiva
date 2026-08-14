@@ -18,7 +18,7 @@ export function Controles({
   equipe,
   aoMudarEquipe,
   equipes,
-  porStatus,
+  porStatusNaMalha,
   alterado,
   aoRestaurar,
 }: {
@@ -27,7 +27,12 @@ export function Controles({
   equipe: EquipeNaUrl;
   aoMudarEquipe: (valor: EquipeNaUrl) => void;
   equipes: Equipe[];
-  porStatus: Record<StatusAgendamento, number>;
+  /** Agendamentos por status em TODA a malha — não na semana visível. O nome
+   *  carrega o escopo porque este é o único número desta tela que ignora a
+   *  janela: o filtro é global (alimenta a grade, o trilho inteiro e os 28 dias
+   *  do mini-mapa), então a contagem tem que ser do conjunto que o botão de
+   *  fato governa. Ver a REGRA dos dois grupos em `planejamento.tsx`. */
+  porStatusNaMalha: Record<StatusAgendamento, number>;
   alterado: boolean;
   aoRestaurar: () => void;
 }) {
@@ -41,9 +46,21 @@ export function Controles({
     <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
       <div
         role="group"
-        aria-label="Filtrar por status do agendamento"
+        aria-label="Filtrar por status do agendamento. As contagens são de toda a malha, não só da semana no quadro."
         className="flex flex-wrap items-center gap-1.5"
       >
+        {/* Rótulo VISÍVEL do escopo, não só nome acessível: tudo em volta desta
+            linha — a faixa de resumo e o quadro — fala da SEMANA, e um número
+            cru ao lado do rótulo se lê como "nesta semana". Supor isso errado é
+            o defeito que a contagem por malha veio consertar, então o escopo
+            precisa estar em texto, não deduzível. É também o aviso de que a
+            contagem mudou de significado: ela era da semana e passou a ser da
+            malha, o que multiplica o número por quase dez sem mudar nada na
+            tela — sem este rótulo, a mudança pareceria um erro de cálculo. */}
+        <span className="text-2xs font-medium tracking-widest text-ink-3 uppercase">
+          Status · toda a malha
+        </span>
+
         {STATUS_AGENDAMENTO.map((s) => {
           const token = STATUS[s];
           const ativo = status.includes(s);
@@ -53,6 +70,12 @@ export function Controles({
               key={s}
               type="button"
               aria-pressed={ativo}
+              // O nome acessível repete o escopo porque quem chega ao botão por
+              // Tab não passou pelo rótulo do grupo nem pela linha visível
+              // acima — ouviria o número sem nada que o situasse. Começa pelo
+              // rótulo visível ("Sugerido"), então o texto na tela continua
+              // contido no nome (WCAG 2.5.3).
+              aria-label={`${token.rotulo}: ${fmt.contar(porStatusNaMalha[s], "agendamento")} em toda a malha`}
               onClick={() => alternar(s)}
               style={ativo ? { color: token.tinta, backgroundColor: token.fundo } : undefined}
               className={cn(
@@ -65,7 +88,9 @@ export function Controles({
             >
               <IconeDominio nome={token.icone} className="size-3.5" />
               <span>{token.rotulo}</span>
-              <span className="tnum font-mono text-2xs opacity-70">{fmt.n(porStatus[s])}</span>
+              <span className="tnum font-mono text-2xs opacity-70">
+                {fmt.n(porStatusNaMalha[s])}
+              </span>
             </button>
           );
         })}
