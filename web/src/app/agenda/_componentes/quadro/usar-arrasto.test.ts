@@ -46,25 +46,23 @@ describe("decidirRevalidacao", () => {
     );
   });
 
-  it("reproduz a sequência do bug do cache: duas travessias para o MESMO alvo/recusa, sem abortar a segunda", () => {
-    // 1. Shift+← para uma célula no passado: recusa ao vivo (otimista) é
-    //    null, a fresca é "Esse dia já passou." — corrige e anuncia.
-    const passo1 = decidirRevalidacao(null, "Esse dia já passou.", true);
-    expect(passo1).toEqual({ tipo: "corrigir-e-anunciar" });
+  it("é sem estado: chamadas repetidas com o MESMO par (recusaAoVivo, recusaFresca) sempre devolvem a mesma decisão", () => {
+    // NÃO reproduz o bug do cache antigo — aquele cache vivia no EFEITO
+    // (`usar-arrasto.ts`, num `useRef`), nunca aqui. `decidirRevalidacao` é
+    // pura e nunca teve estado escondido para vazar entre chamadas; três
+    // travessias com o mesmo par de entrada dão a mesma resposta por
+    // CONSTRUÇÃO — isto é matemática de função pura, não uma sequência de
+    // interação reproduzida. O valor deste teste é fixar essa propriedade
+    // (se alguém reintroduzir um cache aqui dentro amanhã, ele quebra), não
+    // provar que o bug do cache está corrigido — essa correção (remover
+    // `ultimoRevalidado` do efeito) foi verificada por LEITURA DE CÓDIGO,
+    // não por cobertura de teste.
+    const primeira = decidirRevalidacao(null, "Esse dia já passou.", true);
+    const segunda = decidirRevalidacao(null, null, true);
+    const terceira = decidirRevalidacao(null, "Esse dia já passou.", true);
 
-    // 2. Shift+→ de volta para uma célula válida: recusa ao vivo (otimista,
-    //    depois do Shift+→) é null, a fresca também é null — sem correção,
-    //    mas com chegada pendente, então só anuncia.
-    const passo2 = decidirRevalidacao(null, null, true);
-    expect(passo2).toEqual({ tipo: "anunciar" });
-
-    // 3. Shift+← de novo, para o MESMO alvo/recusa do passo 1: a recusa ao
-    //    vivo (otimista, de novo) é null, a fresca é "Esse dia já passou." —
-    //    o par (alvo, recusa) é IDÊNTICO ao do passo 1, mas a decisão não
-    //    pode abortar por isso: o teste (`decidirRevalidacao`) não tem
-    //    cache nenhum, só compara contra o estado ao vivo — corrige e
-    //    anuncia de novo, sem exceção.
-    const passo3 = decidirRevalidacao(null, "Esse dia já passou.", true);
-    expect(passo3).toEqual({ tipo: "corrigir-e-anunciar" });
+    expect(primeira).toEqual({ tipo: "corrigir-e-anunciar" });
+    expect(segunda).toEqual({ tipo: "anunciar" });
+    expect(terceira).toEqual(primeira);
   });
 });

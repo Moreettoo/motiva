@@ -22,10 +22,21 @@ function primeiroItemDoQuadro(filaVisivel: ItemAgenda[], grade: Grade): number |
  * ids de todo item que a grade efetivamente RENDERIZA: `filaVisivel` (a
  * fatia do trilho que quem chama decidiu mostrar agora — ver `TETO_TRILHO`
  * em `quadro-semana.tsx`, que é quem corta a lista e por isso é quem sabe a
- * verdade) e as células da semana visível. `grade.fila` INTEIRA não serve —
- * era o bug original: um id que só a lista completa conhece, mas que nenhum
+ * verdade), `grade.propostas` (a linha "Propostas da IA" da semana visível)
+ * e as células da semana visível. `grade.fila` INTEIRA não serve — era o
+ * bug original: um id que só a lista completa conhece, mas que nenhum
  * cartão na tela representa, fazia `idAtivo` apontar para o nada e todo
  * cartão renderizado cair em `tabIndex={-1}`.
+ *
+ * `grade.propostas` entra por conta própria, não "de graça" via
+ * `filaVisivel`: antes do corte do trilho existir, `grade.fila` era
+ * superconjunto de `grade.propostas` (toda proposta também está na fila
+ * inteira — ver `montarGrade`), então bastava percorrer a fila. Com
+ * `filaVisivel` cortada em `TETO_TRILHO`, um item além do corte cuja data
+ * cai na semana visível PERDE essa garantia: ele tem cartão de verdade
+ * montado na linha de Propostas, mas `filaVisivel` não o contém mais — sem
+ * unir `grade.propostas` aqui, esse id ficaria de fora mesmo tendo cartão
+ * na tela, e o roving tabindex apontaria para o cartão errado.
  *
  * Exportada para `useFocoGrade` poder memoizar (`useMemo`) sem recalcular a
  * cada quadro de um arrasto por ponteiro, e para o teste poder montar o
@@ -34,6 +45,9 @@ function primeiroItemDoQuadro(filaVisivel: ItemAgenda[], grade: Grade): number |
 export function idsDoQuadro(filaVisivel: ItemAgenda[], grade: Grade): Set<number> {
   const ids = new Set<number>();
   for (const item of filaVisivel) ids.add(item.id);
+  for (const doDia of grade.propostas.values()) {
+    for (const item of doDia) ids.add(item.id);
+  }
   for (const linha of grade.linhas) {
     for (const celula of linha.celulas) {
       for (const item of celula.itens) ids.add(item.id);

@@ -165,18 +165,24 @@ export function useArrasto({
   // callbacks a cada quadro e derrubaria o `memo` dos ~130 cartões.
   const vivo = useRef<Vivo | null>(null);
 
-  /* Sobrevive a `fechar()` — que zera `vivo.current` (linha abaixo) ANTES de
-     o navegador sintetizar o `click` do `pointerup`. `engolirClique` roda
-     via `onClickCapture` do cartão depois desse `click`, então ler
+  /* Sobrevive a `fechar()` — que zera `vivo.current` ANTES de o navegador
+     sintetizar o `click` do `pointerup`. `engolirClique` roda via
+     `onClickCapture` do cartão depois desse `click`, então ler
      `vivo.current?.houveArrasto` ali sempre achava `undefined`: a guarda
      nunca disparava, e todo arrasto por mouse terminava com a gaveta de
      detalhe abrindo por cima do quadro que acabou de mudar — exatamente o
      cenário que `comprometer()` já documenta (capturar o ponteiro só ali
-     para não perder o clique). Consumido (zerado) dentro do próprio
-     `engolirClique`, não no fim do gesto: é um sinal de UM clique só, e não
-     pode vazar para o próximo. Zerado também em `iniciar` por segurança —
-     se o `click` sintético nunca chegar a disparar por algum motivo, o
-     sinal não deveria sobreviver até o PRÓXIMO gesto. */
+     para não perder o clique).
+     Consumido em `engolirClique` quando o clique cai num botão de detalhe —
+     mas NEM todo fim de gesto passa por ali (solta recusada, solta no vão
+     da célula, solta no trilho, `pointercancel`, soltar fora do quadro):
+     nesses casos `engolirClique` nunca roda, e limpar só ali deixava o
+     sinal armado até o PRÓXIMO clique num botão de detalhe — inclusive uma
+     ativação por TECLADO, que sintetiza `click` sem `pointerdown` na alça.
+     Por isso `fechar()` também agenda a limpeza, em diferido (ver o
+     `setTimeout` lá) — diferido, e não síncrono ali, porque o `click`
+     sintético do MESMO gesto ainda precisa ver o sinal armado quando
+     chegar. */
   const ultimoGestoArrastou = useRef(false);
 
   /* Sinaliza uma chegada de semana pendente de anúncio (ver o efeito de
@@ -188,6 +194,15 @@ export function useArrasto({
     limparRecursos(vivo.current);
     vivo.current = null;
     precisaAnunciarChegada.current = false;
+    // Diferido, não síncrono: o `click` sintético de um gesto arrastado (se
+    // houver um) é despachado na MESMA tarefa deste `fechar()` — zerar aqui
+    // apagaria o sinal ANTES de `engolirClique` (que roda nesse `click`) ter
+    // a chance de lê-lo, reabrindo o bug original. `setTimeout(…, 0)`
+    // empurra a limpeza para depois dessa tarefa: sobrevive ao `click` deste
+    // gesto, mas não vaza para o PRÓXIMO clique legítimo.
+    window.setTimeout(() => {
+      ultimoGestoArrastou.current = false;
+    }, 0);
     definirEstado({ fase: "ocioso" });
   }, [definirEstado]);
 

@@ -142,11 +142,13 @@ describe("decidirCartaoAtivo", () => {
     expect(decidir(semanaNova, { anterior: null, emVoo: null, selecionado: 2 })).toBe(3);
   });
 
-  it("um id além do corte de exibição do trilho (fora de idsRenderizados) não trava a grade", () => {
-    // Simula o teto do trilho: `filaVisivel` só tem o id 2; o id 1 existe em
-    // `grade.fila` mas está "além do teto" — não deve validar como ativo.
+  it("um id além do corte de exibição do trilho, e fora da semana visível, não trava a grade", () => {
+    // Simula o teto do trilho: `filaVisivel` só tem o id 2. O id 1 existe em
+    // `grade.fila` mas está "além do teto" — e sua data (fora da janela
+    // visível, 2026-08-10 a 2026-08-16) também não o coloca em
+    // `grade.propostas`, então ele não tem cartão NENHUM montado na tela.
     const grade = montar([
-      agendamento({ id: 1, data: "2026-08-11" }),
+      agendamento({ id: 1, data: "2026-09-01" }),
       agendamento({ id: 2, data: "2026-08-12" }),
     ]);
     const filaVisivel = [grade.fila.find((i) => i.id === 2)!];
@@ -161,6 +163,30 @@ describe("decidirCartaoAtivo", () => {
         idsRenderizados,
       }),
     ).toBe(2); // cai no padrão (primeiro da fila VISÍVEL), não trava em tabIndex=-1.
+  });
+
+  it("um id além do corte do trilho, mas presente nas propostas desta semana, AINDA valida como ativo", () => {
+    // Mesmo corte do teste acima, mas agora a data do id 1 (2026-08-11) CAI
+    // na janela visível — ele tem um cartão de verdade na linha "Propostas
+    // da IA", mesmo estando fora do corte de exibição do trilho.
+    // `idsDoQuadro` precisa unir `grade.propostas`, não só `filaVisivel` e
+    // as células, ou este id seria injustamente recusado como ativo.
+    const grade = montar([
+      agendamento({ id: 1, data: "2026-08-11" }),
+      agendamento({ id: 2, data: "2026-08-12" }),
+    ]);
+    const filaVisivel = [grade.fila.find((i) => i.id === 2)!];
+    const idsRenderizados = idsDoQuadro(filaVisivel, grade);
+    expect(
+      decidirCartaoAtivo({
+        anterior: null,
+        emVoo: 1,
+        selecionado: null,
+        filaVisivel,
+        grade,
+        idsRenderizados,
+      }),
+    ).toBe(1);
   });
 });
 
