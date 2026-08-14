@@ -387,6 +387,66 @@ p {
 }
 
 /* ==========================================================================
+   QUADRO DA SEMANA
+   A grade é plana de propósito: a calha das turmas é a coluna 1 da MESMA grade,
+   então as linhas alinham por construção, sem `subgrid` e sem medir nada em JS.
+   ========================================================================== */
+.quadro-pista {
+  overflow: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  /* `html { scroll-behavior: smooth }` transformaria cada quadro da auto-rolagem
+     numa animação que continua depois de o dedo parar. */
+  scroll-behavior: auto;
+  /* A barra horizontal come altura no rodapé e cortaria a última linha. */
+  padding-block-end: 2px;
+}
+
+.quadro-grade {
+  --calha: 9rem;
+  --dia-min: 9rem;
+  --altura-linha: 4.5rem;
+  display: grid;
+  /* `1fr` reparte quando sobra largura; `--dia-min` é o piso que dispara a
+     rolagem. É daqui que sai a degradação contínua 7 → 6 → 5 → … → 1 coluna,
+     sem nenhuma media query. */
+  grid-template-columns: var(--calha) repeat(7, minmax(var(--dia-min), 1fr));
+  grid-template-rows: auto auto repeat(var(--linhas, 10), minmax(var(--altura-linha), auto));
+}
+
+.quadro-celula {
+  container: dia / inline-size;
+}
+
+/* Ordem de sacrifício conforme a coluna encolhe. O nome da turma nunca sai: ele
+   está na calha, não na célula. */
+@container dia (max-width: 8rem) {
+  .chip-km { display: none; }
+}
+
+/* Enquanto há arrasto em voo o cursor é o mesmo em toda a tela, e nenhuma
+   seleção de texto acontece por acidente. */
+html[data-arrastando] { cursor: grabbing; }
+html[data-arrastando] * { user-select: none; }
+
+@keyframes anel-erro {
+  from { opacity: 0.9; }
+  to   { opacity: 0; }
+}
+
+/* A reversão do otimista é um salto — sob reduced-motion ela SEMPRE é um salto.
+   O anel é o que explica o salto; por isso ele é opacity e sobrevive à regra. */
+.anel-erro::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--critical);
+  animation: anel-erro 450ms var(--ease-exit) both;
+  pointer-events: none;
+}
+
+/* ==========================================================================
    TEXTURA — canal de acessibilidade da skill dataviz.
    Ligada por forced-colors ou impressao; nunca decorativa.
    ========================================================================== */
