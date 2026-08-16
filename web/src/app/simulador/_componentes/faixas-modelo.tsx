@@ -5,6 +5,13 @@ import { LIMITES, posicaoNaFaixa, type Limite } from "@/lib/modelo/campos";
 import { cn } from "@/lib/utils";
 
 /**
+ * SEM CHAMADOR HOJE. O cartao "Ate onde o modelo foi treinado" foi retirado da
+ * pagina a pedido; este arquivo ficou porque nunca chegou a ser commitado e
+ * apagar seria perde-lo de vez. Para voltar, basta renderizar `<FaixasDoModelo>`
+ * em `resultado.tsx` — nada mais precisa mudar, `LIMITES` continua exportado.
+ *
+ * ------------------------------------------------------------------
+ *
  * Onde este pedido cai dentro do que o modelo viu no treino.
  *
  * A pagina existe para mostrar a IA funcionando; mostrar onde ela PARA de

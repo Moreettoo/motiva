@@ -15,7 +15,6 @@ import { diaQueCruza, simular } from "@/lib/simulacao";
 import type { UF } from "@/lib/types";
 
 import { Curva } from "./curva";
-import { FaixasDoModelo } from "./faixas-modelo";
 import { JanelaClima } from "./janela-clima";
 import { LeituraCarregando, LeituraGestor } from "./leitura-gestor";
 import type { Pedido } from "./parametros";
@@ -121,11 +120,7 @@ export async function Resultado({ pedido }: { pedido: Pedido }) {
       </section>
 
       <Cartao>
-        <CartaoCabecalho
-          titulo="IA 1 · modelo de crescimento"
-          descricao="Regressão treinada em histórico de campo. Roda no painel, sem chamar a OpenAI: dada a espécie, o ponto, a altura e o clima, responde quantos centímetros por dia."
-          icone={<Brain />}
-        />
+        <CartaoCabecalho titulo="IA 1 · modelo de crescimento" icone={<Brain />} />
         <CartaoCorpo>
           <Curva
             pontos={simulacao.pontos}
@@ -141,31 +136,16 @@ export async function Resultado({ pedido }: { pedido: Pedido }) {
         </CartaoCorpo>
       </Cartao>
 
-      <div className="grid gap-6 lg:grid-cols-2 lg:gap-8">
-        <Cartao>
-          <CartaoCabecalho
-            titulo="De onde veio o clima"
-            descricao="O modelo não inventa tempo: ele recebe a janela real do Open-Meteo para este ponto."
-          />
-          <CartaoCorpo>
-            <JanelaClima janela={janela} agregado={agregado} />
-          </CartaoCorpo>
-        </Cartao>
-
-        <Cartao>
-          <CartaoCabecalho
-            titulo="Até onde o modelo foi treinado"
-            descricao="Fora destas faixas ele satura na borda em vez de errar com barulho."
-          />
-          <CartaoCorpo>
-            <FaixasDoModelo
-              alturaCm={pedido.alturaCm}
-              dias={pedido.dias}
-              latitude={pedido.latitude}
-            />
-          </CartaoCorpo>
-        </Cartao>
-      </div>
+      {/* O cartão "Até onde o modelo foi treinado" saiu daqui a pedido, e com
+          ele a grade de duas colunas: sozinho, o clima ocupa a largura toda.
+          `FaixasDoModelo` continua no repositório, sem chamador — ver o
+          cabeçalho daquele arquivo. */}
+      <Cartao>
+        <CartaoCabecalho titulo="De onde veio o clima" />
+        <CartaoCorpo>
+          <JanelaClima janela={janela} agregado={agregado} />
+        </CartaoCorpo>
+      </Cartao>
 
       <Cartao>
         <CartaoCabecalho

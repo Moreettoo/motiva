@@ -56,25 +56,21 @@ export function JanelaClima({ janela, agregado }: { janela: Janela; agregado: Ag
       {complementares > 0 ? (
         <FaixaEmpilhada
           titulo="Janela de clima usada"
-          descricao={`${janela.dias.length} dias, do Open-Meteo, para o ponto exato da simulação.`}
           segmentos={segmentos}
           formatarValor={(v) => `${fmt.n(v)} d`}
         />
       ) : (
         <div>
           <p className="text-sm font-medium text-ink">Janela de clima usada</p>
-          <p className="mt-0.5 text-xs text-ink-3">
-            {fmt.contar(janela.dias.length, "dia")}, do Open-Meteo, para o ponto exato da simulação.
-          </p>
           <Chip tom="acento" className="mt-3" icone={<CloudSun aria-hidden="true" />}>
             Previsão · {fmt.contar(janela.diasPrevistos, "dia")}
           </Chip>
         </div>
       )}
 
-      {/* Duas colunas e não quatro: este cartão ocupa meia tela em `lg`, e com
-          quatro os rótulos quebravam em duas linhas cada um. */}
-      <dl className="grid grid-cols-2 gap-x-6 gap-y-4">
+      {/* Quatro colunas de novo: o cartão passou a ocupar a largura toda quando
+          o de faixas de treino saiu do lado dele. */}
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
         <Leitura rotulo="Temperatura média" valor={fmt.celsius(agregado.temperaturaMediaC)} />
         <Leitura rotulo="Chuva no período" valor={fmt.mm(agregado.precipitacaoTotalMm)} />
         <Leitura rotulo="Umidade média" valor={`${fmt.n(Math.round(agregado.umidadeMediaPct))} %`} />
