@@ -6,7 +6,7 @@ import { Aviso } from "@/components/ui/aviso";
 import { Botao } from "@/components/ui/botao";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 
-/** No Next 16 a função de recuperação é `retry()` — ela refaz a leitura do
+/** No Next 16 a função de recuperação é `retry()`, ela refaz a leitura do
  *  segmento. `reset()` só limparia o estado do limite de erro sem buscar nada. */
 export default function ErroMalha({
   error,

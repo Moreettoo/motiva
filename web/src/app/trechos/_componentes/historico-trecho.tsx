@@ -21,7 +21,7 @@ export function HistoricoTrecho({
   equipes,
 }: {
   execucoes: Execucao[];
-  /** Agendamentos que não são o mais recente — o atual já está no bloco da decisão. */
+  /** Agendamentos que não são o mais recente, o atual já está no bloco da decisão. */
   anteriores: AgendamentoDetalhado[];
   equipes: Equipe[];
 }) {
@@ -101,7 +101,7 @@ export function HistoricoTrecho({
             {/* "da IA" saiu do título, e o ícone deixou de ser `Sparkles`: esta
                 lista mistura decisões do lote com roçadas que um gestor marcou
                 na mão, e um título que atribui todas à IA erra em cada linha
-                humana. Quem se anuncia é a exceção, no chip de cada item —
+                humana. Quem se anuncia é a exceção, no chip de cada item,
                 mesmo princípio da gaveta da agenda. */}
             <History aria-hidden="true" className="size-3 shrink-0" />
             Decisões anteriores
@@ -109,7 +109,7 @@ export function HistoricoTrecho({
 
           {anteriores.length === 0 ? (
             <p className="mt-2 text-sm text-ink-3">
-              Nenhuma decisão anterior — esta é a primeira análise deste trecho.
+              Nenhuma decisão anterior: esta é a primeira análise deste trecho.
             </p>
           ) : (
             <ol className="mt-3 space-y-3 border-l border-border pl-4">

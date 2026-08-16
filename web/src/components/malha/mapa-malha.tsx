@@ -82,7 +82,7 @@ type Ponto = {
   raio: number;
   risco: Risco;
   trecho: TrechoStatus;
-  /** Dentro da área de plotagem na vista atual — fora dela não há alvo nem rótulo. */
+  /** Dentro da área de plotagem na vista atual, fora dela não há alvo nem rótulo. */
   visivel: boolean;
   rotuloDireto: string | null;
   rotuloX: number;
@@ -117,7 +117,7 @@ function graus(de: number, ate: number, passo: number): number[] {
  *
  * Sem biblioteca de mapa e sem tile externo de propósito: o painel precisa abrir
  * numa sala de operação sem internet. A projeção é equirretangular corrigida pelo
- * cosseno da latitude média — na escala de uma concessionária o erro é irrelevante
+ * cosseno da latitude média, na escala de uma concessionária o erro é irrelevante
  * e o desenho não distorce distância leste-oeste.
  *
  * Os pontos são desenhados em SVG mas o alvo de interação é uma camada de <button>
@@ -127,13 +127,13 @@ function graus(de: number, ate: number, passo: number): number[] {
  * ## Zoom
  *
  * O enquadramento é estado (`vista`: fator e centro em GRAUS projetados) e a
- * projeção é recalculada a partir dele — não é um `transform` no SVG. Isso custa
+ * projeção é recalculada a partir dele, não é um `transform` no SVG. Isso custa
  * um `map` de 50 pontos por quadro e paga três coisas que a escala em CSS não
  * daria: a tipografia dos rótulos não estica, a grade troca de passo conforme se
  * aproxima (10° → 1° → 0,1°) em vez de virar um quadriculado gigante, e o raio
  * da marca continua significando extensão em km, não distância da câmera.
  *
- * A aritmética — âncora, limites, fator da roda — mora em `zoom-mapa.ts`, que é
+ * A aritmética, âncora, limites, fator da roda, mora em `zoom-mapa.ts`, que é
  * puro e testado. Aqui fica só o que precisa de DOM.
  */
 export function MapaMalha({
@@ -202,7 +202,7 @@ export function MapaMalha({
 
     /* Identidade da NUVEM, não do enquadramento: um filtro que muda os trechos
        reenquadra do zero (o zoom de outra malha não quer dizer nada aqui), mas
-       redimensionar a janela — que muda `esc0` sem mexer no dado — preserva
+       redimensionar a janela, que muda `esc0` sem mexer no dado, preserva
        onde a pessoa estava olhando. */
     const chave = [limites.minX, limites.maxX, limites.minY, limites.maxY, validos.length]
       .map((n) => n.toFixed(5))
@@ -221,7 +221,7 @@ export function MapaMalha({
   }, [trechos, largura, alturaPx]);
 
   /* A vista carrega a chave da nuvem a que pertence. Quando o filtro muda, a
-     chave não bate e o valor guardado é simplesmente ignorado — sem efeito de
+     chave não bate e o valor guardado é simplesmente ignorado, sem efeito de
      reset, sem `setState` no render. */
   const [vista, setVista] = useState<Vista & { chave: string }>({
     chave: "",
@@ -256,7 +256,7 @@ export function MapaMalha({
     [base],
   );
 
-  /** A vista de onde um gesto parte — o espelho, com o ajuste como rede. */
+  /** A vista de onde um gesto parte: o espelho, com o ajuste como rede. */
   const partida = useCallback(
     () => (base ? (vistaViva.current ?? vistaAjustada(base.limites)) : null),
     [base],
@@ -274,7 +274,7 @@ export function MapaMalha({
 
   /* A roda entra por `addEventListener` e não por `onWheel`: o React registra
      `wheel` como PASSIVO na raiz, e num ouvinte passivo o `preventDefault` é
-     ignorado com aviso no console — a página rolaria junto com o zoom. */
+     ignorado com aviso no console, a página rolaria junto com o zoom. */
   useEffect(() => {
     const el = caixa.current;
     if (!el || !base) return;
@@ -291,7 +291,7 @@ export function MapaMalha({
         base.limites,
         base.enq,
       );
-      // No teto e no chão do zoom o gesto não muda nada — devolver a rolagem
+      // No teto e no chão do zoom o gesto não muda nada, devolver a rolagem
       // para a página é o que impede o ponteiro de ficar preso no mapa.
       if (mesmaVista(de, para)) return;
 
@@ -305,17 +305,17 @@ export function MapaMalha({
 
   /* Arrasto para deslocar. Os ouvintes ficam em `window` porque o gesto não
      pode morrer quando o ponteiro sai da caixa, e a captura de ponteiro não
-     serve aqui: capturar redireciona o `click` para quem capturou, e as marcas
-     — que são <button>/<Link> de verdade por cima — deixariam de abrir. */
+     serve aqui: capturar redireciona o `click` para quem capturou, e as marcas,
+     que são <button>/<Link> de verdade por cima, deixariam de abrir. */
   const arrasto = useRef<{ id: number; x: number; y: number; moveu: boolean } | null>(null);
   const [arrastando, setArrastando] = useState(false);
   /** Um arrasto que terminou engole o `click` que o navegador sintetiza em
-   *  seguida — senão soltar o mapa sobre uma marca abre o trecho. */
+   *  seguida, senão soltar o mapa sobre uma marca abre o trecho. */
   const engoliuClique = useRef(false);
   /* O sinal acima precisa MORRER sozinho, e não só quando um clique o consome:
      um arrasto que termina fora da caixa (ou sobre o balão, que não recebe
      ponteiro) não gera clique nenhum ali dentro, e o sinal ficava armado até o
-     PRÓXIMO clique — que virava o clique comido, num botão de zoom ou numa
+     PRÓXIMO clique, que virava o clique comido, num botão de zoom ou numa
      marca que ninguém arrastou. A limpeza é diferida por uma tarefa porque o
      `click` sintético DESTE gesto ainda é despachado na mesma em que o
      `pointerup`: zerar de forma síncrona reabriria o buraco original. */
@@ -382,7 +382,7 @@ export function MapaMalha({
     // No ajuste não há para onde deslocar: deixar o gesto nascer só transformaria
     // seleção de texto e rolagem por toque em nada.
     if (!podeDeslocar) return;
-    // Arrastar A PARTIR de uma marca desloca o mapa, de propósito — ela é uma
+    // Arrastar A PARTIR de uma marca desloca o mapa, de propósito, ela é uma
     // bolinha de 9px no meio da área de plotagem. A partir dos controles, não:
     // ali o gesto é "apertar o botão", e o mapa fugir sob o dedo seria acidente.
     if ((evento.target as HTMLElement).closest("[data-controles]")) return;
@@ -514,7 +514,7 @@ export function MapaMalha({
 
     const naVista = pontos.filter((p) => p.visivel);
 
-    /* Rótulo direto só quando são poucos pontos na tela e sobra espaço — nunca
+    /* Rótulo direto só quando são poucos pontos na tela e sobra espaço, nunca
        um número em cima de toda marca. Conta os VISÍVEIS, não a malha inteira:
        é o que faz os nomes das rodovias aparecerem ao se aproximar, que é
        metade do motivo de existir o zoom. */
@@ -610,7 +610,7 @@ export function MapaMalha({
         className={cn(
           // `select-none` na CAIXA, não durante o arrasto: a seleção nasce onde
           // o `pointerdown` cai, e um arrasto que sai do mapa pintava de azul a
-          // legenda e o rodapé no caminho. Não custa nada — o que há aqui é
+          // legenda e o rodapé no caminho. Não custa nada, o que há aqui é
           // texto de eixo em SVG e um balão sem ponteiro, nada que se copie.
           "relative w-full overflow-hidden rounded-lg border border-border bg-surface select-none",
           podeDeslocar && (arrastando ? "cursor-grabbing" : "cursor-grab"),
@@ -728,7 +728,7 @@ export function MapaMalha({
 
                   {/* Segundo canal, estático: os 4 passos de status ficam abaixo de 3:1 entre si
                       (serious×warning = 1,44:1) e o mapa é forma de todos-os-pares. O anel escuro
-                      separa o que precisa de equipe do que espera — e, ao contrário do pulso,
+                      separa o que precisa de equipe do que espera, e, ao contrário do pulso,
                       sobrevive a prefers-reduced-motion. */}
                   {p.risco === "critica" || p.risco === "alta" ? (
                     <circle
@@ -781,7 +781,7 @@ export function MapaMalha({
         </svg>
 
         {/* Camada de interação: <button> ou <Link> de verdade sobre cada marca.
-            Recortada na área de plotagem pelo mesmo motivo do SVG — e só com o
+            Recortada na área de plotagem pelo mesmo motivo do SVG, e só com o
             que está na vista, para não deixar alvo invisível sobre os eixos. */}
         <div
           className="absolute overflow-hidden"
@@ -906,7 +906,7 @@ export function MapaMalha({
               </dd>
 
               {/* Mesma leitura do balão da régua: altura contra limite, não o
-                  percentual — o limite muda de trecho para trecho. */}
+                  percentual, o limite muda de trecho para trecho. */}
               <dt className="text-ink-3">Altura</dt>
               <dd className="tnum flex items-center justify-end gap-1 text-right font-mono text-ink">
                 {alturaEmFoco == null ? (

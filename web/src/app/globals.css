@@ -6,7 +6,7 @@
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 /* ==========================================================================
-   TOKENS — claro (padrao)
+   TOKENS, claro (padrao)
 
    Todo par cor/fundo abaixo foi medido com o validador da skill dataviz
    (scripts/validate_palette.js). Nao troque um hex sem rodar o validador de
@@ -26,20 +26,20 @@
   /* Tinta */
   --ink: #0c100e;      /* 18.5:1 */
   --ink-2: #5a625d;    /*  6.1:1 */
-  --ink-3: #676f6a;    /*  4.6:1 — minimo para texto pequeno */
+  --ink-3: #676f6a;    /*  4.6:1, minimo para texto pequeno */
 
-  /* Veladura: SEMPRE escurece, nunca clareia — "recuar" é a mesma operacao
+  /* Veladura: SEMPRE escurece, nunca clareia, "recuar" é a mesma operacao
      fisica nos dois temas. `--ink`/`--bg` nao servem aqui porque cada um
      resolve so metade do problema: `--ink` INVERTE de sentido no escuro (fica
      quase branco, clareia em vez de recuar) e `--bg` e quase idêntico a
-     `--surface` no claro (a diferenca e imperceptivel — o mesmo defeito,
+     `--surface` no claro (a diferenca e imperceptivel: o mesmo defeito,
      espelhado). Preto puro em ambos os temas, com a INTENSIDADE calibrada por
      quem usa (`opacity`/`/NN` no ponto de uso): contraste calculado a mao
      (WCAG, formula relativa) porque o validador da skill dataviz nao esta
-     neste repositorio — ver o comentario de uso em cada arquivo. */
+     neste repositorio, ver o comentario de uso em cada arquivo. */
   --velatura: #000000;
 
-  /* Marca — verde-limao asfaltado. No claro o passo escuro carrega texto. */
+  /* Marca, verde-limao asfaltado. No claro o passo escuro carrega texto. */
   --accent: #4d7c0f;        /* 4.8:1 sobre superficie */
   --accent-hover: #3f6212;
   --accent-ink: #ffffff;
@@ -48,7 +48,7 @@
   --accent-soft: #eef7de;
   --accent-line: #a3e635;   /* decorativo: filetes, brilhos. Nunca texto no claro. */
 
-  /* Status — escala fixa da skill dataviz. Nunca vira "serie 5".
+  /* Status, escala fixa da skill dataviz. Nunca vira "serie 5".
      Sempre acompanhada de icone + rotulo: no claro, warning e serious ficam
      abaixo de 3:1 de proposito e a dupla icone+texto e a mitigacao. */
   --good: #0ca30c;
@@ -66,7 +66,7 @@
   --serious-soft: #fbe9e0;
   --critical-soft: #fae3e2;
 
-  /* Series categoricas — ordem fixa, atribuidas em sequencia, nunca cicladas.
+  /* Series categoricas: ordem fixa, atribuidas em sequencia, nunca cicladas.
      Validadas para 4 slots adjacentes; formas de todos-os-pares (dispersao,
      mapa) usam no maximo 3. */
   --s1: #2a78d6;
@@ -74,7 +74,7 @@
   --s3: #1baf7a;
   --s4: #eda100;
 
-  /* Rampa sequencial — um hue, claro->escuro (magnitude continua) */
+  /* Rampa sequencial: um hue, claro->escuro (magnitude continua) */
   --seq-1: #cde2fb;
   --seq-2: #9ec5f4;
   --seq-3: #6da7ec;
@@ -93,7 +93,7 @@
 }
 
 /* ==========================================================================
-   TOKENS — escuro
+   TOKENS, escuro
    ========================================================================== */
 [data-theme="dark"] {
   color-scheme: dark;
@@ -109,7 +109,7 @@
   --ink-2: #a8b0ac;    /*  8.4:1 */
   --ink-3: #7b8580;    /*  4.9:1 */
 
-  /* Mesmo valor do claro, de proposito — ver o comentario em `:root`. */
+  /* Mesmo valor do claro, de proposito, ver o comentario em `:root`. */
   --velatura: #000000;
 
   --accent: #a3e635;   /* 12.3:1 sobre superficie */
@@ -201,22 +201,22 @@
   --font-sans: var(--font-geist-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", monospace;
 
-  /* Escala tipografica — passos fechados, nada entre eles. */
-  --text-2xs: 0.6875rem;   /* 11px — rotulos de eixo, unidades */
+  /* Escala tipografica: passos fechados, nada entre eles. */
+  --text-2xs: 0.6875rem;   /* 11px: rotulos de eixo, unidades */
   --text-2xs--line-height: 1rem;
-  --text-xs: 0.75rem;      /* 12px — metadados, chips */
+  --text-xs: 0.75rem;      /* 12px: metadados, chips */
   --text-xs--line-height: 1.125rem;
-  --text-sm: 0.8125rem;    /* 13px — corpo denso, tabelas */
+  --text-sm: 0.8125rem;    /* 13px: corpo denso, tabelas */
   --text-sm--line-height: 1.25rem;
-  --text-base: 0.9375rem;  /* 15px — corpo */
+  --text-base: 0.9375rem;  /* 15px: corpo */
   --text-base--line-height: 1.5rem;
-  --text-lg: 1.125rem;     /* 18px — titulo de cartao */
+  --text-lg: 1.125rem;     /* 18px: titulo de cartao */
   --text-lg--line-height: 1.5rem;
-  --text-xl: 1.5rem;       /* 24px — titulo de pagina */
+  --text-xl: 1.5rem;       /* 24px: titulo de pagina */
   --text-xl--line-height: 1.875rem;
-  --text-2xl: 2rem;        /* 32px — numero de destaque */
+  --text-2xl: 2rem;        /* 32px: numero de destaque */
   --text-2xl--line-height: 2.25rem;
-  --text-3xl: 2.75rem;     /* 44px — numero heroi */
+  --text-3xl: 2.75rem;     /* 44px: numero heroi */
   --text-3xl--line-height: 3rem;
 
   --radius-sm: 6px;
@@ -270,7 +270,7 @@ body {
 }
 
 /* Excecao: a busca da paleta de comandos abre com foco automatico e o cursor
-   ja piscando nela — o unico campo focavel do dialogo, Tab fica bloqueado.
+   ja piscando nela: o unico campo focavel do dialogo, Tab fica bloqueado.
    O anel so duplicaria o que o cursor ja mostra, e pesa numa barra do
    tamanho do modal inteiro. */
 .busca-paleta:focus-visible {
@@ -297,7 +297,7 @@ p {
   font-feature-settings: "tnum";
 }
 
-/* Barra de rolagem discreta — o painel tem muitas areas roláveis. */
+/* Barra de rolagem discreta, o painel tem muitas areas roláveis. */
 @supports (scrollbar-width: thin) {
   .scroll-thin {
     scrollbar-width: thin;
@@ -346,7 +346,7 @@ p {
   animation-delay: calc(var(--i, 0) * 45ms);
 }
 
-/* Brilho que cruza o elemento — usado no estado "analisando". */
+/* Brilho que cruza o elemento, usado no estado "analisando". */
 .sweep::after {
   content: "";
   position: absolute;
@@ -357,7 +357,7 @@ p {
   pointer-events: none;
 }
 
-/* Brilho continuo na marca — identidade, nao feedback de estado. Mais lento e
+/* Brilho continuo na marca: identidade, nao feedback de estado. Mais lento e
    com pausa entre voltas pra ficar discreto num elemento sempre visivel na
    tela (diferente do `.sweep`, que so aparece durante uma acao). */
 .brilho-marca::after {
@@ -424,13 +424,13 @@ p {
      1536px dentro do <main>; menos a lateral EXPANDIDA (lg:w-60 = 240px) dá
      1296px para o conteúdo da página; menos a borda de 1px dos dois lados do
      quadro (2px) e o trilho da fila (w-60 = 240px, Tarefa 7) sobram 1054px
-     para esta grade — a conta ignora de propósito a barra de rolagem
+     para esta grade, a conta ignora de propósito a barra de rolagem
      vertical da própria pista, que também consome largura; a folga real
      abaixo é MENOR que os 182px, nunca maior, por causa dessa omissão.
      --calha (144px) + 7 × --dia-min (104px) = 872px, ~182px de folga (~17%)
      sobre os 1054px. Isso NÃO é a largura que a coluna renderiza a 1600px:
      `1fr` reparte o que sobra, então cada coluna fica em (1054 − 144) / 7 =
-     130px — acima do piso e do limiar da container query abaixo. O piso
+     130px, acima do piso e do limiar da container query abaixo. O piso
      (--dia-min) só é alcançado quando a tela aperta mais que 1600px; abaixo
      disso a pista rola, por desenho. */
   --calha: 9rem;
@@ -451,7 +451,7 @@ p {
 /* Ordem de sacrifício conforme a coluna encolhe. O nome da equipe nunca sai: ele
    está na calha, não na célula. O limiar (7.5rem = 120px) fica ESTRITAMENTE
    ACIMA do piso `--dia-min` (6.5rem = 104px): o chip some quando a coluna já
-   está a 16px do piso, não quando cruza o próprio piso — um limiar igual ou
+   está a 16px do piso, não quando cruza o próprio piso, um limiar igual ou
    abaixo do piso nunca dispara, porque a coluna nunca fica menor que ele
    (era exatamente o defeito da versão anterior, 8rem contra um piso de 9rem). */
 @container dia (max-width: 7.5rem) {
@@ -468,11 +468,11 @@ html[data-arrastando] * { user-select: none; }
 
    DOIS nomes de keyframe idênticos, e não um. Uma animação CSS não reinicia
    porque a classe já está aplicada: duas falhas do MESMO cartão dentro dos
-   450 ms deixariam a segunda sem piscar — o anel ainda estaria lá, já no fim da
+   450 ms deixariam a segunda sem piscar: o anel ainda estaria lá, já no fim da
    animação, isto é, invisível. `classeAnelErro` (em `cartao-servico.tsx`)
    alterna as duas classes por geração de erro, e é o `animation-name` diferente
    que força o reinício. A alternativa era remontar o cartão com um `key` novo,
-   que reinicia tudo e PERDE O FOCO — a restauração de foco desta grade é
+   que reinicia tudo e PERDE O FOCO, a restauração de foco desta grade é
    delicada de propósito (ver `usar-foco-grade.ts`) e não se paga por um
    pisca. */
 @keyframes anel-erro {
@@ -486,14 +486,14 @@ html[data-arrastando] * { user-select: none; }
   to   { opacity: 0; }
 }
 
-/* O anel mora no `<li>` do cartão, que por isto ganhou `relative` — sem
+/* O anel mora no `<li>` do cartão, que por isto ganhou `relative`, sem
    ancestral posicionado, um `position: absolute` sobe até o viewport. NÃO pode
    morar no `<div>` interno: ele tem `overflow-hidden` (o filete de risco e os
    cantos arredondados dependem dele) e um pseudoelemento em `inset` negativo
    dentro de uma caixa que recorta é simplesmente cortado.
 
-   É `opacity`, não `transform`, porque o anel só pisca — não desloca nem
-   redimensiona nada — e a convenção do projeto é não animar
+   É `opacity`, não `transform`, porque o anel só pisca, não desloca nem
+   redimensiona nada, e a convenção do projeto é não animar
    deslocamento/tamanho quando a mudança é só um realce. */
 .anel-erro::after,
 .anel-erro-alt::after {
@@ -515,13 +515,13 @@ html[data-arrastando] * { user-select: none; }
    `animation-duration: 1ms !important` em `*::after` também, e o keyframe vai de
    `opacity: 0.9` a `0` com `both`: o anel saltaria para o estado final, ou seja,
    para invisível. `animation: none` + `opacity` fixa transforma o anel em ESTADO
-   estático enquanto a classe estiver aplicada — o mesmo remédio que
+   estático enquanto a classe estiver aplicada, o mesmo remédio que
    `.rise`/`.fade`/`.draw` já recebem lá em cima. Quem controla a duração passa a
    ser o estado em React (`ANEL_ERRO_MS`, em `planejamento.tsx`), não o CSS.
 
    O bloco fica AQUI e não junto dos outros porque a especificidade é a mesma
    (uma classe + um pseudoelemento) e `@media` não soma nada: dentro do bloco de
-   cima, as duas regras de `animation` logo acima — posteriores no arquivo —
+   cima, as duas regras de `animation` logo acima, posteriores no arquivo,
    reporiam o `animation-name` e o remédio não valeria nada. */
 @media (prefers-reduced-motion: reduce) {
   .anel-erro::after,
@@ -532,12 +532,12 @@ html[data-arrastando] * { user-select: none; }
 }
 
 /* ==========================================================================
-   TEXTURA — canal de acessibilidade da skill dataviz.
+   TEXTURA, canal de acessibilidade da skill dataviz.
    Ligada por forced-colors ou impressao; nunca decorativa.
    ========================================================================== */
 @media print, (forced-colors: active) {
   /* Em forced-colors o navegador reescreve `fill` para a cor do sistema e a
-     hachura nunca chega a pintar — que e justamente o modo onde ela e o unico
+     hachura nunca chega a pintar, que e justamente o modo onde ela e o unico
      canal que resta. `forced-color-adjust: none` devolve o controle, e o
      `!important` vence o `fill` inline que os componentes de grafico escrevem. */
   .viz-fill-1,

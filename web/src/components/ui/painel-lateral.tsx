@@ -77,7 +77,7 @@ export function PainelLateral({
   const gatilho = useRef<HTMLElement | null>(null);
   const montado = useSyncExternalStore(semAssinatura, verdadeiro, falso);
 
-  // Guarda quem abriu e devolve o foco ao fechar — sem isso o teclado volta
+  // Guarda quem abriu e devolve o foco ao fechar, sem isso o teclado volta
   // para o topo do documento e o gestor perde o lugar na tabela.
   useEffect(() => {
     if (!aberto) return;

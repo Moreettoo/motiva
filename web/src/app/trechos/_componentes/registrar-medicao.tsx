@@ -37,7 +37,7 @@ export function RegistrarMedicao({ trechoId, hojeIso }: { trechoId: number; hoje
     }
 
     if (!Number.isFinite(valor) || valor < 0 || valor > MAXIMO_CM) {
-      setErro(`Use um número entre 0 e ${MAXIMO_CM} cm — foi o que o campo consegue medir.`);
+      setErro(`Use um número entre 0 e ${MAXIMO_CM} cm, foi o que o campo consegue medir.`);
       entrada.current?.focus();
       return;
     }

@@ -20,7 +20,7 @@ import {
 } from "./zoom-mapa";
 
 /* A malha semeada, arredondada: ~20° de longitude por ~6° de latitude numa
-   caixa de 900×480. O `esc0` sai da mesma conta do componente — o menor dos
+   caixa de 900×480. O `esc0` sai da mesma conta do componente, o menor dos
    dois ajustes, com 10% de respiro. */
 const LIM: Limites = { minX: -60, maxX: -40, minY: -25, maxY: -19 };
 const ENQ: Enquadramento = {
@@ -127,7 +127,7 @@ describe("deslocar", () => {
     const preso = deslocar({ z: 4, cx: -50, cy: -22 }, 1e6, 0, LIM, ENQ);
     expect(deslocar(preso, 1e6, 0, LIM, ENQ)).toEqual(preso);
 
-    // O trecho mais a oeste continua dentro da janela — a folga não é grande o
+    // O trecho mais a oeste continua dentro da janela, a folga não é grande o
     // bastante para deixar a nuvem inteira sair de vista.
     const { w } = meiaJanela(preso);
     expect(preso.cx - w).toBeLessThan(LIM.minX);

@@ -53,7 +53,7 @@ export function Lacunas({ lacunas }: { lacunas: LacunasDeDados }) {
 
       <p className="mt-2 text-xs text-ink-3">
         A altura atual é extrapolada da última medição. Quanto mais velha a medição, maior o erro
-        acumulado no prazo — registre a altura em campo para o painel voltar a acertar.
+        acumulado no prazo. Registre a altura em campo para o painel voltar a acertar.
       </p>
     </Aviso>
   );

@@ -18,12 +18,12 @@ import { cn } from "@/lib/utils";
 export type LadoDica = "cima" | "baixo" | "esquerda" | "direita";
 
 /**
- * Dica de contexto — sem `title` nativo (não abre por teclado e não é estilizável).
+ * Dica de contexto, sem `title` nativo (não abre por teclado e não é estilizável).
  *
  * Limitação conhecida: o balão é posicionado com `position: absolute`, então um
  * ancestral com `overflow: hidden` (célula de tabela rolável, cartão com
  * `overflow-hidden`) o recorta. Nesses casos, use `overflow-visible` no
- * ancestral ou mova a Dica para fora da área recortada — não existe portal aqui
+ * ancestral ou mova a Dica para fora da área recortada, não existe portal aqui
  * de propósito, porque o balão precisa acompanhar rolagem interna.
  */
 const POSICAO: Record<LadoDica, string> = {
@@ -42,19 +42,19 @@ const DESLOCAMENTO: Record<LadoDica, { x?: number; y?: number }> = {
 
 const ATRASO_MS = 140;
 
-/* "Já hidratou?" — as três funções de `useSyncExternalStore`, fora do componente
+/* "Já hidratou?": as três funções de `useSyncExternalStore`, fora do componente
    porque o hook compara referências e recriá-las reassinaria a store a cada
    render.
 
    `assinarMontagem` AVISA uma vez, em vez de ficar inerte como o
    `() => () => {}` de `painel-lateral.tsx`. O React já promete re-renderizar
    sozinho quando `getSnapshot()` difere do snapshot de servidor, então o aviso
-   é cinto e suspensório — mas ele torna o commit uma consequência do nosso
+   é cinto e suspensório, mas ele torna o commit uma consequência do nosso
    código em vez de uma consequência de detalhe interno do React, e custa uma
    microtarefa. Note que `setState` em efeito, a forma óbvia de fazer isto, o
    lint proíbe (`react-hooks/set-state-in-effect`).
 
-   MICROTAREFA, e não `requestAnimationFrame`: rAF não dispara em aba oculta —
+   MICROTAREFA, e não `requestAnimationFrame`: rAF não dispara em aba oculta,
    medido, com `document.visibilityState === "hidden"` o quadro nunca chega,
    enquanto `setTimeout` e microtarefa chegam. Não é detalhe de bancada: uma
    página aberta em aba de segundo plano (clique do meio, sessão restaurada)
@@ -124,7 +124,7 @@ export function Dica({
      `Symbol(react.transitional.element)`.
 
      Com a decisão tomada durante o render, isso MOVIA o `aria-describedby` de
-     lugar entre as duas passadas — servidor no wrapper, cliente no filho — e o
+     lugar entre as duas passadas, servidor no wrapper, cliente no filho, e o
      React acusava mismatch de hidratação. Quebrava só em `/trechos/[id]`, que
      é onde vivem as duas únicas Dicas dentro de Server Components
      (`faixa-identidade.tsx` e `medidor.tsx`); as outras cinco chamadas já estão
@@ -138,11 +138,11 @@ export function Dica({
      montagem o `aria-describedby` apontaria para um id inexistente de qualquer
      jeito.
 
-     Quem produz `montado` é `assinarMontagem`, lá em cima — e o porquê de ele
+     Quem produz `montado` é `assinarMontagem`, lá em cima, e o porquê de ele
      avisar em vez de ficar inerte está escrito junto dela.
 
      NÃO resolver isto pondo o atributo sempre no wrapper: ele é um `<span>` sem
-     papel e sem foco, e quem precisa da descrição é o filho — que nestes casos
+     papel e sem foco, e quem precisa da descrição é o filho, que nestes casos
      carrega `tabIndex={0}` e às vezes `role="img"`. Seria trocar um aviso de
      hidratação por uma perda de acessibilidade silenciosa. */
   const descricao = montado ? { "aria-describedby": id } : {};

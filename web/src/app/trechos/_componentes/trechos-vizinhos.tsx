@@ -11,7 +11,7 @@ import type { TrechoStatus } from "@/lib/types";
 
 const MAXIMO_CARTOES = 4;
 
-/** Distância entre duas faixas de km — zero quando elas encostam ou se sobrepõem. */
+/** Distância entre duas faixas de km, zero quando elas encostam ou se sobrepõem. */
 function distanciaKm(a: TrechoStatus, b: TrechoStatus): number {
   const inicioA = Number(a.km_inicio);
   const fimA = Number(a.km_fim);
@@ -25,7 +25,7 @@ function distanciaKm(a: TrechoStatus, b: TrechoStatus): number {
 
 /**
  * Contexto na rodovia: a régua mostra onde o trecho cai na malha e os cartões
- * trazem os vizinhos mais próximos — é o que decide se dá para levar a mesma
+ * trazem os vizinhos mais próximos, é o que decide se dá para levar a mesma
  * equipe para dois trechos na mesma janela.
  */
 export function TrechosVizinhos({

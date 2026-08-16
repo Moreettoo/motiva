@@ -26,12 +26,12 @@ const FACE = "rounded-lg border border-border bg-surface p-4 [backface-visibilit
 
 /**
  * O card "Crescimento médio" tem verso: passar o mouse ou clicar no ícone vira
- * o card e mostra as 3 espécies lado a lado. Escolher uma delas troca a frente
- * — número, delta e pico — pela leitura daquela espécie em vez da malha
+ * o card e mostra as 3 espécies lado a lado. Escolher uma delas troca a frente,
+ * número, delta e pico, pela leitura daquela espécie em vez da malha
  * inteira, porque "0,085 cm/dia" sozinho não diz se é braquiária ou batatais.
  *
  * A seleção vai pra URL (`?especie=`) como qualquer outro filtro do painel; só
- * o "card está virado" é local — é leitura de hover, não filtro de dado.
+ * o "card está virado" é local: é leitura de hover, não filtro de dado.
  */
 export function CartaoCrescimento({
   indice = 0,

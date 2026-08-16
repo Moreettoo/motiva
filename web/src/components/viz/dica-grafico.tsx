@@ -7,7 +7,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 const FOLGA = 10;
 const BORDA = 6;
 
-/** Posição padrão em CSS — igual ao cálculo em px, então o primeiro quadro não pula. */
+/** Posição padrão em CSS: igual ao cálculo em px, então o primeiro quadro não pula. */
 const TRANSFORMA_PADRAO = `translate(-50%, calc(-100% - ${FOLGA}px))`;
 
 /**
@@ -15,7 +15,7 @@ const TRANSFORMA_PADRAO = `translate(-50%, calc(-100% - ${FOLGA}px))`;
  *
  * A régua de km e o mapa da malha posicionam o balão por conta própria (um
  * ancora em `bottom-full`, o outro em coordenada de pixel), mas a superfície
- * tem que ser a mesma dos gráficos — três caixas de dado com bordas diferentes
+ * tem que ser a mesma dos gráficos, três caixas de dado com bordas diferentes
  * na mesma tela leem como três componentes distintos.
  */
 export const CLASSE_BALAO = "rounded-md border border-border-strong bg-surface-2 p-3 shadow-md";
@@ -32,7 +32,7 @@ export const LARGURA_BALAO = 236;
  * balão que segue o ponteiro em `aria-live` viraria enxurrada de anúncios.
  *
  * O elemento precisa estar dentro de um ancestral `position: relative` que
- * represente a área do gráfico — é dele que sai o limite para o flip.
+ * represente a área do gráfico, é dele que sai o limite para o flip.
  */
 export function DicaGrafico({
   x,
@@ -103,7 +103,7 @@ export function DicaGrafico({
   );
 }
 
-/** Cabeçalho do balão — o valor de X (data, faixa de km, categoria). */
+/** Cabeçalho do balão: o valor de X (data, faixa de km, categoria). */
 export function DicaTitulo({ children }: { children: ReactNode }) {
   return (
     <p className="mb-1.5 border-b border-border pb-1.5 text-2xs font-medium tracking-wider text-ink-3 uppercase">
@@ -114,7 +114,7 @@ export function DicaTitulo({ children }: { children: ReactNode }) {
 
 /**
  * Linha do balão. A chave da série é um traço curto na cor da entidade; o
- * rótulo fica em tinta secundária e o VALOR é o elemento forte — aqui o leitor
+ * rótulo fica em tinta secundária e o VALOR é o elemento forte, aqui o leitor
  * já sabe qual série é e quer o número.
  */
 export function DicaLinha({

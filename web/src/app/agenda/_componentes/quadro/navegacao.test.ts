@@ -99,7 +99,7 @@ describe("sufixoDeBorda", () => {
   it("no primeiro dia, a seta para a esquerda fala do INÍCIO da semana", () => {
     // O caso que estava errado: com a doca fechada no estreito, `proximoAlvo`
     // devolve `borda` em vez de "fila" (ver o teste de `filaDisponivel: false`
-    // acima), e o anúncio saía "Fim da semana; Shift e seta para a próxima" —
+    // acima), e o anúncio saía "Fim da semana; Shift e seta para a próxima",
     // mentindo sobre o fato e mandando o gestor para o lado oposto.
     expect(sufixoDeBorda("esquerda", celula)).toBe("Início da semana; Shift e seta para a anterior.");
   });
@@ -115,7 +115,7 @@ describe("sufixoDeBorda", () => {
     expect(sufixoDeBorda("baixo", celula)).toBe("Não há equipe nessa direção.");
   });
 
-  it("o trilho não tem eixo horizontal de semana — nem para a esquerda", () => {
+  it("o trilho não tem eixo horizontal de semana, nem para a esquerda", () => {
     // "fila" só sai pela direita; bater à esquerda ali não é o início de
     // semana nenhuma, e Shift+seta não levaria a lugar nenhum a partir dele.
     expect(sufixoDeBorda("esquerda", "fila")).toBe("Não há equipe nessa direção.");
@@ -134,7 +134,7 @@ describe("realinharAlvo", () => {
     expect(realinharAlvo(chaveCelula("2026-08-31", 2), 1)).toBe(chaveCelula("2026-09-07", 2));
   });
 
-  it("não desloca o trilho — ele existe em qualquer semana", () => {
+  it("não desloca o trilho: ele existe em qualquer semana", () => {
     expect(realinharAlvo("fila", 1)).toBe("fila");
     expect(realinharAlvo("fila", -1)).toBe("fila");
   });
@@ -142,7 +142,7 @@ describe("realinharAlvo", () => {
 
 describe("alvoNaBordaDaSemana", () => {
   // A janela de `grade` é 2026-08-10 (segunda) a 2026-08-16 (domingo).
-  it("pousa no primeiro dia da semana nova indo para a direita — um dia, não uma semana", () => {
+  it("pousa no primeiro dia da semana nova indo para a direita: um dia, não uma semana", () => {
     expect(alvoNaBordaDaSemana(grade, chaveCelula("2026-08-16", 1), 1)).toBe(
       chaveCelula("2026-08-17", 1),
     );
@@ -168,6 +168,6 @@ describe("alvoNaBordaDaSemana", () => {
 /* Havia aqui um `describe("alvoPropostas / ehAlvoPropostas")`, com os dois
    testes do pseudo-alvo da linha "Propostas da IA". A linha saiu do quadro
    (duplicava a fila de decisão) e com ela o único `Alvo` que nunca era destino
-   de solta de verdade — não sobrou nada para esses testes cobrirem. Os dois
+   de solta de verdade, não sobrou nada para esses testes cobrirem. Os dois
    valores que `Alvo` ainda tem, célula e `"fila"`, já são exercitados pelos
    `describe` acima. */

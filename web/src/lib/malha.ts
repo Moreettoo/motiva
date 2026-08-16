@@ -27,7 +27,7 @@ export type GrupoRodovia = {
  *
  * A quilometragem reinicia na divisa: a BR-101 tem um km 22 em SP e um km 450 no
  * RJ. Desenhar os dois na mesma régua inventaria uma faixa contínua de 500 km que
- * não existe — e afundaria os trechos reais em 3 pixels cada.
+ * não existe, e afundaria os trechos reais em 3 pixels cada.
  */
 export function agruparPorRodovia(trechos: TrechoStatus[]): GrupoRodovia[] {
   const grupos = new Map<string, TrechoStatus[]>();

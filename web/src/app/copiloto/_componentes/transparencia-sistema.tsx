@@ -10,7 +10,7 @@ import { Modal } from "@/components/ui/modal";
  * O ícone que abre a qualidade dos dados e a ficha do modelo.
  *
  * Esse conteúdo já foi coluna fixa ao lado da conversa; virou sob demanda
- * porque quem só quer perguntar não precisa ler a ficha do modelo toda vez —
+ * porque quem só quer perguntar não precisa ler a ficha do modelo toda vez,
  * mas a explicação continua a um clique, não desaparece.
  */
 export function TransparenciaSistema({ children }: { children: ReactNode }) {

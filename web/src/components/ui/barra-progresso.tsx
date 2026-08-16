@@ -72,7 +72,7 @@ export function BarraProgresso({
         aria-valuemin={0}
         aria-valuemax={limiteSuperior}
         aria-valuenow={clamp(valor, 0, limiteSuperior)}
-        aria-valuetext={excedido ? `${texto} — acima do limite` : texto}
+        aria-valuetext={excedido ? `${texto}, acima do limite` : texto}
         className="relative min-w-0 flex-1"
       >
         <div className={cn("overflow-hidden rounded-sm bg-surface-3", ALTURAS[altura])}>

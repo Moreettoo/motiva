@@ -74,7 +74,7 @@ export function BarraSuperior({ trechos }: { trechos: TrechoNaPaleta[] }) {
         "bg-bg/80 px-4 backdrop-blur-md sm:px-6 lg:px-8",
       )}
     >
-      <Link href="/" aria-label="HighwAI — ir para o painel" className="shrink-0 rounded-md md:hidden">
+      <Link href="/" aria-label="HighwAI: ir para o painel" className="shrink-0 rounded-md md:hidden">
         <Marca tamanho={20} comTexto />
       </Link>
 

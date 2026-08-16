@@ -3,7 +3,7 @@
 import { useEffect, useState, type RefObject } from "react";
 
 /**
- * Largura medida do elemento — o SVG e a regua precisam de pixels reais para
+ * Largura medida do elemento, o SVG e a regua precisam de pixels reais para
  * nao escalar a tipografia junto com o desenho.
  *
  * A medida sai de um efeito, nunca do render: ler layout durante o render forca

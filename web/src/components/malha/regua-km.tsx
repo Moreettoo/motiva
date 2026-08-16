@@ -17,7 +17,7 @@ export type SegmentoRegua = {
   kmInicio: number;
   kmFim: number;
   risco: Risco;
-  /** Identifica o trecho no balão e no leitor de tela — normalmente rodovia + sentido. */
+  /** Identifica o trecho no balão e no leitor de tela, normalmente rodovia + sentido. */
   rotulo: string;
   /** Altura estimada e limite do trecho, em cm. O balão lê os dois lado a lado
    *  e o medidor do segmento sai da razão entre eles. */
@@ -67,7 +67,7 @@ function montarMarcas(kmInicio: number, kmFim: number, passo: number): Marca[] {
 }
 
 /**
- * A régua de quilômetro — a metáfora dominante do painel.
+ * A régua de quilômetro, a metáfora dominante do painel.
  *
  * Rodovia é uma linha reta, então a malha é desenhada como faixa graduada em km,
  * não como grade de cartões: é o que revela se os trechos críticos estão perto uns
@@ -187,7 +187,7 @@ export function ReguaKm({
           </div>
         ) : null}
 
-        {/* Leito da via. Fica nu nos vãos entre trechos monitorados — a ausência de
+        {/* Leito da via. Fica nu nos vãos entre trechos monitorados, a ausência de
             dado precisa ser visível, não preenchida. */}
         <div
           role={rotuloAcessivel ? "group" : undefined}

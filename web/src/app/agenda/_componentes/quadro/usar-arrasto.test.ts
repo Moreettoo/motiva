@@ -12,7 +12,7 @@ import {
   type Relogio,
 } from "./usar-arrasto";
 
-/** A pista do quadro num lugar plausível da tela: 1000×700, e não na origem —
+/** A pista do quadro num lugar plausível da tela: 1000×700, e não na origem,
  *  uma caixa em (0,0) esconderia erro de sinal, porque somar zero é inofensivo. */
 const PISTA: Caixa = { top: 200, left: 100, right: 1100, bottom: 900 };
 
@@ -32,7 +32,7 @@ describe("decidirSolta", () => {
     });
   });
 
-  it("sem recusa, alvo igual à origem é um no-op — não solta de verdade", () => {
+  it("sem recusa, alvo igual à origem é um no-op: não solta de verdade", () => {
     expect(decidirSolta("2026-08-12|1", "2026-08-12|1", null)).toEqual({ tipo: "sem-mudanca" });
   });
 
@@ -52,8 +52,8 @@ describe("decidirRevalidacao", () => {
 
   it("só anuncia (sem corrigir estado) quando a recusa não mudou mas há chegada pendente", () => {
     // Cruzar semana para uma célula VÁLIDA: a suposição otimista (recusa
-    // null) se confirma, mas o cruzamento precisa ser anunciado mesmo assim
-    // — sem isto, atravessar semana para um destino válido ficava mudo.
+    // null) se confirma, mas o cruzamento precisa ser anunciado mesmo assim,
+    // sem isto, atravessar semana para um destino válido ficava mudo.
     expect(decidirRevalidacao(null, null, true)).toEqual({ tipo: "anunciar" });
   });
 
@@ -61,7 +61,7 @@ describe("decidirRevalidacao", () => {
     expect(decidirRevalidacao(null, "Esse dia já passou.", true)).toEqual({
       tipo: "corrigir-e-anunciar",
     });
-    // Recusa mudou por um motivo QUALQUER (não só cruzamento de semana) —
+    // Recusa mudou por um motivo QUALQUER (não só cruzamento de semana),
     // corrige de qualquer forma.
     expect(decidirRevalidacao(null, "Essa equipe está desativada e não recebe serviço novo.", false)).toEqual(
       { tipo: "corrigir-e-anunciar" },
@@ -69,14 +69,14 @@ describe("decidirRevalidacao", () => {
   });
 
   it("é sem estado: chamadas repetidas com o MESMO par (recusaAoVivo, recusaFresca) sempre devolvem a mesma decisão", () => {
-    // NÃO reproduz o bug do cache antigo — aquele cache vivia no EFEITO
+    // NÃO reproduz o bug do cache antigo, aquele cache vivia no EFEITO
     // (`usar-arrasto.ts`, num `useRef`), nunca aqui. `decidirRevalidacao` é
     // pura e nunca teve estado escondido para vazar entre chamadas; três
     // travessias com o mesmo par de entrada dão a mesma resposta por
-    // CONSTRUÇÃO — isto é matemática de função pura, não uma sequência de
+    // CONSTRUÇÃO: isto é matemática de função pura, não uma sequência de
     // interação reproduzida. O valor deste teste é fixar essa propriedade
     // (se alguém reintroduzir um cache aqui dentro amanhã, ele quebra), não
-    // provar que o bug do cache está corrigido — essa correção (remover
+    // provar que o bug do cache está corrigido, essa correção (remover
     // `ultimoRevalidado` do efeito) foi verificada por LEITURA DE CÓDIGO,
     // não por cobertura de teste.
     const primeira = decidirRevalidacao(null, "Esse dia já passou.", true);
@@ -135,7 +135,7 @@ describe("insetsDeObstaculos", () => {
   it("vários obstáculos na MESMA borda ficam com o maior", () => {
     // O caso real: uma calha por linha (11 delas) e um cabeçalho por coluna (7).
     // Todos declaram a mesma borda, e a densidade por container query pode
-    // deixar um mais alto que o outro — reservar o menor deixaria o mais alto
+    // deixar um mais alto que o outro, reservar o menor deixaria o mais alto
     // dentro da zona morta, que é o defeito que estamos consertando.
     expect(
       insetsDeObstaculos(PISTA, [
@@ -159,7 +159,7 @@ describe("insetsDeObstaculos", () => {
   it("borda e padding do rolador não inflam o inset além do obstáculo", () => {
     // `getBoundingClientRect` do rolador dá a caixa de BORDA; o grudado cola no
     // scrollport, uns pixels adentro. A distância até o fim dele passaria da
-    // altura dele por essa folga — o limite pela extensão corta isso.
+    // altura dele por essa folga, o limite pela extensão corta isso.
     const deslocado: Caixa = { ...CABECALHO, top: 208, bottom: 260 };
     expect(insetsDeObstaculos(PISTA, [{ bordas: "topo", caixa: deslocado }])).toEqual({
       ...ZERO,
@@ -218,7 +218,7 @@ describe("areaUtil", () => {
     });
   });
 
-  it("eixo colapsado volta à caixa crua — e só aquele eixo", () => {
+  it("eixo colapsado volta à caixa crua, e só aquele eixo", () => {
     // Inset maior que o próprio rolador (medida absurda, ou rolador menor que o
     // cabeçalho): a área invertida deixaria as duas distâncias negativas e
     // travaria a rolagem na velocidade máxima numa direção só.
@@ -254,7 +254,7 @@ describe("velocidadeDeRolagem", () => {
   it("distância negativa não passa da velocidade máxima", () => {
     // O ponteiro ATRÁS do cabeçalho grudado: distância negativa é legítima
     // (aponta para uma célula escondida), mas sem teto a razão passaria de 1 e
-    // 500px atrás dariam ~160px por quadro — a pista fugindo do ponteiro.
+    // 500px atrás dariam ~160px por quadro, a pista fugindo do ponteiro.
     expect(velocidadeDeRolagem(-52, 500)).toBe(-18);
     expect(velocidadeDeRolagem(-500, 500)).toBe(-18);
     expect(velocidadeDeRolagem(500, -500)).toBe(18);
@@ -268,8 +268,8 @@ describe("velocidadeDeRolagem", () => {
     // a 36px dela; `--dia-min` é 6.5rem (104px) e dá 52px na horizontal.
     expect(velocidadeDeRolagem(36, 500)).toBe(0);
     expect(velocidadeDeRolagem(52, 500)).toBe(0);
-    // Onde a faixa termina de verdade: 24 exclusivo, 12px de folga sobre os 36
-    // — o bastante para absorver um refluxo que encurte o cabeçalho no meio do
+    // Onde a faixa termina de verdade: 24 exclusivo, 12px de folga sobre os 36,
+    // o bastante para absorver um refluxo que encurte o cabeçalho no meio do
     // gesto, já que o inset é medido uma vez por gesto (ver `medirInsets`).
     expect(velocidadeDeRolagem(23, 500)).toBe(-1);
   });
@@ -280,8 +280,8 @@ describe("velocidadeDeRolagem", () => {
     // 604 e a primeira linha de equipe visível ocupa [604, 676] (`--altura-linha`,
     // 72px). A pista tem `max-h-[min(78vh,760px)]` e nenhum obstáculo embaixo,
     // então a área útil termina na caixa crua, em 1315.
-    // `velocidadeDeRolagem` não conhece coordenada absoluta — recebe as duas
-    // distâncias —, e é `laco()` que faz esta tradução a cada quadro.
+    // `velocidadeDeRolagem` não conhece coordenada absoluta, recebe as duas
+    // distâncias, e é `laco()` que faz esta tradução a cada quadro.
     const utilTop = 604;
     const utilBottom = 1315;
     const dy = (y: number) => velocidadeDeRolagem(y - utilTop, utilBottom - y);
@@ -290,8 +290,8 @@ describe("velocidadeDeRolagem", () => {
     // de 56px isto devolvia −6, ou seja ~360px por segundo de pista fugindo do
     // ponteiro em cima do alvo que ele estava tentando acertar.
     expect(dy(640)).toBe(0);
-    // A borda de cima da MESMA linha continua rolando — 24 dos 72px, o terço de
-    // cima —, e a rampa acaba antes da metade.
+    // A borda de cima da MESMA linha continua rolando: 24 dos 72px, o terço de
+    // cima, e a rampa acaba antes da metade.
     expect(dy(604)).toBe(-18);
     expect(dy(616)).toBe(-9);
     expect(dy(628)).toBe(0);
@@ -306,7 +306,7 @@ describe("velocidadeDeRolagem", () => {
   });
 
   it("a borda de início vence quando as duas distâncias são curtas", () => {
-    // Rolador mais estreito que duas faixas internas — com 24px isso exige menos
+    // Rolador mais estreito que duas faixas internas, com 24px isso exige menos
     // de 48px de área útil no eixo, mais degenerado que antes, mas alguma direção
     // tem que ganhar e a documentada é a do início.
     expect(velocidadeDeRolagem(8, 8)).toBe(-12);
@@ -334,7 +334,7 @@ function relogioFalso() {
   return {
     relogio,
     /** Avança o relógio e dispara o que venceu. Um efeito que agenda de novo cai
-     *  no próximo `avancar`, não neste — a foto é tirada antes de rodar. */
+     *  no próximo `avancar`, não neste, a foto é tirada antes de rodar. */
     avancar(ms: number) {
       agora += ms;
       for (const [id, tarefa] of [...tarefas].sort((a, b) => a[1].em - b[1].em)) {
@@ -404,7 +404,7 @@ describe("criarDiferidor", () => {
     expect(ditas).toEqual(["Movimento cancelado. O serviço continua onde estava."]);
   });
 
-  it("`cancelar` descarta o pendente — é o que o desmonte chama", () => {
+  it("`cancelar` descarta o pendente: é o que o desmonte chama", () => {
     const t = relogioFalso();
     const falar = vi.fn();
     const d = criarDiferidor(t.relogio, 150);

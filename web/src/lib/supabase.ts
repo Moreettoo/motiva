@@ -3,7 +3,7 @@ import "server-only";
 import { createClient } from "@supabase/supabase-js";
 
 /**
- * Cliente do Supabase — apenas servidor.
+ * Cliente do Supabase, apenas servidor.
  *
  * Usa a service_role e por isso NUNCA pode ser importado de um componente
  * cliente. O `import "server-only"` acima transforma um erro de arquitetura em

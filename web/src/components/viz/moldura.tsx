@@ -21,14 +21,14 @@ const MARGENS_PADRAO: Margens = { topo: 14, direita: 14, baixo: 26, esquerda: 44
  * Esqueleto compartilhado por todo gráfico: título, legenda, medição de largura,
  * `<defs>` de textura e a alternância grafico ↔ tabela.
  *
- * É componente de cliente porque mede o container com ResizeObserver — logo o
+ * É componente de cliente porque mede o container com ResizeObserver, logo o
  * `children` (função) só pode vir de outro componente de cliente. Todos os
  * gráficos desta pasta são de cliente por causa da camada de hover, então isso
  * não custa nada na prática.
  *
  * Convenção de cor em toda a pasta: token fixo entra por `className`
  * (`fill-s1`, `stroke-grid`…) e cor vinda de prop entra por `style`. Nunca por
- * atributo de apresentação — `var()` dentro de `fill="…"` não é substituído de
+ * atributo de apresentação, `var()` dentro de `fill="…"` não é substituído de
  * forma confiável em todo navegador, e a falha é silenciosa (a marca some).
  */
 export function MolduraGrafico({
@@ -52,7 +52,7 @@ export function MolduraGrafico({
   className?: string;
   /** Conteúdo SVG do gráfico. */
   children: (dimensoes: Dimensoes) => ReactNode;
-  /** Camada HTML sobre o SVG — tooltip e rótulo que precisa de truncamento real. */
+  /** Camada HTML sobre o SVG, tooltip e rótulo que precisa de truncamento real. */
   sobreposicao?: (dimensoes: Dimensoes) => ReactNode;
   /** Visão de tabela. Obrigatória quando alguma cor do gráfico fica abaixo de 3:1. */
   tabela?: ReactNode;
@@ -149,7 +149,7 @@ export function MolduraGrafico({
               {/* Canal de textura da skill dataviz. Os ids são globais de
                   propósito: `globals.css` referencia `url(#hachura-45)` literal,
                   então não podem ser sufixados. Com vários gráficos na página o
-                  navegador resolve para o primeiro — e como todas as definições
+                  navegador resolve para o primeiro, e como todas as definições
                   são idênticas, a pintura é a mesma. */}
               <defs>
                 <pattern

@@ -10,7 +10,7 @@ export function Esqueleto({ className }: { className?: string }) {
   );
 }
 
-/** Larguras irregulares — bloco uniforme nao le como texto. */
+/** Larguras irregulares, bloco uniforme nao le como texto. */
 const LARGURAS = ["w-full", "w-11/12", "w-10/12", "w-9/12"];
 
 export function EsqueletoTexto({ linhas = 3 }: { linhas?: number }) {

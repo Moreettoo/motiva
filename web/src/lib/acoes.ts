@@ -32,7 +32,7 @@ export async function mudarStatusAgendamento(
   }
 
   // Aprovar ou concluir sem equipe é o estado que essa trava existe pra
-  // evitar — ver `erroFaltaEquipe`. Descartar e reabrir não têm essa exigência.
+  // evitar, ver `erroFaltaEquipe`. Descartar e reabrir não têm essa exigência.
   if (status === "aprovado" || status === "executado") {
     const { data: atual, error: erroAtual } = await db
       .from("agendamentos")
@@ -102,9 +102,9 @@ async function equipeUtilizavel(equipeId: number, permitirInativa: boolean): Pro
  * Aprova a sugestão da IA, com data e equipe ajustáveis na hora.
  *
  * Existe pra aprovar deixar de ser um clique cego na sugestão: o gestor pode
- * manter a data como a IA sugeriu (mesmo vencida — por isso, ao contrário de
+ * manter a data como a IA sugeriu (mesmo vencida: por isso, ao contrário de
  * `gravarAlocacao`, não há checagem de data passada aqui), mas a equipe não é
- * opcional — ver `erroFaltaEquipe`. Só mexe em quem ainda está "sugerido" —
+ * opcional, ver `erroFaltaEquipe`. Só mexe em quem ainda está "sugerido",
  * pela mesma razão de `gravarAlocacao`: evitar reescrever uma decisão que já
  * saiu da fila.
  */
@@ -150,24 +150,24 @@ const MOTIVO_MAX = 500;
 /**
  * Cria uma roçada que a IA não propôs.
  *
- * NASCE `aprovado`, e isso não é conveniência — é a única forma de a linha
+ * NASCE `aprovado`, e isso não é conveniência, é a única forma de a linha
  * sobreviver ao lote das 06:00. `analisar_lote.py` mantém um agendamento aberto
  * por trecho: se encontra um `sugerido`, REESCREVE a linha no lugar (data,
  * justificativa e prioridade da LLM por cima), e `fechar_obsoletos` descarta
  * todo `sugerido` de trecho com mais de `LIMIAR_FECHAR_DIAS` de folga. Trecho
- * folgado é justamente o caso que se agenda na mão — reclamação de motorista,
- * obra, evento —, então uma roçada manual `sugerido` seria apagada na manhã
+ * folgado é justamente o caso que se agenda na mão: reclamação de motorista,
+ * obra, evento, então uma roçada manual `sugerido` seria apagada na manhã
  * seguinte pela mesma máquina que ela existe para contornar. Em `aprovado` com
  * data futura o lote imprime "data mantida" e não toca: ele não desfaz decisão
  * humana.
  *
- * Consequência aceita: equipe é obrigatória (mesma regra de `aprovarAgendamento`
- * — ver `erroFaltaEquipe`) e o trecho para de receber sugestão da IA enquanto
+ * Consequência aceita: equipe é obrigatória (mesma regra de `aprovarAgendamento`,
+ * ver `erroFaltaEquipe`) e o trecho para de receber sugestão da IA enquanto
  * esta roçada estiver aberta. O segundo é o comportamento que aprovar uma
  * sugestão já tem hoje.
  *
  * `previsao_id` e `modelo_usado` ficam nulos porque nenhuma previsão e nenhum
- * modelo originaram esta decisão. `origem` é quem carrega o fato — ver o
+ * modelo originaram esta decisão. `origem` é quem carrega o fato, ver o
  * comentário de `Origem`, em `types.ts`, para por que não se deduz dos nulos.
  */
 export async function criarRocadaManual(entrada: {
@@ -206,7 +206,7 @@ export async function criarRocadaManual(entrada: {
 
   // A view, e não `ia.trechos`: ela valida a existência do trecho E entrega o
   // `risco` já calculado, que é de onde sai a `prioridade`. A prioridade nunca
-  // vem do gestor — a regra é "risco vem do prazo, não de opinião", e isso não
+  // vem do gestor: a regra é "risco vem do prazo, não de opinião", e isso não
   // muda porque quem agendou foi gente.
   const { data: trecho, error: erroTrecho } = await db
     .from("vw_trecho_status")
@@ -256,7 +256,7 @@ export async function criarRocadaManual(entrada: {
   if (error) {
     // 23505: o índice único parcial `ux_agendamento_aberto_por_trecho`. Chega
     // aqui quando alguém criou o agendamento do mesmo trecho entre a conferência
-    // acima e este insert — a janela de corrida que o índice existe para fechar,
+    // acima e este insert: a janela de corrida que o índice existe para fechar,
     // e a razão de ela virar recusa legível em vez de linha duplicada.
     if (error.code === "23505") {
       return {
@@ -299,7 +299,7 @@ async function gravarAlocacao(
 
   // `.in(status)` + `.maybeSingle()` juntos: sem eles, um id inexistente ou um
   // serviço já executado devolve ok e o cartão fica no lugar novo na tela e no
-  // lugar velho no banco — que é exatamente o que a ação única existe para evitar.
+  // lugar velho no banco, que é exatamente o que a ação única existe para evitar.
   const { data: linha, error } = await db
     .from("agendamentos")
     .update({ data_sugerida: data, equipe_id: equipeId, atualizado_em: new Date().toISOString() })
@@ -328,7 +328,7 @@ export async function alocarAgendamento(
 
 /**
  * Desfazer volta o serviço ao estado anterior, e esse estado pode ser um dia que
- * já passou — 26 dos 62 serviços da fila têm data vencida. Sem esta porta, o
+ * já passou: 26 dos 62 serviços da fila têm data vencida. Sem esta porta, o
  * desfazer morreria justamente nos cartões que mais serão arrastados.
  */
 export async function desfazerAlocacao(
@@ -398,7 +398,7 @@ export async function registrarMedicao(trechoId: number, alturaCm: number, data?
  * Nao existe mais reanalise da malha inteira sob demanda: o lote roda todo dia
  * as 06:00 e a janela de previsao do Open-Meteo e a mesma de 16 dias, entao
  * reprocessar 50 trechos a tarde custava sete minutos para nao mudar quase nada.
- * O caso que pede reanalise pontual e outro — registrar uma medicao nova de
+ * O caso que pede reanalise pontual e outro, registrar uma medicao nova de
  * campo, que muda `altura_atual_cm` e portanto o prazo.
  */
 export async function enfileirarAnaliseDoTrecho(trechoId: number): Promise<Resultado<ExecucaoAnalise>> {

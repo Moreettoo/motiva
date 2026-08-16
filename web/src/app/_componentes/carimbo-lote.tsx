@@ -6,7 +6,7 @@ import { fmt, relativoEmDias } from "@/lib/format";
  * Não é um botão: é a cadência do lote.
  *
  * Existia aqui um "Analisar Malha" que reprocessava os 50 trechos sob demanda.
- * Ele saiu por não ter uso real — o lote roda todo dia às 06:00 e a janela de
+ * Ele saiu por não ter uso real, o lote roda todo dia às 06:00 e a janela de
  * previsão do Open-Meteo é a mesma de 16 dias, então reanalisar à tarde custava
  * sete minutos de execução para mover o crescimento previsto quase nada. A
  * reanálise pontual continua existindo, na página do trecho, que é onde ela

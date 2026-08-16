@@ -49,7 +49,7 @@ const JANELA_DECISAO_DIAS = 7;
 
 /**
  * `ia.agendamentos` acumula: uma linha por trecho a cada execução do lote.
- * Só a mais recente de cada trecho ainda é uma decisão de verdade — as
+ * Só a mais recente de cada trecho ainda é uma decisão de verdade, as
  * anteriores já foram substituídas pela análise seguinte e apareceriam como
  * duplicatas na fila.
  */
@@ -191,8 +191,8 @@ export default async function PaginaPainel() {
 
   /* Verso do card "Crescimento médio": o mesmo cálculo de `montarPainel`
      (média/pico do crescimento mais recente por trecho), só que agrupado por
-     espécie em vez da malha inteira. Ordem fixa de `ESPECIES` — não a do
-     recorte — pela mesma razão de `seriesEspecie`: a cor é da entidade. */
+     espécie em vez da malha inteira. Ordem fixa de `ESPECIES`, não a do
+     recorte, pela mesma razão de `seriesEspecie`: a cor é da entidade. */
   const crescimentoPorEspecie: CrescimentoEspecieDado[] = ESPECIES.map((especie, i) => {
     const doGrupo = trechos.filter((t) => t.especie === especie);
     const valores = doGrupo.map((t) => t.crescimento_cm_dia ?? 0).filter((v) => v > 0);

@@ -21,8 +21,8 @@ const LIMIAR_PX = 8;
 /** Pressão longa que compromete o gesto no toque, sem competir com a rolagem. */
 const PRESSAO_MS = 250;
 /** Faixa que dispara auto-rolagem DENTRO da área útil, e velocidade máxima em px
- *  por quadro. Fora da área útil — o ponteiro atrás de um obstáculo grudado, ou
- *  fora do rolador — não há faixa: a rolagem é a máxima direto. As duas metades
+ *  por quadro. Fora da área útil: o ponteiro atrás de um obstáculo grudado, ou
+ *  fora do rolador, não há faixa: a rolagem é a máxima direto. As duas metades
  *  e a aritmética que fixa os 24px estão em `velocidadeDeRolagem`, no fim deste
  *  arquivo; um número só para as duas era o defeito que isto conserta. */
 const FAIXA_INTERNA_PX = 24;
@@ -55,7 +55,7 @@ type OpcoesArrasto = {
   descrever: (alvo: Alvo, carga: CargaArrasto) => string;
   anunciar: (texto: string) => void;
   aoNavegarSemana: (delta: -1 | 1) => void;
-  /** `false` com o trilho colapsado numa doca fora da tela — ver o mesmo
+  /** `false` com o trilho colapsado numa doca fora da tela, ver o mesmo
    *  parâmetro em `proximoAlvo` (`navegacao.ts`). Default `true`. */
   filaDisponivel?: boolean;
 };
@@ -71,7 +71,7 @@ function roladores(alvo: Element | null): HTMLElement[] {
 }
 
 /* ---------------------------------------------------------------------------
-   `data-obstaculo` — a área útil de um rolador
+   `data-obstaculo`, a área útil de um rolador
    ---------------------------------------------------------------------------
    O atributo marca um elemento GRUDADO (`sticky`/`fixed`) que cobre uma borda
    do rolador em que ele vive e esconde parte da área visível. O valor lista as
@@ -85,11 +85,11 @@ function roladores(alvo: Element | null): HTMLElement[] {
 
    O canto é opcional: o cabeçalho já cobre a faixa de cima inteira e a calha a
    da esquerda, e por borda fica o MAIOR. Quem lê é o rolador em que o elemento
-   está DENTRO — só faz sentido em elemento que gruda na borda de um rolador,
+   está DENTRO: só faz sentido em elemento que gruda na borda de um rolador,
    nunca num que gruda na viewport por cima de outro.
 
    Token desconhecido é ignorado, e sem NENHUM elemento marcado os insets ficam
-   todos em zero — a auto-rolagem volta exatamente ao que era antes disto
+   todos em zero, a auto-rolagem volta exatamente ao que era antes disto
    existir, o que mantém a árvore de pé enquanto os componentes ainda não
    carregam o atributo.
 
@@ -103,7 +103,7 @@ function roladores(alvo: Element | null): HTMLElement[] {
    Descontado o grudado, o ponteiro atrás dele passa a dar distância NEGATIVA, e
    é esse o sinal que a auto-rolagem precisava: quem aponta para o cabeçalho está
    apontando para a célula que ele esconde. A faixa que sobra SOBRE o conteúdo é
-   outra coisa, e é bem menor — ver `FAIXA_INTERNA_PX` e as duas metades de
+   outra coisa, e é bem menor, ver `FAIXA_INTERNA_PX` e as duas metades de
    `velocidadeDeRolagem`. */
 
 const BORDAS_OBSTACULO = ["topo", "baixo", "esquerda", "direita"] as const;
@@ -139,7 +139,7 @@ function coberturaDaBorda(rolador: Caixa, caixa: Caixa, borda: BordaObstaculo): 
 }
 
 /**
- * Quanto cada borda do rolador está coberta — o MAIOR por borda, porque os
+ * Quanto cada borda do rolador está coberta: o MAIOR por borda, porque os
  * obstáculos se repetem: a calha existe em toda linha (11 elementos de mesma
  * largura) e o cabeçalho em toda coluna.
  *
@@ -152,7 +152,7 @@ function coberturaDaBorda(rolador: Caixa, caixa: Caixa, borda: BordaObstaculo): 
  *  - um obstáculo rolado para FORA dá distância negativa e cai para zero;
  *  - `display: none` (a navegação móvel no desktop) dá caixa toda zerada: a
  *    extensão é zero, então o inset é zero mesmo quando a caixa do rolador está
- *    acima da viewport — situação em que só a distância inventaria um número
+ *    acima da viewport, situação em que só a distância inventaria um número
  *    grande, porque `rolador.top` é negativo;
  *  - um rolador com borda ou `padding` empurra o grudado para dentro do próprio
  *    scrollport, e a distância passaria da altura dele por essa folga.
@@ -200,7 +200,7 @@ export function areaUtil(rolador: Caixa, insets: Insets): Caixa {
 }
 
 /**
- * Mede os obstáculos de um rolador. Lê layout — a aritmética pura está em
+ * Mede os obstáculos de um rolador. Lê layout, a aritmética pura está em
  * `insetsDeObstaculos`, e `getBoundingClientRect` (não `offsetHeight`) porque a
  * conta precisa da mesma geometria de viewport de `s.x`/`s.y`: `offsetHeight` é
  * px de layout arredondado e ignora qualquer `transform` de ancestral.
@@ -208,16 +208,16 @@ export function areaUtil(rolador: Caixa, insets: Insets): Caixa {
  * UMA vez por rolador por gesto, guardado em `Vivo.insets`. Não é economia
  * cega: o inset é uma medida RELATIVA (borda do obstáculo menos borda do
  * rolador), e as duas coisas que mudam 60 vezes por segundo durante um arrasto
- * não a mexem — rolar a PÁGINA move rolador e obstáculo juntos, e rolar a PISTA
+ * não a mexem: rolar a PÁGINA move rolador e obstáculo juntos, e rolar a PISTA
  * mantém o obstáculo colado na borda (no quadro o cabeçalho é a primeira linha
  * da grade e a calha a primeira coluna, então elas estão na borda também com a
- * rolagem em zero). Reler 18 retângulos por quadro — 7 cabeçalhos e 11 calhas —
+ * rolagem em zero). Reler 18 retângulos por quadro, 7 cabeçalhos e 11 calhas,
  * mais um `querySelectorAll` numa subárvore de ~200 nós recalcularia uma
  * constante, em cima do `elementsFromPoint` que o mesmo quadro já paga.
  *
- * O que a medida por gesto ERRA: um refluxo no meio do arrasto — girar o
+ * O que a medida por gesto ERRA: um refluxo no meio do arrasto, girar o
  * celular, abrir a doca da fila, a container query trocar a densidade da
- * coluna — muda a altura do cabeçalho, e o inset fica velho até o fim daquele
+ * coluna: muda a altura do cabeçalho, e o inset fica velho até o fim daquele
  * gesto (um a três segundos), com a zona morta errada pela diferença de altura.
  * É aceitável porque o mesmo refluxo já moveu todas as células debaixo do
  * ponteiro: a zona morta uns pixels fora de lugar é o menor dos problemas, e o
@@ -236,7 +236,7 @@ function medirInsets(no: HTMLElement, caixa: Caixa): Insets {
  *
  * `elementsFromPoint` no PLURAL: devolve a pilha inteira em ordem de pintura, o
  * que atravessa o cabeçalho grudado e a barra superior sem precisar mexer no CSS
- * deles. Coordenadas de viewport, então a auto-rolagem sai de graça — um cache
+ * deles. Coordenadas de viewport, então a auto-rolagem sai de graça, um cache
  * de `getBoundingClientRect` ficaria inválido a cada quadro justamente enquanto
  * o quadro rola, que é quando ele mais seria usado.
  */
@@ -245,13 +245,13 @@ function alvoSob(x: number, y: number): Alvo | null {
     const celula = no.closest<HTMLElement>("[data-celula]");
     if (celula?.dataset.celula) return celula.dataset.celula;
     if (no.closest("[data-trilho]")) return "fila";
-    // `data-celula-recusada` NUNCA é um destino de solta válido — é o outro
+    // `data-celula-recusada` NUNCA é um destino de solta válido, é o outro
     // atributo, de propósito (ver o comentário em `celula-equipe.tsx`): uma
     // célula que não aceita solta, ou a linha de "Propostas da IA", carregam
     // aqui a MESMA string que `validar` já sabe recusar (uma `ChaveCelula`
     // de verdade para a primeira, `propostas:${dia}` para a segunda). Sem
     // isto, pairar sobre essas regiões resolvia para `null` e a recusa
-    // nunca chegava a ser DESENHADA — o alvo continuava existindo (a região
+    // nunca chegava a ser DESENHADA, o alvo continuava existindo (a região
     // sob o ponteiro), só não era um alvo QUE ACEITA, e `validar` (chamado
     // de qualquer forma, com este alvo) devolve o motivo certo.
     const recusada = no.closest<HTMLElement>("[data-celula-recusada]");
@@ -285,13 +285,13 @@ export type DecisaoSolta =
 
 /**
  * Decide o que fazer ao CONFIRMAR uma solta por teclado (Enter, ou Espaço de
- * novo enquanto já em `"carregando"`) — pura, sem efeito colateral. Usada
+ * novo enquanto já em `"carregando"`): pura, sem efeito colateral. Usada
  * por `soltarOuAvisar`, dentro de `aoTeclar`.
  *
  * `alvo === origem` é um caso à parte de `recusa`: `validar` aceita voltar
  * para a própria origem de propósito (não seria certo recusar enquanto o
  * gestor só está OLHANDO ao redor com as setas), então a recusa chega
- * `null` nesse caso — mas confirmar mesmo assim dispararia uma escrita
+ * `null` nesse caso, mas confirmar mesmo assim dispararia uma escrita
  * idêntica ao estado atual, com anúncio de sucesso e um "Desfazer" para um
  * no-op (o caminho do ponteiro já guarda contra isto, em `soltar` abaixo).
  */
@@ -305,12 +305,12 @@ export type DecisaoRevalidacao = { tipo: "nada" } | { tipo: "anunciar" } | { tip
 
 /**
  * Decide o que fazer quando a grade muda enquanto um movimento está em
- * `"carregando"` — pura, sem efeito colateral. `chegada` sinaliza que
+ * `"carregando"`: pura, sem efeito colateral. `chegada` sinaliza que
  * acabamos de atravessar semana (Shift+seta ou seta simples na borda) e
  * AINDA não anunciamos onde o cartão pousou: cruzar semana troca dia, equipe
  * e capacidade sem anunciar nada na hora (a grade nova só existe no próximo
  * render), e sem este sinal esse anúncio nunca aconteceria quando o destino
- * se confirma VÁLIDO — a recusa ao vivo, nesse caso, não muda (era `null`
+ * se confirma VÁLIDO: a recusa ao vivo, nesse caso, não muda (era `null`
  * antes do cruzamento, otimista, e continua `null` depois, confirmado).
  */
 export function decidirRevalidacao(
@@ -323,11 +323,11 @@ export function decidirRevalidacao(
 }
 
 /**
- * Cancela o que um gesto deixou pendente — temporizador, rAF, o atributo que
- * trava cursor e seleção — sem tocar em `estado`. Uma cópia só, dois
+ * Cancela o que um gesto deixou pendente: temporizador, rAF, o atributo que
+ * trava cursor e seleção: sem tocar em `estado`. Uma cópia só, dois
  * chamadores: o fim normal do gesto (`fechar`) e o desmonte do componente.
  * `iniciar` também chama, para o gesto ANTERIOR, quando um segundo ponteiro
- * chega antes de o primeiro soltar — sem isto o temporizador do primeiro
+ * chega antes de o primeiro soltar, sem isto o temporizador do primeiro
  * sobrevive à troca e compromete o ponteiro errado quando dispara.
  */
 function limparRecursos(s: Vivo | null): void {
@@ -354,14 +354,14 @@ const RELOGIO: Relogio = {
 export type Diferidor = {
   /** Agenda para `ms` adiante; um `diferir` novo antes do prazo descarta o anterior. */
   diferir: (efeito: () => void) => void;
-  /** Roda agora e DESCARTA o pendente — ver `anunciarAgora`, em `useArrasto`. */
+  /** Roda agora e DESCARTA o pendente: ver `anunciarAgora`, em `useArrasto`. */
   agora: (efeito: () => void) => void;
   cancelar: () => void;
 };
 
 /**
  * Debounce de BORDA DE SAÍDA: emite o último da rajada, nunca o primeiro. Uma
- * instância guarda um agendamento só — é uma vaga, não uma fila, e é isso que
+ * instância guarda um agendamento só: é uma vaga, não uma fila, e é isso que
  * transforma trinta setas por segundo num anúncio no fim.
  *
  * Fábrica em vez de hook para poder ser testada sem React e sem DOM; o relógio
@@ -380,7 +380,7 @@ export function criarDiferidor(relogio: Relogio, ms: number): Diferidor {
       cancelar();
       pendente = relogio.agendar(() => {
         // Zera ANTES de rodar: `pendente != null` significa "há fala
-        // esperando", e um id já disparado não representa mais isso —
+        // esperando", e um id já disparado não representa mais isso,
         // deixá-lo ali faria `agora()` e `cancelar()` mentirem sobre o que
         // existe para descartar.
         pendente = null;
@@ -408,7 +408,7 @@ export function useArrasto({
 
   // Espelho de `estado` para leitura em `aoTeclar` sem entrar no array de
   // deps: durante um arrasto por ponteiro, `laco()` chama `definirEstado` a
-  // ~60 quadros por segundo, e `estado` no array recriaria `aoTeclar` junto —
+  // ~60 quadros por segundo, e `estado` no array recriaria `aoTeclar` junto,
   // o mesmo furo que o comentário abaixo já evita para o próprio `laco`.
   // Atualizado sempre no mesmo lugar em que `estado` muda, nunca à parte.
   const estadoRef = useRef<EstadoArrasto>({ fase: "ocioso" });
@@ -421,22 +421,22 @@ export function useArrasto({
   // callbacks a cada quadro e derrubaria o `memo` dos ~130 cartões.
   const vivo = useRef<Vivo | null>(null);
 
-  /* Sobrevive a `fechar()` — que zera `vivo.current` ANTES de o navegador
+  /* Sobrevive a `fechar()`, que zera `vivo.current` ANTES de o navegador
      sintetizar o `click` do `pointerup`. `engolirClique` roda via
      `onClickCapture` do cartão depois desse `click`, então ler
      `vivo.current?.houveArrasto` ali sempre achava `undefined`: a guarda
      nunca disparava, e todo arrasto por mouse terminava com a gaveta de
-     detalhe abrindo por cima do quadro que acabou de mudar — exatamente o
+     detalhe abrindo por cima do quadro que acabou de mudar, exatamente o
      cenário que `comprometer()` já documenta (capturar o ponteiro só ali
      para não perder o clique).
-     Consumido em `engolirClique` quando o clique cai num botão de detalhe —
+     Consumido em `engolirClique` quando o clique cai num botão de detalhe,
      mas NEM todo fim de gesto passa por ali (solta recusada, solta no vão
      da célula, solta no trilho, `pointercancel`, soltar fora do quadro):
      nesses casos `engolirClique` nunca roda, e limpar só ali deixava o
-     sinal armado até o PRÓXIMO clique num botão de detalhe — inclusive uma
+     sinal armado até o PRÓXIMO clique num botão de detalhe, inclusive uma
      ativação por TECLADO, que sintetiza `click` sem `pointerdown` na alça.
      Por isso `fechar()` também agenda a limpeza, em diferido (ver o
-     `setTimeout` lá) — diferido, e não síncrono ali, porque o `click`
+     `setTimeout` lá): diferido, e não síncrono ali, porque o `click`
      sintético do MESMO gesto ainda precisa ver o sinal armado quando
      chegar. */
   const ultimoGestoArrastou = useRef(false);
@@ -445,7 +445,7 @@ export function useArrasto({
      (ver abaixo). Guardado para poder CANCELAR: sem isto, um timer do gesto
      ANTERIOR ainda pendente dispara depois de `comprometer()` do gesto
      SEGUINTE já ter armado a flag de novo, apagando-a no meio do segundo
-     arrasto — e o clique terminal desse segundo gesto volta a abrir a
+     arrasto, e o clique terminal desse segundo gesto volta a abrir a
      gaveta, que é exatamente o bug que a flag existe para impedir. */
   const temporizadorLimpezaClique = useRef<number | null>(null);
 
@@ -456,7 +456,7 @@ export function useArrasto({
 
   /* A vaga única de fala da região assertiva. Criada na PRIMEIRA fala e não no
      render: escrever em ref durante o render é exatamente o que a regra de refs
-     proíbe, e toda fala sai de evento ou de efeito — nunca de render — então a
+     proíbe, e toda fala sai de evento ou de efeito, nunca de render, então a
      hora de criar sempre chega antes de a primeira precisar dela. */
   const diferidor = useRef<Diferidor | null>(null);
   const obterDiferidor = useCallback(() => {
@@ -468,14 +468,14 @@ export function useArrasto({
 
      `anunciarPasso` é o passo do movimento: a seta, a borda da semana, a
      chegada depois de cruzar semana. Passa pelo debounce porque a seta REPETE
-     com a tecla presa e a região é `assertive`, que interrompe a fala em curso
-     — sem espera, cada anúncio cortava o anterior na primeira sílaba.
+     com a tecla presa e a região é `assertive`, que interrompe a fala em curso,
+     sem espera, cada anúncio cortava o anterior na primeira sílaba.
 
      `anunciarAgora` é o que fecha um ciclo e não faz sentido atrasado: pegar o
      cartão, cancelar, a recusa e o "nada mudou" do Enter. Não é medo de
      PERDER o anúncio (um debounce de saída sempre emite o último); é ordem e
-     latência. São respostas a uma ação deliberada e única — ninguém repete
-     Enter trinta vezes por segundo —, e um passo pendente que falasse 150 ms
+     latência. São respostas a uma ação deliberada e única, ninguém repete
+     Enter trinta vezes por segundo, e um passo pendente que falasse 150 ms
      DEPOIS de "movimento cancelado" descreveria a célula para onde o cartão já
      não vai. Por isso `agora` também descarta o pendente. */
   const anunciarPasso = useCallback(
@@ -497,7 +497,7 @@ export function useArrasto({
        "alocado para quinta…" descrevendo a célula de onde o cartão já saiu. */
     diferidor.current?.cancelar();
     // Diferido, não síncrono: o `click` sintético de um gesto arrastado (se
-    // houver um) é despachado na MESMA tarefa deste `fechar()` — zerar aqui
+    // houver um) é despachado na MESMA tarefa deste `fechar()`, zerar aqui
     // apagaria o sinal ANTES de `engolirClique` (que roda nesse `click`) ter
     // a chance de lê-lo, reabrindo o bug original. `setTimeout(…, 0)`
     // empurra a limpeza para depois dessa tarefa: sobrevive ao `click` deste
@@ -524,7 +524,7 @@ export function useArrasto({
     definirEstado({ fase: "arrastando", carga: s.carga, alvo, recusa, x: s.x, y: s.y });
 
     // Auto-rolagem nos dois eixos. `scroll-behavior: auto` local no container
-    // (globals.css) — o `smooth` global animaria cada quadro deste laço.
+    // (globals.css), o `smooth` global animaria cada quadro deste laço.
     // As distâncias medem contra a ÁREA ÚTIL, não contra a caixa crua: o que
     // está atrás do cabeçalho grudado e da calha não é área onde se solta, e é
     // de lá que sai a distância NEGATIVA que manda rolar na velocidade máxima
@@ -533,7 +533,7 @@ export function useArrasto({
       const caixa = no.getBoundingClientRect();
       // Ainda na fase de LEITURA deste quadro: os retângulos dos obstáculos
       // saem antes do `scrollBy` abaixo, nunca depois. Uma medida por rolador
-      // por gesto — ver `medirInsets` para por que uma basta.
+      // por gesto, ver `medirInsets` para por que uma basta.
       let insets = s.insets.get(no);
       if (!insets) {
         insets = medirInsets(no, caixa);
@@ -548,7 +548,7 @@ export function useArrasto({
       }
     }
 
-    // O laço se rechama por closure — o React Compiler não está ligado neste
+    // O laço se rechama por closure, o React Compiler não está ligado neste
     // projeto (ver `next.config.ts`), então a regra de imutabilidade do
     // compilador não se aplica aqui; é o idioma padrão de loop de rAF autorreferente.
     // eslint-disable-next-line react-hooks/immutability
@@ -562,7 +562,7 @@ export function useArrasto({
 
     // A CAPTURA ENTRA SÓ AQUI. Capturar no `pointerdown` redireciona os eventos
     // de mouse de compatibilidade para quem capturou, e o `click` passa a ter o
-    // quadro como alvo — o cartão nunca o vê e abrir o detalhe some da tela.
+    // quadro como alvo, o cartão nunca o vê e abrir o detalhe some da tela.
     document.documentElement.setPointerCapture?.(s.ponteiroId);
     document.documentElement.dataset.arrastando = "";
 
@@ -578,20 +578,20 @@ export function useArrasto({
       evento.preventDefault();
 
       /* Um movimento por TECLADO em voo (`"carregando"`) é CANCELADO aqui, com
-         anúncio, e não silenciosamente sobrescrito — nem o gesto novo recusado.
+         anúncio, e não silenciosamente sobrescrito, nem o gesto novo recusado.
 
          Por que cancelar e não recusar: o ponteiro é manipulação direta e
          acabou de acontecer, enquanto o movimento por teclado é um estado modal
          que a pessoa pode ter esquecido que abriu (nada na tela grita "há um
          cartão pego"). Recusar a alça deixaria o gesto novo sem resposta
-         nenhuma — "a alça não funciona" —, e é a mesma regra que este bloco já
+         nenhuma, "a alça não funciona", e é a mesma regra que este bloco já
          segue para um segundo PONTEIRO: quem chega depois manda. Não há estado
          novo na máquina: `"carregando"` termina como sempre terminou, por
          `fechar()`.
 
          Por que ANUNCIAR: sem isto o movimento de A desaparecia em silêncio num
-         clique curto na alça de B — curto o bastante para não passar dos 8px,
-         logo sem virar arrasto nenhum —, e quem só ouve a tela não tinha como
+         clique curto na alça de B: curto o bastante para não passar dos 8px,
+         logo sem virar arrasto nenhum, e quem só ouve a tela não tinha como
          saber que o cartão pego deixou de estar pego. `fechar()` é o que zera
          `precisaAnunciarChegada` e o passo pendente do diferidor, que antes
          vazavam para o gesto novo. A ordem (falar, depois fechar) é a mesma do
@@ -608,12 +608,12 @@ export function useArrasto({
       // Um segundo ponteiro pode chegar antes de o primeiro soltar ou
       // cancelar: sem limpar aqui, o temporizador do gesto anterior (ainda
       // não comprometido) sobrevive à troca e comprometeria o ponteiro ERRADO
-      // quando disparasse. Não é suporte a dois dedos — é não vazar recurso.
+      // quando disparasse. Não é suporte a dois dedos, é não vazar recurso.
       limparRecursos(vivo.current);
       // Defensivo: se o `click` sintético do gesto anterior nunca chegou a
       // disparar `engolirClique` (que o consome), não deveria sobreviver até
       // este gesto novo. Cancela também o `setTimeout` de `fechar()` que
-      // zeraria isto de novo mais tarde — ver o comentário na declaração de
+      // zeraria isto de novo mais tarde, ver o comentário na declaração de
       // `temporizadorLimpezaClique` para o cenário que isto evita.
       ultimoGestoArrastou.current = false;
       if (temporizadorLimpezaClique.current != null) {
@@ -696,11 +696,11 @@ export function useArrasto({
 
   /* `Esc` cancela um arrasto por PONTEIRO, não só por teclado. `aoTeclar`
      (mais abaixo) só existe no `onKeyDown` do cartão, e um gesto de
-     mouse/toque não move o foco para lá — `comprometer()` captura o
+     mouse/toque não move o foco para lá, `comprometer()` captura o
      ponteiro, não o foco, e `iniciar()` chama `preventDefault()` no
      `pointerdown`, que em boa parte dos navegadores também suprime o foco
      automático do clique. Sem este ouvinte em `window`, o único jeito de
-     desistir de um arrasto por mouse era soltar sobre um alvo que recusa —
+     desistir de um arrasto por mouse era soltar sobre um alvo que recusa,
      e antes deste conserto isso não desenhava nada (ver o estado de recusa,
      abaixo), então `Esc` era a única saída perceptível e não funcionava. */
   useEffect(() => {
@@ -718,15 +718,15 @@ export function useArrasto({
   // Efeito só de desmontagem: cancela temporizador e rAF pendentes, e solta o
   // atributo de cursor, se o quadro sumir da tela no meio de um arrasto (troca
   // de rota, por exemplo). Sem isto o laço de `requestAnimationFrame`
-  // continuaria se rechamando para sempre — os ouvintes de `window` já
-  // teriam sumido, então nada mais o pararia — e `data-arrastando` ficaria
+  // continuaria se rechamando para sempre, os ouvintes de `window` já
+  // teriam sumido, então nada mais o pararia, e `data-arrastando` ficaria
   // preso no `<html>`, travando cursor e seleção para a próxima página.
   // Separado do efeito acima porque aquele reexecuta a cada troca de callback;
   // cancelar o arrasto nesse momento derrubaria um gesto em andamento à toa.
   // O `setTimeout` de `fechar()` (`temporizadorLimpezaClique`) entra aqui pelo
   // mesmo motivo: sem cancelar, ele ainda dispara depois do desmonte e escreve
   // num ref que sobrevive à troca de página, mas que ninguém mais lê. O passo
-  // pendente do `diferidor` é o terceiro caso do mesmo padrão — ele escreveria
+  // pendente do `diferidor` é o terceiro caso do mesmo padrão, ele escreveria
   // numa região `aria-live` que já saiu da árvore.
   useEffect(() => {
     return () => {
@@ -742,7 +742,7 @@ export function useArrasto({
    *  arrasto. Lê `ultimoGestoArrastou`, não `vivo.current?.houveArrasto`:
    *  `fechar()` já zerou `vivo.current` antes de o navegador sintetizar
    *  este `click` (ver o comentário na declaração do ref). Consome o sinal
-   *  (zera) de qualquer forma — é de um clique só, e não pode engolir o
+   *  (zera) de qualquer forma: é de um clique só, e não pode engolir o
    *  PRÓXIMO clique que não seja precedido de arrasto nenhum. */
   const engolirClique = useCallback((evento: React.MouseEvent) => {
     if (ultimoGestoArrastou.current) {
@@ -757,7 +757,7 @@ export function useArrasto({
      fim/início da semana significa "um dia" e usa `alvoNaBordaDaSemana` mais
      abaixo, não isto): mesmo dia da semana, mesma equipe (ver `realinharAlvo`,
      em `navegacao.ts`, para a aritmética e a razão do bug sem isto).
-     Otimista — a grade nova só existe no próximo render, então não dá para
+     Otimista: a grade nova só existe no próximo render, então não dá para
      validar a chave nova aqui contra dado fresco; ela é determinística
      (±7 dias) e `recusa: null` assume que continua valendo o que valia antes
      de cruzar a semana. Marca `precisaAnunciarChegada` para o efeito de
@@ -779,18 +779,18 @@ export function useArrasto({
   /* A troca de semana em pleno movimento (`realinhar` acima e o ramo
      "semana" abaixo) seta `recusa: null` de forma otimista, ANTES de existir
      grade nova para validar contra. Essa suposição alimenta o DESENHO, não só
-     o Enter: `recusa` vira o anel de aceitação na célula (`realcada`) — uma
+     o Enter: `recusa` vira o anel de aceitação na célula (`realcada`), uma
      suposição errada pinta a célula como válida quando não é (por exemplo,
      "Esse dia já passou." depois de um Shift+← comum, que quase sempre cai
      no passado) e o erro ficaria escondido até a PRÓXIMA seta, que pode
      nunca vir. E mesmo quando a suposição se confirma CERTA, cruzar semana
-     não anunciava nada na região assertiva — quem só ouve a tela não sabia
+     não anunciava nada na região assertiva, quem só ouve a tela não sabia
      onde o cartão foi parar.
      Este efeito corrige os dois: revalida de verdade assim que a grade nova
      chega e, via `decidirRevalidacao` (pura, testada), decide se corrige o
      estado, se só anuncia a chegada (destino confirmado válido), ou se não
      há nada a fazer. `precisaAnunciarChegada` é o único sinal de "há uma
-     chegada pendente" — SEM cache de (alvo, recusa) algum: um cache assim
+     chegada pendente", SEM cache de (alvo, recusa) algum: um cache assim
      comparava contra sessões de arrasto ANTERIORES e podia abortar uma
      correção de verdade só por coincidência de valores entre duas travessias
      de semana diferentes (era exatamente esse o bug de uma versão anterior
@@ -821,7 +821,7 @@ export function useArrasto({
       // cada quadro de um arrasto por ponteiro em andamento (ver `estadoRef`).
       const atual = estadoRef.current.fase === "carregando" ? estadoRef.current : null;
 
-      // Confirma a solta (Espaço de novo, ou Enter) — compartilhado pelos
+      // Confirma a solta (Espaço de novo, ou Enter), compartilhado pelos
       // dois porque os dois tinham o MESMO buraco: nenhum guardava contra
       // destino igual à origem (o caminho do ponteiro guarda, logo abaixo em
       // `soltar`). Sem isto, Espaço-Enter sem mover nenhuma seta disparava
@@ -894,7 +894,7 @@ export function useArrasto({
 
       if (passo.tipo === "semana") {
         aoNavegarSemana(passo.delta);
-        // Seta SIMPLES: "um dia", não "uma semana" — pousa na borda da
+        // Seta SIMPLES: "um dia", não "uma semana", pousa na borda da
         // semana nova (ver `alvoNaBordaDaSemana`), nunca em `realinharAlvo`
         // (que é só para o Shift+seta acima e pularia a semana inteira).
         definirEstado({
@@ -908,7 +908,7 @@ export function useArrasto({
       }
       if (passo.tipo === "borda") {
         // A composição do sufixo é pura (só direção e alvo) e mora em
-        // `sufixoDeBorda`, em `navegacao.ts`, onde o vitest a alcança — ver lá
+        // `sufixoDeBorda`, em `navegacao.ts`, onde o vitest a alcança, ver lá
         // por que são três textos e não dois. `passo.alvo` é o mesmo
         // `atual.alvo` neste ramo (`{tipo: "borda"}` nunca muda o alvo);
         // usa-se o do passo por ser o alvo que a frase descreve.
@@ -919,7 +919,7 @@ export function useArrasto({
       const recusa = validar(atual.carga, passo.alvo);
       definirEstado({ fase: "carregando", carga: atual.carga, alvo: passo.alvo, recusa });
       // A rajada mora aqui: tecla presa em auto-repetição. Note que a RECUSA de
-      // um passo também é passo — ela descreve onde o cartão está pairando, não
+      // um passo também é passo: ela descreve onde o cartão está pairando, não
       // o desfecho de uma confirmação, e atrasar junto mantém as duas na mesma
       // ordem em que aconteceram.
       anunciarPasso(recusa ?? descrever(passo.alvo, atual.carga));
@@ -949,15 +949,15 @@ export function useArrasto({
  *
  * DUAS METADES, e é de propósito que elas não compartilham mais um número só.
  *
- * 1. Distância NEGATIVA — o ponteiro está atrás de um obstáculo grudado (o
+ * 1. Distância NEGATIVA, o ponteiro está atrás de um obstáculo grudado (o
  *    cabeçalho do dia, a calha da equipe) ou fora do rolador. Rola na velocidade
  *    máxima, sem rampa: é o caso inequívoco, porque quem aponta para o grudado
  *    está apontando para a célula que ele esconde, e trazê-la à tela é a única
  *    resposta possível. O teto em `VELOCIDADE_MAX` (o `min(1, …)` abaixo) segura
- *    a razão, que passa de 1 aqui — 500px atrás do obstáculo dariam ~160px por
+ *    a razão, que passa de 1 aqui, 500px atrás do obstáculo dariam ~160px por
  *    quadro, uma pista que foge do ponteiro.
  *
- * 2. Distância POSITIVA, dentro da área útil — o ponteiro está sobre conteúdo em
+ * 2. Distância POSITIVA, dentro da área útil, o ponteiro está sobre conteúdo em
  *    que se SOLTA um cartão, e por isso a faixa aqui tem que ser pequena. O
  *    critério é o centro da célula: é onde as pessoas miram, e ele precisa ficar
  *    fora da faixa. `--altura-linha` é 4.5rem (72px) e é um PISO (`minmax`), então
@@ -972,17 +972,17 @@ export function useArrasto({
  *
  * O que estava errado antes: as duas metades eram os mesmos 56px. Medir contra a
  * área útil está certo, mas na mesma largura a faixa deixou de cobrir o obstáculo
- * e passou a cobrir o CONTEÚDO — 56 dos 72px da primeira linha visível, o centro
+ * e passou a cobrir o CONTEÚDO: 56 dos 72px da primeira linha visível, o centro
  * dela incluído, que rolava a 6px por quadro em vez de esperar a solta. Com
  * `scrollTop` em zero o `scrollBy` é no-op e ninguém sentia; no meio da lista, a
  * pista fugia do ponteiro exatamente onde ele mirava.
  *
- * Onde se aponta para rolar, então: no eixo que tem obstáculo, no obstáculo — 49px
+ * Onde se aponta para rolar, então: no eixo que tem obstáculo, no obstáculo, 49px
  * de cabeçalho e 144px de calha, medidos, e são elementos VISÍVEIS, alvo melhor
  * que uma faixa invisível de 56px descoberta por acidente. Nas bordas sem
  * obstáculo (o fim da pista, embaixo e à direita) sobram os 24px, e é só ali que
  * a mudança custa alcance; em troca é ali que a ÚLTIMA linha inteira parou de
- * fugir do ponteiro — o mesmo defeito da primeira, que ninguém notou porque no
+ * fugir do ponteiro: o mesmo defeito da primeira, que ninguém notou porque no
  * fim da lista o `scrollBy` também costuma ser no-op.
  */
 export function velocidadeDeRolagem(distanciaInicio: number, distanciaFim: number): number {
@@ -992,7 +992,7 @@ export function velocidadeDeRolagem(distanciaInicio: number, distanciaFim: numbe
 }
 
 /** A rampa: 1px por quadro na entrada da faixa, `VELOCIDADE_MAX` na borda da
- *  área útil e em qualquer distância negativa — é o `min(1, …)` que junta a
+ *  área útil e em qualquer distância negativa: é o `min(1, …)` que junta a
  *  segunda metade com a primeira numa conta só. */
 function passoDaBorda(distancia: number): number {
   return Math.round(Math.min(1, (FAIXA_INTERNA_PX - distancia) / FAIXA_INTERNA_PX) * VELOCIDADE_MAX);

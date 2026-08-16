@@ -37,7 +37,7 @@ const verdadeiro = () => true;
 const falso = () => false;
 
 /**
- * Diálogo centralizado — irmão do `PainelLateral`, mesma acessibilidade
+ * Diálogo centralizado: irmão do `PainelLateral`, mesma acessibilidade
  * (portal, foco preso, `Escape`, scroll travado), mas fixo no centro da tela
  * em vez de deslizar da lateral. Pensado para conteúdo de leitura longo: o
  * corpo rola por dentro e o diálogo nunca passa de 85% da altura da tela.
@@ -68,7 +68,7 @@ export function Modal({
   const gatilho = useRef<HTMLElement | null>(null);
   const montado = useSyncExternalStore(semAssinatura, verdadeiro, falso);
 
-  // Guarda quem abriu e devolve o foco ao fechar — sem isso o teclado volta
+  // Guarda quem abriu e devolve o foco ao fechar, sem isso o teclado volta
   // para o topo do documento e o gestor perde o lugar na tela.
   useEffect(() => {
     if (!aberto) return;
@@ -143,7 +143,7 @@ export function Modal({
             className="fixed inset-0 z-40 bg-bg/70 backdrop-blur-[2px]"
           />
 
-          {/* O clique fecha o diálogo em qualquer ponto fora do painel — o
+          {/* O clique fecha o diálogo em qualquer ponto fora do painel, o
               painel para a propagação do próprio clique para não fechar ao
               interagir com o conteúdo. */}
           <div

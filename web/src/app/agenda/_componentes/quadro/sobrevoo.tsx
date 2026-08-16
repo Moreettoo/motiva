@@ -11,8 +11,8 @@ import { fmt } from "@/lib/format";
 import type { ItemAgenda } from "../dados";
 import type { EstadoArrasto } from "./usar-arrasto";
 
-/* O sobrevoo vai para o <body>: o quadro tem overflow nos dois eixos — é o que
-   faz o cabeçalho e a calha grudarem — então qualquer posicionamento interno
+/* O sobrevoo vai para o <body>: o quadro tem overflow nos dois eixos, é o que
+   faz o cabeçalho e a calha grudarem, então qualquer posicionamento interno
    seria recortado na primeira e na última linha. */
 const semAssinatura = () => () => {};
 const verdadeiro = () => true;
@@ -20,7 +20,7 @@ const falso = () => false;
 
 export function Sobrevoo({ estado, item }: { estado: EstadoArrasto; item: ItemAgenda | null }) {
   const montado = useSyncExternalStore(semAssinatura, verdadeiro, falso);
-  // `motion` anima por JavaScript, com valores interpolados por quadro — passa
+  // `motion` anima por JavaScript, com valores interpolados por quadro, passa
   // por fora das regras de `prefers-reduced-motion` em `globals.css` (que só
   // zeram `transition-duration`/`animation-duration` do CSS). Ler o hook é o
   // padrão desta base para todo consumidor de `motion` (ver `notificacoes.tsx`).

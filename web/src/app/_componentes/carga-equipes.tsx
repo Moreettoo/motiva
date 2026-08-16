@@ -6,7 +6,7 @@ import { fmt } from "@/lib/format";
 /**
  * Ocupação por equipe nos próximos 21 dias.
  *
- * Uma medida só, então uma cor só (slot 1) com rótulo direto — o eixo viraria
+ * Uma medida só, então uma cor só (slot 1) com rótulo direto, o eixo viraria
  * ruído. Quem passa de 100% troca para a escala de status, e por isso vem com
  * ícone: cor de status nunca aparece sozinha.
  */

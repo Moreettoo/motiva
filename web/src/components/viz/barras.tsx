@@ -25,7 +25,7 @@ export type BarraDado = {
   valor: number;
   /** Só quando a cor CARREGA significado (risco, status). Barra nominal fica no slot 1. */
   cor?: string;
-  /** Nome de ícone de `@/lib/dominio` — obrigatório junto de `cor` de status. */
+  /** Nome de ícone de `@/lib/dominio`, obrigatório junto de `cor` de status. */
   icone?: string;
 };
 
@@ -37,7 +37,7 @@ const RAIO_PONTA = 4;
 /**
  * Geometria de uma faixa horizontal: rótulo em cima, barra embaixo.
  *
- * A banda sai da altura REAL da área de plotagem, não da constante — assim um
+ * A banda sai da altura REAL da área de plotagem, não da constante, assim um
  * `altura` passado pelo chamador redistribui as faixas em vez de estourar a
  * última para fora do SVG.
  */

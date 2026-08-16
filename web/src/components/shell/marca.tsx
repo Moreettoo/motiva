@@ -1,11 +1,11 @@
 import { cn } from "@/lib/utils";
 
 /**
- * Marca própria do produto — não é o logotipo da Motiva.
+ * Marca própria do produto, não é o logotipo da Motiva.
  *
  * O símbolo é a faixa de domínio vista de cima: duas linhas de asfalto, o
  * tracejado do eixo entre elas e, na margem de baixo, o filete de acento que
- * representa a vegetação — o único elemento que o painel monitora e o único
+ * representa a vegetação, o único elemento que o painel monitora e o único
  * lugar do símbolo em que o limão aparece.
  */
 export function Marca({
@@ -35,7 +35,7 @@ export function Marca({
           strokeWidth="1.75"
           strokeLinecap="round"
         />
-        {/* Eixo tracejado — recessivo, é o miolo da pista. */}
+        {/* Eixo tracejado: recessivo, é o miolo da pista. */}
         <path
           d="M4.5 10.75h3.5M11 10.75h2.5M16.5 10.75h3.5"
           stroke="currentColor"

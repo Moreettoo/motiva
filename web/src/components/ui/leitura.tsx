@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 
 /**
- * Um numero com nome — a unidade de leitura do painel.
+ * Um numero com nome, a unidade de leitura do painel.
  *
  * O numero vem primeiro na hierarquia: rotulo miudo em maiusculas por cima,
  * valor em monoespacado por baixo, nota opcional em tinta fraca. Sao os mesmos

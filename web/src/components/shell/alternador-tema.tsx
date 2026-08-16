@@ -25,7 +25,7 @@ function ehTema(valor: string | null): valor is Tema {
 
 /* O tema mora no localStorage, não no React: quem manda no `data-theme` é o
    script inline que roda antes da primeira pintura. Aqui ele é lido como store
-   externo — assim o componente não precisa sincronizar nada em efeito. */
+   externo, assim o componente não precisa sincronizar nada em efeito. */
 const ouvintes = new Set<() => void>();
 let cache: Tema | null = null;
 
@@ -45,7 +45,7 @@ function avisarTodos() {
   for (const ouvinte of ouvintes) ouvinte();
 }
 
-/** O evento `storage` só chega nas OUTRAS abas — é o que mantém duas janelas
+/** O evento `storage` só chega nas OUTRAS abas, é o que mantém duas janelas
  *  do painel com o mesmo tema. */
 function aoTrocarEmOutraAba(evento: StorageEvent) {
   if (evento.key !== CHAVE) return;
@@ -107,7 +107,7 @@ export function AlternadorTema() {
 
   return (
     /* O balão do Menu abre para baixo por padrão, e este gatilho vive no rodapé
-       da lateral — a poucos pixels do fim da tela. A variante inverte a âncora
+       da lateral, a poucos pixels do fim da tela. A variante inverte a âncora
        sem tocar na primitiva compartilhada. */
     <div className="[&_[role=menu]]:top-auto [&_[role=menu]]:bottom-full [&_[role=menu]]:mt-0 [&_[role=menu]]:mb-1 [&_[role=menu]]:origin-bottom">
       <Menu

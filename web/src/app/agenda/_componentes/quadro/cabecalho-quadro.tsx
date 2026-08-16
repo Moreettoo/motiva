@@ -15,7 +15,7 @@ import type { Janela } from "../dados";
  * O topo do quadro: navegar a semana, ler a semana, ver o que está errado, e os
  * dois controles que governam o quadro.
  *
- * Existe como arquivo próprio por duas razões. Uma é tamanho — `quadro-semana`
+ * Existe como arquivo próprio por duas razões. Uma é tamanho, `quadro-semana`
  * já carrega o arrasto, o roving tabindex e as regiões vivas, e não precisa
  * também do cabeçalho. A outra é que este é o lugar para onde vieram morar
  * números que antes eram uma FAIXA de quatro mostradores (`resumo.tsx`,
@@ -23,9 +23,9 @@ import type { Janela } from "../dados";
  * quadro desenha, então são a legenda dele, não um painel à parte.
  *
  * O que NÃO veio junto, e por quê:
- *  - "equipes mobilizadas 8 de 10" — o quadro já mostra, nas linhas sem cartão.
+ *  - "equipes mobilizadas 8 de 10": o quadro já mostra, nas linhas sem cartão.
  *    Um número que repete o que está desenhado a dez centímetros não informa.
- *  - "críticos sem data 0" — virou `criticosSemData`, que só aparece quando é
+ *  - "críticos sem data 0": virou `criticosSemData`, que só aparece quando é
  *    maior que zero. Ocupar um quarto de faixa para dizer "nada errado" é o
  *    oposto de um alerta.
  *
@@ -35,7 +35,7 @@ import type { Janela } from "../dados";
  * pode aparecer no quadro e nomear a faixa seria prometer uma cor que não vem.
  */
 
-/** As faixas que podem aparecer num cartão do quadro. `baixa` fica de fora — ver
+/** As faixas que podem aparecer num cartão do quadro. `baixa` fica de fora, ver
  *  o comentário acima. Escrita à mão e não derivada de `ORDEM_RISCO` de
  *  propósito: derivar com um `.filter()` esconderia a decisão dentro de uma
  *  expressão, e esta lista é uma afirmação sobre o domínio. */
@@ -58,27 +58,27 @@ export function CabecalhoQuadro({
   janela: Janela;
   hoje: string;
   /** Serviços com data na semana visível, em TODO status que o filtro deixou
-   *  passar — o mesmo conjunto que a grade desenha, e por isso conferível
+   *  passar: o mesmo conjunto que a grade desenha, e por isso conferível
    *  contando cartões. Já contou só os em aberto, e com "Executado" ligado
    *  anunciava "0 roçadas" sobre uma semana cheia de cartões. */
   rocadas: number;
   km: number;
   /** Da malha inteira, não da semana: o filtro escolhe o que olhar e não pode
    *  decidir se o problema existe. Por isso este número navega em vez de só
-   *  informar — ver `aoIrParaAtrasados`. */
+   *  informar, ver `aoIrParaAtrasados`. */
   totalAtrasados: number;
   semanaAtraso: string | null;
   /** Trechos de risco crítico sem nenhum agendamento em aberto. Também da malha
    *  inteira, e por isso leva para `/malha`, que é onde o problema se resolve. */
   criticosSemData: number;
-  /** `<Controles>` — filtro de status e destaque de equipe. Vem como nó e não
+  /** `<Controles>`, filtro de status e destaque de equipe. Vem como nó e não
    *  como props porque este componente não tem nada a dizer sobre eles: só
    *  reserva o canto direito. */
   controles: React.ReactNode;
   /** O botão que abre a criação manual, pelo mesmo contrato de `controles`.
    *  Nó separado e não junto deles porque são coisas diferentes: os controles
    *  mudam o que se VÊ, este muda o que EXISTE. Ficam no mesmo canto, e o
-   *  primeiro na ordem de leitura e de Tab é o que cria — a ação de escrita
+   *  primeiro na ordem de leitura e de Tab é o que cria, a ação de escrita
    *  não deve estar atrás de três filtros. */
   acoes: React.ReactNode;
   aoNavegarSemana: (delta: -1 | 1) => void;
@@ -99,7 +99,7 @@ export function CabecalhoQuadro({
               a própria pessoa acabou de acionar (‹, ›, Hoje, ou uma coluna do
               mini-mapa), o foco permanece no botão e o passo do movimento já
               narra a chegada. Viva, ela só competia com as duas regiões vivas do
-              quadro — um Shift+seta durante um movimento por teclado disparava
+              quadro, um Shift+seta durante um movimento por teclado disparava
               três anúncios de uma vez. */}
           <p className="tnum min-w-0 font-mono text-sm text-ink">
             {fmt.dataCurta(janela.inicio)} – {fmt.dataMedia(janela.fim)}
@@ -127,7 +127,7 @@ export function CabecalhoQuadro({
 
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-6 gap-y-2">
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
-          {/* A legenda numérica da semana — o que sobrou, com uso, da faixa de
+          {/* A legenda numérica da semana: o que sobrou, com uso, da faixa de
               quatro mostradores. Texto corrido e não cartões: são duas medidas
               do mesmo conjunto que está desenhado logo abaixo, e cartão daria a
               elas o peso de um indicador independente. */}
@@ -170,7 +170,7 @@ export function CabecalhoQuadro({
             // As duas bandas do mini-mapa e a hachura de excesso entram na MESMA
             // linha das faixas de risco. Eram um bloco separado logo abaixo da
             // faixa de 28 dias, mais duas frases explicando o que já está dito
-            // aqui — e as duas legendas respondem à mesma pergunta ("o que esta
+            // aqui, e as duas legendas respondem à mesma pergunta ("o que esta
             // cor quer dizer?"), então lidas juntas custam menos que lidas em
             // dois lugares.
             { rotulo: "Com equipe", cor: "var(--ink)" },

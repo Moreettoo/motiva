@@ -130,7 +130,7 @@ export function Conversa({ sugestoes, escopo }: { sugestoes: string[]; escopo: n
     <section aria-label="Conversa" className="flex w-full min-w-0 min-h-0 flex-1 flex-col">
       {/* A altura real vem de cima (`Shell` → página → esta seção); aqui só
           resta decidir quem cresce. O histórico rola sozinho, dentro do seu
-          próprio espaço — o campo de pergunta abaixo não se move. */}
+          próprio espaço, o campo de pergunta abaixo não se move. */}
       <div className="min-h-0 flex-1 overflow-y-auto scroll-thin">
         {turnos.length === 0 && (
           <EstadoVazio
@@ -179,7 +179,7 @@ export function Conversa({ sugestoes, escopo }: { sugestoes: string[]; escopo: n
       </div>
 
       {/* Fora da área que rola: o campo de pergunta fica sempre à vista,
-          abaixo do histórico, sem precisar de `sticky` — a seção acima já é
+          abaixo do histórico, sem precisar de `sticky`, a seção acima já é
           quem rola por dentro do próprio espaço. */}
       <div className="mt-6 shrink-0 border-t border-border bg-bg pt-4 pb-3 md:pb-4">
         {sugestoes.length > 0 && (

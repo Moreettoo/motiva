@@ -68,7 +68,7 @@ function montar(ags: AgendamentoDetalhado[]): Grade {
 }
 
 /** Como `useFocoGrade` chama a gaveta de detalhe: `selecionado` NÃO é entrada
- *  de `decidirCartaoAtivo` — ele chega em `anterior`, uma vez por mudança, via
+ *  de `decidirCartaoAtivo`: ele chega em `anterior`, uma vez por mudança, via
  *  `adotarSelecionado`. `selecionadoVisto` default `null` é o render em que a
  *  gaveta ACABOU de passar a mostrar aquele id (o caso de `?ag=` na primeira
  *  pintura); passar o mesmo valor de `selecionado` simula a gaveta já aberta há
@@ -90,7 +90,7 @@ function decidir(grade: Grade, p: Entradas): number | null {
       anterior: p.anterior,
       selecionado: p.selecionado,
       selecionadoVisto: p.selecionadoVisto ?? null,
-      // O critério do QUADRO: um cartão montado NO QUADRO (célula de equipe) —
+      // O critério do QUADRO: um cartão montado NO QUADRO (célula de equipe),
       // o mesmo conjunto contra o qual a decisão já valida um alvo, e o mesmo
       // de onde sai o padrão.
       elegiveis: idsRenderizados,
@@ -105,7 +105,7 @@ function decidir(grade: Grade, p: Entradas): number | null {
  *  da gaveta (filtrada por `idsElegiveisNoTrilho`) → decisão. O resultado é o
  *  que `TrilhoFila` recebe de fato na prop `idAtivo`.
  *
- *  Havia um terceiro elo — um desempate contra a linha "Propostas da IA", que
+ *  Havia um terceiro elo: um desempate contra a linha "Propostas da IA", que
  *  anulava o ativo do trilho quando o mesmo serviço montava nas duas regiões.
  *  A linha saiu do quadro e não existe mais gêmeo para desempatar. */
 function ativoDoTrilho(
@@ -128,7 +128,7 @@ function ativoDoTrilho(
 /* Os fixtures de precedência abaixo dão equipe aos DOIS serviços, e isso é
    requisito e não detalhe: eles falam sobre qual cartão do QUADRO ganha o tab
    stop, então os dois ids precisam ter cartão no quadro. Antes bastava o id 1
-   ter data dentro da semana — sem equipe, ele montava na linha "Propostas da
+   ter data dentro da semana: sem equipe, ele montava na linha "Propostas da
    IA" e era candidato legítimo. A linha saiu, e um serviço sem equipe passou a
    morar só no trilho: mantido como estava, o fixture testaria a precedência com
    um id que a região nem considera, e passaria pelo motivo errado. */
@@ -142,7 +142,7 @@ describe("decidirCartaoAtivo", () => {
   });
 
   it("na MUDANÇA do selecionado (gaveta abrindo), ele é adotado por cima do anterior", () => {
-    // Nome corrigido: não é "o selecionado vence sobre o anterior" em geral —
+    // Nome corrigido: não é "o selecionado vence sobre o anterior" em geral,
     // vence só no render em que a gaveta passa a mostrá-lo, que é o único
     // trabalho dele. É o que garante que o Tab volte PARA ELE quando a gaveta
     // fechar, em vez de para o primeiro cartão da tela.
@@ -157,7 +157,7 @@ describe("decidirCartaoAtivo", () => {
     // O defeito: `selecionado` é o `?ag=` da URL e fica IGUAL por muitos
     // renders. Pesando mais que o sticky, ele revertia cada `onFocus` no MESMO
     // render (`setFocoId` escrevia, o recálculo empurrava de volta) e o tab
-    // stop não saía do cartão da gaveta — justo quando a pessoa está andando
+    // stop não saía do cartão da gaveta, justo quando a pessoa está andando
     // entre cartões para comparar com o detalhe aberto.
     const grade = montar([
       agendamento({ id: 1, data: "2026-08-11", equipeId: 1 }),
@@ -217,7 +217,7 @@ describe("decidirCartaoAtivo", () => {
     expect(decidir(grade, { anterior: null, emVoo: null, selecionado: null })).toBe(1);
   });
 
-  it("serviço sem equipe com data NA semana não entra no quadro — é só da fila", () => {
+  it("serviço sem equipe com data NA semana não entra no quadro: é só da fila", () => {
     // O caso que a linha "Propostas da IA" desenhava e que virava um segundo
     // cartão do mesmo serviço na mesma tela. Agora ele existe num lugar só, e
     // este teste ancora essa fronteira: as duas datas caem dentro da janela
@@ -241,7 +241,7 @@ describe("decidirCartaoAtivo", () => {
     // data (2026-08-12) está na janela VELHA. Simula a troca de semana
     // remontando a grade para uma janela em que esse item não aparece mais.
     const semanaVelha = montar([agendamento({ id: 2, data: "2026-08-12", equipeId: 1 })]);
-    expect(decidir(semanaVelha, { anterior: null, emVoo: null, selecionado: 2 })).toBe(2); // existe na semana velha — ok.
+    expect(decidir(semanaVelha, { anterior: null, emVoo: null, selecionado: 2 })).toBe(2); // existe na semana velha, ok.
 
     const itensProximaSemana = montarItens({
       agendamentos: [agendamento({ id: 3, data: "2026-08-20", equipeId: 1 })],
@@ -255,7 +255,7 @@ describe("decidirCartaoAtivo", () => {
       janela: montarJanela("2026-08-20"),
       hoje,
     });
-    // O id 2 (selecionado) não existe na grade nova — precisa cair no
+    // O id 2 (selecionado) não existe na grade nova, precisa cair no
     // padrão da grade nova (id 3), não ficar preso a um id fantasma.
     expect(decidir(semanaNova, { anterior: null, emVoo: null, selecionado: 2 })).toBe(3);
   });
@@ -263,7 +263,7 @@ describe("decidirCartaoAtivo", () => {
   it("um id cujo ÚNICO cartão está no trilho não é ativo do quadro por nenhuma das três portas", () => {
     // O defeito, pelos três gatilhos que levam a ele. O id 1 não tem equipe e
     // sua data (2026-09-01) cai fora da janela visível (2026-08-10 a
-    // 2026-08-16): não vira proposta, e sem equipe nunca ocupa célula — o único
+    // 2026-08-16): não vira proposta, e sem equipe nunca ocupa célula, o único
     // cartão dele está no trilho. Enquanto `idsDoQuadro` incluía a fila, esse
     // id passava no PRIMEIRO ramo de `decidirCartaoAtivo`, o padrão nunca
     // rodava, e nenhum cartão do quadro casava `item.id === idAtivo`: as 7
@@ -275,20 +275,20 @@ describe("decidirCartaoAtivo", () => {
       agendamento({ id: 2, data: "2026-08-12", equipeId: 1 }),
     ]);
     expect([...idsDoQuadro(grade)]).toEqual([2]); // a fila não é do quadro
-    // (a) sticky memorizado — o caso que persistia entre renders.
+    // (a) sticky memorizado, o caso que persistia entre renders.
     expect(decidir(grade, { anterior: 1, emVoo: null, selecionado: null })).toBe(2);
     // (b) primeira visita: sem sticky nenhum, o padrão não pode escolher
-    //     `grade.fila[0]` — e aqui a fila inteira é esse id.
+    //     `grade.fila[0]`, e aqui a fila inteira é esse id.
     expect(grade.fila.map((i) => i.id)).toEqual([1]);
     expect(decidir(grade, { anterior: null, emVoo: null, selecionado: null })).toBe(2);
     // (c) a gaveta abrindo nesse item: a adoção é recusada por inelegibilidade
     //     na região e o padrão do quadro prevalece. O cartão do trilho segue
-    //     alcançável por lá — é a região dele que carrega essa parada de Tab.
+    //     alcançável por lá, é a região dele que carrega essa parada de Tab.
     expect(decidir(grade, { anterior: null, emVoo: null, selecionado: 1 })).toBe(2);
   });
 
   it("o corte de exibição do trilho não é assunto do quadro", () => {
-    // `idsDoQuadro` só conhece `grade`, e as células não têm teto de exibição —
+    // `idsDoQuadro` só conhece `grade`, e as células não têm teto de exibição,
     // então o `TETO_TRILHO` não pode nem em tese tirar um cartão do quadro. O
     // id 1 tem célula de verdade, e é isso que decide.
     const grade = montar([
@@ -306,7 +306,7 @@ describe("decidirCartaoAtivo", () => {
   });
 
   it("semana vazia com o trilho cheio: o ativo do QUADRO não pode ser um id do trilho", () => {
-    // Item 1 está SÓ no trilho (sem equipe, data fora da janela visível — não
+    // Item 1 está SÓ no trilho (sem equipe, data fora da janela visível, não
     // vira proposta, e sem equipe nunca ocupa célula). Este caso passava antes
     // só por causa de um gate de layout (`filaDisponivel: false`, a doca do
     // trilho fechada no estreito, que deixa o nó `inert`). Agora ele vale
@@ -318,7 +318,7 @@ describe("decidirCartaoAtivo", () => {
   it("doca aberta (ou largura ampla): esse mesmo item CONTINUA sem ser o padrão do quadro", () => {
     // A expectativa deste teste estava invertida: ele afirmava `.toBe(1)` sob o
     // nome "o mesmo item volta a ser o padrão do quadro", codificando o bug.
-    // O id 1 não tem UM cartão no quadro — chamá-lo de padrão da região era
+    // O id 1 não tem UM cartão no quadro, chamá-lo de padrão da região era
     // exatamente o que zerava a parada de Tab das 7 colunas e das 10 raias, em
     // toda semana alcançada pelo `›` que estivesse vazia. O par com o teste
     // acima continua sendo o ponto: o resultado é o mesmo com a doca aberta ou
@@ -327,7 +327,7 @@ describe("decidirCartaoAtivo", () => {
     //
     // `null` aqui é honesto e é o que passou a ser garantido: nada no quadro
     // para focar. A rede desse caso é do DOM (spec §5, um nó do quadro com
-    // `tabIndex={0}`), não deste cálculo — se ela cair, a região fica sem
+    // `tabIndex={0}`), não deste cálculo, se ela cair, a região fica sem
     // parada de Tab por ausência real de conteúdo, não por um id fantasma.
     const grade = montar([agendamento({ id: 1, data: "2026-09-01" })]);
     expect(
@@ -343,14 +343,14 @@ describe("decidirCartaoAtivo", () => {
 
 describe("decidirCartaoAtivoTrilho", () => {
   // O trilho é uma região própria (spec §5): precisa do seu PRÓPRIO ativo,
-  // independente do que o "quadro" (as células) resolveu — ver o comentário em
+  // independente do que o "quadro" (as células) resolveu, ver o comentário em
   // `useFocoGrade` sobre por que um sticky global único deixava uma das duas
   // regiões sem tab stop nenhum.
 
   it("o padrão é o topo da fila, esteja a data dentro ou fora da semana", () => {
     // Este teste guarda uma simplificação, e por isso as duas datas importam: o
     // id 1 cai DENTRO da janela visível e o id 2 fora. Enquanto existia a linha
-    // "Propostas da IA", essa diferença decidia o resultado — o id 1 era gêmeo,
+    // "Propostas da IA", essa diferença decidia o resultado: o id 1 era gêmeo,
     // o padrão tinha de pulá-lo e a resposta era 2. Sem a linha, os dois moram
     // só no trilho e o topo da fila vence, como em qualquer lista.
     const grade = montar([
@@ -365,7 +365,7 @@ describe("decidirCartaoAtivoTrilho", () => {
   it("o trilho tem tab stop mesmo com toda a fila dentro da semana visível", () => {
     // O caso que devolvia `null` antes: as duas datas caem na janela, então os
     // dois cartões eram gêmeos das Propostas, o desempate anulava o ativo e o
-    // trilho ficava com ZERO parada de Tab — no caso COMUM, porque a fila vem
+    // trilho ficava com ZERO parada de Tab: no caso COMUM, porque a fila vem
     // por urgência e o mais urgente costuma estar na semana à vista.
     const grade = montar([
       agendamento({ id: 1, data: "2026-08-11" }),
@@ -387,7 +387,7 @@ describe("decidirCartaoAtivoTrilho", () => {
 
   it("ignora emVoo que não pertence ao trilho (item com equipe) e cai no padrão", () => {
     // Item 2 TEM equipe: nunca aparece em `filaVisivel`. Um sticky global
-    // compartilhado com o "quadro" adotaria o id 2 aqui mesmo assim — o bug
+    // compartilhado com o "quadro" adotaria o id 2 aqui mesmo assim, o bug
     // original. O cálculo escopado ao trilho recusa e cai no primeiro item
     // que de fato mora na fila.
     const grade = montar([
@@ -452,7 +452,7 @@ describe("adotarSelecionado", () => {
   it("declina quando o id não é elegível na região, e não tenta de novo depois", () => {
     // Um id sem cartão alcançável naquela região não entra no sticky dela. E
     // como a marca de "já visto" é escrita de todo jeito, a adoção não volta a
-    // ser oferecida em render nenhum — ela é um evento, e o evento passou.
+    // ser oferecida em render nenhum: ela é um evento, e o evento passou.
     expect(
       adotarSelecionado({
         anterior: 7,
@@ -532,7 +532,7 @@ describe("a cadeia do trilho com a gaveta de detalhe", () => {
   it("um selecionado da GRADE não apaga o cartão que a pessoa focou no trilho", () => {
     // O pior sintoma do defeito. Item 2 tem equipe, logo NUNCA está em
     // `filaVisivel`: com `selecionado` na precedência, o trilho não o achava,
-    // caía no PADRÃO e jogava a parada de Tab para o primeiro item da fila —
+    // caía no PADRÃO e jogava a parada de Tab para o primeiro item da fila,
     // apagando o cartão 3, que a pessoa acabou de focar ali para comparar com
     // o detalhe aberto. A elegibilidade por região recusa a adoção e o sticky
     // sobrevive.
@@ -547,7 +547,7 @@ describe("a cadeia do trilho com a gaveta de detalhe", () => {
 
   it("com a gaveta aberta há vários renders, o trilho segue o onFocus", () => {
     // Mesmo defeito da região "quadro", visto do trilho: aqui o id da gaveta
-    // até mora na fila, então o congelamento seria silencioso — o tab stop
+    // até mora na fila, então o congelamento seria silencioso, o tab stop
     // simplesmente não sairia do cartão 1.
     const grade = montar([
       agendamento({ id: 1, data: "2026-09-01" }),
@@ -569,13 +569,13 @@ describe("a cadeia do trilho com a gaveta de detalhe", () => {
   it("a gaveta abrindo num item da fila cuja data cai na semana visível é adotada", () => {
     // Este caso mudou de resposta com a saída da linha "Propostas da IA", e a
     // mudança é a correção. O id 1 cai na semana visível: ele montava no trilho
-    // E nas Propostas, e adotá-lo no trilho era pior que não adotar — o
+    // E nas Propostas, e adotá-lo no trilho era pior que não adotar, o
     // desempate o anulava no mesmo render e o trilho ficava com ZERO paradas.
     // Por isso o resultado era 2, o sticky anterior.
     //
     // Sem a linha, o id 1 tem um cartão só, no trilho, e é lá que a gaveta deve
     // levar o foco. A segunda expectativa é o outro lado: o quadro NÃO adota o
-    // mesmo id, porque ele não tem cartão em célula nenhuma — as duas regiões
+    // mesmo id, porque ele não tem cartão em célula nenhuma, as duas regiões
     // decidindo o mesmo `selecionado` na mesma passada, cada uma com o seu
     // critério, que continua sendo o ponto do desenho.
     const grade = montar([

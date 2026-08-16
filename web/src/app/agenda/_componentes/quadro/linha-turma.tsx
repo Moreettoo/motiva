@@ -12,7 +12,7 @@ import type { Alvo, CargaArrasto } from "./usar-arrasto";
  * A calha grudada com o nome da equipe, mais as 7 células da semana.
  *
  * Isolada de `quadro-semana.tsx` para o arquivo principal caber num tamanho
- * revisável — a lista de props é grande porque a grade é plana (sem
+ * revisável, a lista de props é grande porque a grade é plana (sem
  * `subgrid`), então cada linha recebe tudo que suas células e cartões
  * precisam de fora.
  */
@@ -37,12 +37,12 @@ export function LinhaTurma({
 }: {
   linha: LinhaEquipe;
   /** ESTA é a equipe escolhida no seletor de destaque (`controles.tsx`): a
-   *  linha inteira recebe realce. Nunca esconde nem desabilita nenhuma outra —
+   *  linha inteira recebe realce. Nunca esconde nem desabilita nenhuma outra,
    *  toda célula continua sendo destino válido de solta.
    *
    *  Era o inverso (`atenuada`, nas nove OUTRAS linhas) e não funcionava: a
    *  ênfase reduzida era uma veladura preta a 3%, que no tema escuro produz
-   *  1,007:1 de diferença — invisível, em qualquer alfa (a 20% ainda é
+   *  1,007:1 de diferença, invisível, em qualquer alfa (a 20% ainda é
    *  1,030:1). Realçar uma linha com matiz custa zero contraste e se vê nos
    *  dois temas; ver `linhaDestacada`, em `dados.tsx`. */
   destacada: boolean;
@@ -71,15 +71,15 @@ export function LinhaTurma({
     <>
       {/* NÃO é `opacity-60` no bloco inteiro: essa opacidade compõe o TEXTO
           contra o fundo também, e `text-ink-3` (a linha de baixo) sobre
-          `surface` já mede 4,99:1 no claro e 4,87:1 no escuro — quase no piso
+          `surface` já mede 4,99:1 no claro e 4,87:1 no escuro, quase no piso
           de 4,5:1 para texto pequeno. A 60% o mesmo par desaba para 2,36:1 e
           2,53:1. Em vez disso, uma veladura por baixo do texto (mesmo truque de
           `CelulaEquipe`, mesma variável `--velatura` e a MESMA opacidade de 3%,
           pelo motivo medido lá) escurece só o retângulo; o texto continua opaco
-          por cima e o par fica em 4,66:1 no claro e 4,90:1 no escuro —
+          por cima e o par fica em 4,66:1 no claro e 4,90:1 no escuro,
           escurecer o fundo custa contraste no claro e ganha no escuro, onde o
           texto é o lado claro do par. A borda diminui junto, via modificador
-          `/60` do Tailwind — que baixa o alfa só da borda, sem tocar no texto,
+          `/60` do Tailwind, que baixa o alfa só da borda, sem tocar no texto,
           ao contrário do `opacity` do elemento. */}
       <div
         /* A calha gruda na borda esquerda da pista e come 144px dela. Sem este
@@ -97,14 +97,14 @@ export function LinhaTurma({
         {/* O trilho de `--accent` é o sinal forte, e o único que não custa
             nada: 4,82:1 sobre a superfície no claro e 12,31:1 no escuro, bem
             acima do piso de 3:1 para elemento gráfico, e não toca texto nenhum.
-            Fica na calha porque ela é `sticky left-0` — o realce continua
+            Fica na calha porque ela é `sticky left-0`, o realce continua
             visível com a pista rolada para qualquer dia da semana, que é
             justamente quando achar a linha da equipe custa mais.
             `bg-accent-soft` na calha é seguro para os dois textos abaixo:
             medido, `ink` dá 17,33:1 no claro e 13,79:1 no escuro; `ink-2`
             (para onde a segunda linha sobe quando destacada) dá 5,69:1 e
             6,84:1. Em `ink-3` a segunda linha cairia para 3,98:1 no escuro,
-            abaixo do piso — por isso ela sobe um passo, e só aqui. */}
+            abaixo do piso: por isso ela sobe um passo, e só aqui. */}
         {destacada ? (
           <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-accent" />
         ) : null}

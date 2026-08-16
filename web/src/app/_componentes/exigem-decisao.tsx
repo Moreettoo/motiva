@@ -15,7 +15,7 @@ import type { Equipe, Risco } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export type ItemDecisao = {
-  /** Id do agendamento — é ele que muda de status, não o trecho. */
+  /** Id do agendamento: é ele que muda de status, não o trecho. */
   id: number;
   trechoId: number;
   rodovia: string;
@@ -164,7 +164,7 @@ function PainelAprovar({
  *
  * A lista some do jeito otimista assim que a decisão sai, porque a Server Action
  * revalida a rota e a linha não voltaria de qualquer jeito. Se a escrita falhar,
- * o item volta para a fila e a notificação diz o motivo — o gestor não pode
+ * o item volta para a fila e a notificação diz o motivo, o gestor não pode
  * achar que aprovou algo que o banco recusou.
  */
 export function ExigemDecisao({ itens, equipes }: { itens: ItemDecisao[]; equipes: Equipe[] }) {

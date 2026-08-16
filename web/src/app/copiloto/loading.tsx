@@ -11,7 +11,7 @@ export default function CarregandoCopiloto() {
 
       {/* Silhueta do cabeçalho, não o CabecalhoPagina de verdade: ele renderiza
           um <h1>, e durante o streaming o esqueleto e o conteúdo convivem no
-          mesmo documento — a página era servida com dois <h1> "Copiloto". */}
+          mesmo documento, a página era servida com dois <h1> "Copiloto". */}
       <div className="flex flex-col gap-5 border-b border-border pb-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <Esqueleto className="h-11 w-44" />

@@ -1,5 +1,5 @@
 /**
- * Formatacao — sempre via Intl, nunca string montada na mao.
+ * Formatacao: sempre via Intl, nunca string montada na mao.
  *
  * O painel e operado no Brasil, entao pt-BR e o locale fixo: uma equipe em
  * campo nao deve ver a data virar MM/DD porque o navegador esta em ingles.
@@ -39,8 +39,8 @@ const diaNoFuso = new Intl.DateTimeFormat("en-CA", {
 /**
  * "Hoje" no fuso do painel, nao no fuso da maquina.
  *
- * `getFullYear/getMonth/getDate` leem o relogio LOCAL. Num servidor em UTC — o
- * caso normal em produçao — das 21h a meia-noite de Brasilia o dia local ja
+ * `getFullYear/getMonth/getDate` leem o relogio LOCAL. Num servidor em UTC, o
+ * caso normal em produçao, das 21h a meia-noite de Brasilia o dia local ja
  * virou e o painel passaria tres horas por noite mostrando amanha: "roçadas em
  * 7 dias" desloca a janela, a marca de hoje na linha do tempo pula um dia, e
  * agendamento de hoje aparece como vencido.
@@ -80,7 +80,7 @@ export const fmt = {
   horaMin: (s: string | Date) => horaMin.format(typeof s === "string" ? parseData(s) : s),
 };
 
-/** "em 3 dias", "ontem", "hoje" — a partir de uma data do banco.
+/** "em 3 dias", "ontem", "hoje", a partir de uma data do banco.
  *  A base padrao e o dia no fuso do painel, nao o relogio da maquina. */
 export function relativoEmDias(alvo: string | Date, base: string | Date = hojeNoFusoDoPainel()): string {
   const d = typeof alvo === "string" ? parseData(alvo) : alvo;

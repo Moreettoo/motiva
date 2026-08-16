@@ -19,7 +19,7 @@ const RAIO_KM = 50;
 
 /** Crítica e alta são o motivo da saída. Média entra porque já tem data sugerida
  *  pela IA: roçar junto agora evita uma segunda viagem à mesma faixa em três
- *  semanas. Baixa fica de fora — antecipar tanto é desperdício de equipe. */
+ *  semanas. Baixa fica de fora, antecipar tanto é desperdício de equipe. */
 const RISCOS_ELEGIVEIS: Risco[] = ["critica", "alta", "media"];
 
 export type Agrupamento = {
@@ -39,7 +39,7 @@ export type Agrupamento = {
   economiaKm: number;
   piorRisco: Risco;
   /** Preenchido quando todos os trechos do grupo já compartilham a mesma data
-   *  e a mesma equipe — a sugestão de juntar numa saída só já foi atendida. */
+   *  e a mesma equipe, a sugestão de juntar numa saída só já foi atendida. */
   resolvido: { data: string; equipeNome: string } | null;
 };
 
@@ -56,7 +56,7 @@ function chaveDia(d: Date): string {
 
 /**
  * O grupo só está de fato resolvido quando TODOS os trechos convergiram para a
- * mesma data e a mesma equipe — datas iguais com equipes diferentes (ou
+ * mesma data e a mesma equipe, datas iguais com equipes diferentes (ou
  * vice-versa) ainda são duas saídas na prática, e o alerta continua valendo.
  */
 function calcularResolvido(trechos: TrechoStatus[]): Agrupamento["resolvido"] {
@@ -103,14 +103,14 @@ function montar(candidatos: Candidato[]): Agrupamento {
  *
  * Função pura: recebe a lista já filtrada pela tela e a data de referência, e
  * devolve os agrupamentos ordenados por urgência. Sem acesso a rede, sem `Date`
- * implícito — dá para testar passando `hoje`.
+ * implícito, dá para testar passando `hoje`.
  *
  * O critério tem três camadas, nesta ordem:
  *   1. o trecho precisa ter data de roçada conhecida e risco que justifique sair;
  *   2. rodovia, UF e semana de vencimento precisam coincidir (a quilometragem
  *      reinicia na divisa, então a UF faz parte da identidade da faixa);
  *   3. dentro disso, trechos vizinhos entram no mesmo grupo enquanto o vão entre
- *      eles couber em `RAIO_KM` — é a parte de "proximidade" propriamente dita.
+ *      eles couber em `RAIO_KM`, é a parte de "proximidade" propriamente dita.
  *
  * Grupo de um trecho só não é agrupamento: some da lista.
  */
@@ -171,7 +171,7 @@ export function detectarAgrupamentos(trechos: TrechoStatus[], hoje: Date): Agrup
 
   return agrupamentos.sort(
     (a, b) =>
-      // Pendente antes de resolvido, sempre — o alerta é sobre o que ainda
+      // Pendente antes de resolvido, sempre, o alerta é sobre o que ainda
       // falta agir, e um grupo já resolvido não compete por atenção mesmo
       // quando o risco que o trouxe pra cá era pior que o de um pendente.
       Number(a.resolvido != null) - Number(b.resolvido != null) ||
@@ -184,12 +184,12 @@ export function detectarAgrupamentos(trechos: TrechoStatus[], hoje: Date): Agrup
 /* ========================================================================== */
 
 /* O colapso do card mora no localStorage, não na URL: diferente dos filtros
-   da malha, não é algo que um gestor precise mandar por link para a equipe —
+   da malha, não é algo que um gestor precise mandar por link para a equipe,
    é preferência de tela, e sem persistência o card voltaria expandido a cada
    carregamento de /malha.
 
    Lido via `useSyncExternalStore` (mesma ideia de `alternador-tema.tsx`, sem
-   o listener entre abas — não é crítico aqui) em vez de `useState` +
+   o listener entre abas, não é crítico aqui) em vez de `useState` +
    `useEffect`: escrever no state dentro de um efeito de leitura cascateia
    um render extra que o lint de hooks já rejeita, e a marcação do servidor
    (sempre expandido, já que não há localStorage lá) precisa continuar batendo
@@ -319,7 +319,7 @@ export function BlocoAgrupamento({
                     {grupo.resolvido ? (
                       <div className="mt-2">
                         <Chip tom="good" tamanho="sm" icone={<CircleCheck />}>
-                          Já agendado junto — {fmt.dataMedia(grupo.resolvido.data)} ·{" "}
+                          Já agendado junto: {fmt.dataMedia(grupo.resolvido.data)} ·{" "}
                           {grupo.resolvido.equipeNome}
                         </Chip>
                       </div>
@@ -375,7 +375,7 @@ export function BlocoAgrupamento({
                               </span>
                               <span className="sr-only">
                                 {" "}
-                                — risco {RISCO[t.risco].rotulo.toLowerCase()}. Abrir detalhe do
+                                risco {RISCO[t.risco].rotulo.toLowerCase()}. Abrir detalhe do
                                 trecho.
                               </span>
                             </button>

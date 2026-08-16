@@ -36,7 +36,7 @@ const RAIO = 4;
 const RESPIRO = 6;
 
 /**
- * Uma faixa horizontal empilhada — a distribuição de risco da malha inteira em
+ * Uma faixa horizontal empilhada, a distribuição de risco da malha inteira em
  * uma linha só. Cada segmento traz cor de status, então cada segmento traz
  * ícone e rótulo na legenda.
  */

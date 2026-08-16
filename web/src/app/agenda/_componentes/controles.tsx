@@ -16,14 +16,14 @@ import type { EquipeNaUrl } from "./dados";
  * Os controles do quadro: filtro de status e destaque de equipe.
  *
  * Eram uma FAIXA no nível da página, com os quatro status abertos como chips e
- * a contagem de cada um em texto — quatro números permanentes na tela, ao lado
+ * a contagem de cada um em texto: quatro números permanentes na tela, ao lado
  * de outros sete, para um controle que quase ninguém mexe. Viraram duas peças
  * que moram no cabeçalho do quadro, porque é o quadro que elas governam.
  *
  * O escopo dos números continua sendo TODA A MALHA, e não a semana visível: o
  * filtro alimenta a grade, o trilho inteiro e os 28 dias do mini-mapa, então a
  * contagem tem de ser do conjunto que o botão de fato governa. O que mudou é
- * onde isso está dito — antes precisava de um rótulo visível ("Status · toda a
+ * onde isso está dito, antes precisava de um rótulo visível ("Status · toda a
  * malha") porque o número ficava solto entre números da semana; agora ele só
  * aparece DENTRO do menu, ao lado do nome do status, longe de qualquer número
  * de semana com que pudesse ser confundido. O nome acessível de cada item
@@ -44,7 +44,7 @@ export function Controles({
   equipe: EquipeNaUrl;
   aoMudarEquipe: (valor: EquipeNaUrl) => void;
   equipes: Equipe[];
-  /** Agendamentos por status em TODA a malha — ver o comentário acima. */
+  /** Agendamentos por status em TODA a malha, ver o comentário acima. */
   porStatusNaMalha: Record<StatusAgendamento, number>;
   alterado: boolean;
   aoRestaurar: () => void;
@@ -56,7 +56,7 @@ export function Controles({
   }
 
   /* O resumo no gatilho, para o filtro não virar um estado escondido. Um botão
-     que diz só "Status" obriga a abrir o menu para saber o que está filtrando —
+     que diz só "Status" obriga a abrir o menu para saber o que está filtrando,
      e um filtro que a pessoa esquece que ligou é pior que um chip a mais. Com
      nenhum status marcado a frase é "nenhum", que é literalmente o que a tela
      mostra nesse caso. */
@@ -94,7 +94,7 @@ export function Controles({
               aoAlternar={() => alternar(s)}
             >
               {/* O nome acessível sai do texto do item mais o `aria-checked`, e
-                  o número precisa entrar com unidade e escopo — solto, "59" é
+                  o número precisa entrar com unidade e escopo: solto, "59" é
                   falado como se fosse da semana. O texto visível continua
                   contido no nome (WCAG 2.5.3): o rótulo vem primeiro. */}
               <span>{token.rotulo}</span>
@@ -107,7 +107,7 @@ export function Controles({
       </Menu>
 
       {/* Destaque, não filtro: escolher uma equipe aqui não esconde nenhum
-          cartão — o quadro (`QuadroSemana`) atenua as linhas das OUTRAS
+          cartão, o quadro (`QuadroSemana`) atenua as linhas das OUTRAS
           equipes, porque toda célula continua sendo destino válido de solta.
           Sem opção "sem equipe": o trilho já É a visão de quem não tem
           equipe, e destacar "ninguém" não faz sentido como conceito. */}

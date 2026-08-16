@@ -70,7 +70,7 @@ export function PainelTrecho({
   const { mostrar } = useNotificacao();
   const [pendente, iniciar] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
-  /** Qual das duas decisões está em curso — o giro tem que aparecer no botão
+  /** Qual das duas decisões está em curso, o giro tem que aparecer no botão
    *  que foi clicado, não no primeiro da linha. */
   const [emCurso, setEmCurso] = useState<"aprovado" | "descartado" | null>(null);
   /** Descartar apaga a sugestão da IA: pede confirmação em vez de obedecer no
@@ -87,7 +87,7 @@ export function PainelTrecho({
   const status = trecho.agendamento_status;
   const agendamentoId = trecho.agendamento_id;
   const manual = trecho.agendamento_origem === "manual";
-  // Este painel não tem seletor de equipe — só a agenda atribui. Por isso a
+  // Este painel não tem seletor de equipe, só a agenda atribui. Por isso a
   // dica manda para lá em vez de repetir o texto genérico de `erroFaltaEquipe`.
   const bloqueioAprovacao = erroFaltaEquipe(trecho.equipe_id, "aprovado")
     ? "Atribua uma equipe pela agenda antes de aprovar."
@@ -305,7 +305,7 @@ export function PainelTrecho({
         {/* Título e ícone seguem a ORIGEM: a mesma `justificativa` da view tem
             dois donos possíveis desde que existe agendamento manual, e chamar
             de "Decisão da IA" um texto que um gestor digitou atribui a decisão
-            a quem não a tomou. "Sugerida" também sai — a roçada manual nasce
+            a quem não a tomou. "Sugerida" também sai, a roçada manual nasce
             aprovada, não sugerida. */}
         <Secao
           titulo={manual ? "Agendamento manual" : "Decisão da IA"}

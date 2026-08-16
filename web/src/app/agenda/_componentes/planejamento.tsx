@@ -51,7 +51,7 @@ import { QuadroSemana } from "./quadro/quadro-semana";
 const STATUS_PADRAO: StatusAgendamento[] = ["sugerido", "aprovado"];
 
 /** Quanto tempo o anel de erro fica no cartão revertido (spec §4, passo 3).
- *  Igual à duração da animação em `globals.css` — e é este número, não o CSS,
+ *  Igual à duração da animação em `globals.css`, e é este número, não o CSS,
  *  que manda: sob `prefers-reduced-motion` o anel vira ESTADO estático
  *  (`animation: none`), então quem o apaga é sempre o temporizador daqui. */
 const ANEL_ERRO_MS = 450;
@@ -68,14 +68,14 @@ type Ajuste = {
 };
 
 /** `null` = silencioso: o movimento do cartão já é a confirmação e a região
- *  `aria-live` do quadro narra o desfecho — dois canais contando o mesmo
+ *  `aria-live` do quadro narra o desfecho, dois canais contando o mesmo
  *  evento é ruído. O toast de ERRO (em `executar`) continua incondicional. */
 type Aviso = { titulo: string; descricao?: string };
 
 /** `?semana=` é entrada de URL, não confiável. Lixo de formato (`abc`) faz
  *  `parseData` devolver `Invalid Date`; uma data que só PARECE real (29/02 fora
  *  de bissexto, dia 31 num mês de 30) o JS normaliza em silêncio para outro
- *  dia — por isso o teste de ida-e-volta via `chaveDia`, não só `Number.isNaN`. */
+ *  dia: por isso o teste de ida-e-volta via `chaveDia`, não só `Number.isNaN`. */
 function semanaValida(s: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
   const d = parseData(s);
@@ -111,20 +111,20 @@ export function PlanejamentoAgenda({
 
   // Normalizada para a segunda-feira, não usada crua. `montarJanela` já abre na
   // segunda de qualquer âncora, então a GRADE ficava certa com um `?semana=`
-  // apontando para uma quinta — mas duas outras coisas ficavam erradas: a
+  // apontando para uma quinta, mas duas outras coisas ficavam erradas: a
   // aritmética de `navegarSemana` (`âncora ± 7 dias`) andava de quinta em
   // quinta, e `aoNavegar` compara a âncora nova com a segunda-feira de hoje
   // para decidir se APAGA o parâmetro da URL. Com âncora fora da segunda essa
   // igualdade nunca casava: voltar para a semana corrente deixava `?semana=`
   // pendurado na URL e "Restaurar padrão" continuava oferecido sem nada para
   // restaurar. Normalizar aqui, na única leitura do valor, resolve os dois de
-  // uma vez — e mantém a URL que a pessoa colou funcionando, só deixando de
+  // uma vez, e mantém a URL que a pessoa colou funcionando, só deixando de
   // tratá-la como canônica.
   const ancora = chaveDia(inicioDaSemana(semanaValida(semana) ? semana : hoje));
 
   /** A âncora que o quadro mostra quando `?semana=` está AUSENTE. Um valor, não
    *  um cálculo repetido: é ele que `aoNavegar` usa para decidir se apaga o
-   *  parâmetro da URL e `alterado` para decidir se há o que restaurar — as duas
+   *  parâmetro da URL e `alterado` para decidir se há o que restaurar, as duas
    *  perguntas são a mesma, e antes cada uma respondia à sua maneira. String, e
    *  por isso estável nas dependências sem `useMemo`. */
   const ancoraPadrao = chaveDia(inicioDaSemana(hoje));
@@ -155,7 +155,7 @@ export function PlanejamentoAgenda({
 
   /* A criação não entra em `salvandoIds` nem em `anelErroPorId`: os dois são
      chaveados por id de agendamento, e o que está sendo criado ainda não tem
-     um. Pelo mesmo motivo ela não passa por `executar` — não há `Ajuste`
+     um. Pelo mesmo motivo ela não passa por `executar`, não há `Ajuste`
      otimista possível sobre uma linha que não existe na lista, e o desfecho
      dela é outro (fecha a gaveta, navega, seleciona). */
   const [salvandoNova, setSalvandoNova] = useState(false);
@@ -164,14 +164,14 @@ export function PlanejamentoAgenda({
 
   // Passo 3 da reversão (spec §4): o cartão que voltou para a origem pisca um
   // anel `--critical`. O valor é a GERAÇÃO do erro, não um booleano, porque uma
-  // animação CSS não reinicia com a classe já aplicada — a geração faz o cartão
+  // animação CSS não reinicia com a classe já aplicada, a geração faz o cartão
   // alternar entre duas classes e o navegador reiniciar sem remontar nada (ver
   // `classeAnelErro`, em `cartao-servico.tsx`). Cada cartão recebe só o escalar.
   const [anelErroPorId, setAnelErroPorId] = useState<ReadonlyMap<number, number>>(new Map());
 
   // Dois temporizadores por id, com vidas diferentes: o desfazer mora no cartão
   // por 8 s (ver `registrarDesfazer`) e o anel por 450 ms. Mapas SEPARADOS de
-  // propósito — num mapa só, um erro logo depois de uma alocação bem-sucedida
+  // propósito: num mapa só, um erro logo depois de uma alocação bem-sucedida
   // cancelaria o desfazer dela ao gravar sob a mesma chave. Sem cancelar no
   // desmonte, sair da Agenda dentro de qualquer das duas janelas dispara
   // `setState` num componente que já saiu da árvore.
@@ -241,7 +241,7 @@ export function PlanejamentoAgenda({
    * engolia o resultado dentro da transição, então `alocar`/`devolver`
    * registravam o desfazer ANTES de saber se a escrita passou: numa recusa do
    * servidor o cartão voltava para o lugar antigo e mostrava um "Desfazer" ao
-   * lado de um toast dizendo que nada foi salvo — um botão para desfazer o que
+   * lado de um toast dizendo que nada foi salvo, um botão para desfazer o que
    * não aconteceu.
    *
    * É um callback e não um `Promise<boolean>` por duas razões. Uma:
@@ -252,7 +252,7 @@ export function PlanejamentoAgenda({
    * num render extra depois dele.
    *
    * Só o sucesso tem gancho. A falha é tratada aqui (toast + anel) porque é
-   * igual para todas as seis chamadas — e é isso que faz um desfazer que FALHA
+   * igual para todas as seis chamadas, e é isso que faz um desfazer que FALHA
    * pintar o anel sem precisar de gancho nenhum: ele chama `executar` de novo,
    * sem `aoSucesso`, então não há laço.
    */
@@ -270,13 +270,13 @@ export function PlanejamentoAgenda({
 
         /* A recusa que a ação DEVOLVE (`ok: false`) e a que ela LANÇA precisam
            terminar do mesmo jeito, e antes deste `try` só a primeira terminava.
-           Uma Server Action lança quando a requisição nem chega a completar —
-           rede caindo, servidor reiniciando, deploy no meio do caminho — e nesse
+           Uma Server Action lança quando a requisição nem chega a completar,
+           rede caindo, servidor reiniciando, deploy no meio do caminho, e nesse
            caso não havia toast, não havia anel, e o `setSalvandoIds` de baixo
            nunca rodava: o cartão ficava preso em "salvando" PARA SEMPRE. E preso
            nesse estado ele não tem alça nem `onKeyDown` (ver `cartao-servico.tsx`,
            que os omite enquanto `salvando`), então não havia como pegá-lo de novo
-           nem por mouse nem por teclado — irrecuperável sem recarregar a página.
+           nem por mouse nem por teclado, irrecuperável sem recarregar a página.
            O `finally` é o que fecha essa porta; o `catch` é o que faz a falha
            contar a mesma história que a recusa devolvida. */
         try {
@@ -288,8 +288,8 @@ export function PlanejamentoAgenda({
           } else {
             // Cor de status nunca aparece sozinha, e o anel É cor sozinha: um
             // retângulo `--critical` de 450 ms, sem ícone e sem rótulo. Quem
-            // carrega ícone e rótulo é este toast — `tom: "critical"` já entra
-            // com `OctagonAlert` e o rótulo "Erro" (ver `notificacoes.tsx`) —, e
+            // carrega ícone e rótulo é este toast, `tom: "critical"` já entra
+            // com `OctagonAlert` e o rótulo "Erro" (ver `notificacoes.tsx`), e
             // ele é PERSISTENTE (`duracao: 0`), então sobrevive ao anel e não
             // depende de reflexo para ser lido. O anel não é o canal da
             // mensagem: é o LOCALIZADOR dela, a resposta a "qual dos ~130
@@ -307,8 +307,8 @@ export function PlanejamentoAgenda({
           /* Mensagem própria, e não a do erro lançado: o que a exceção carrega
              aqui é texto de infraestrutura ("Failed to fetch", uma pilha do
              Next) que não diz ao gestor o que fazer. O desfecho é o mesmo da
-             recusa devolvida — toast persistente com ícone e rótulo, mais o anel
-             localizando o cartão —, e o otimista reverte igual quando a
+             recusa devolvida: toast persistente com ícone e rótulo, mais o anel
+             localizando o cartão, e o otimista reverte igual quando a
              transição fecha. */
           mostrar({
             tom: "critical",
@@ -339,7 +339,7 @@ export function PlanejamentoAgenda({
 
   /**
    * A REGRA dos dois grupos de números desta tela. Leia antes de trocar a fonte
-   * de qualquer um deles — depois desta linha convivem números que seguem o
+   * de qualquer um deles, depois desta linha convivem números que seguem o
    * filtro de status e números que não seguem, na mesma faixa, e as duas
    * escolhas são deliberadas.
    *
@@ -348,7 +348,7 @@ export function PlanejamentoAgenda({
    * legenda numérica do cabeçalho (`rocadasNaSemana`/`kmNaSemana`) são recortes
    * do MESMO conjunto exibidos lado a lado; se um contasse `itens` e o outro
    * `visiveis`, com o filtro em "aprovado" a tela mostraria dois números
-   * diferentes para o mesmo dia a centímetros de distância — que é a
+   * diferentes para o mesmo dia a centímetros de distância, que é a
    * contradição que `dados.tsx` existe para impedir.
    *
    * NÃO SEGUE O FILTRO (`itens`/`trechos`) todo número que ALERTA sobre algo
@@ -356,8 +356,8 @@ export function PlanejamentoAgenda({
    * sem agendamento (`criticosSemData`). O filtro escolhe o que olhar e não pode
    * decidir se o problema EXISTE. Nenhum dos dois é conferível contando cartões,
    * então não há contradição possível: o de vencidos NAVEGA para a semana do
-   * problema — e `irParaAtrasados` liga os status necessários antes, cumprindo a
-   * promessa — e o de críticos leva para `/malha`, outra página.
+   * problema, e `irParaAtrasados` liga os status necessários antes, cumprindo a
+   * promessa, e o de críticos leva para `/malha`, outra página.
    *
    * `porStatusNaMalha` fica de fora do filtro por um terceiro motivo, que não é
    * "alerta": ele descreve o CONJUNTO QUE O PRÓPRIO FILTRO GOVERNA. Aplicar o
@@ -366,7 +366,7 @@ export function PlanejamentoAgenda({
 
   // O filtro de equipe deixou de ESCONDER: filtrar removeria células que
   // precisam existir como destino de solta. `equipeFoco` (abaixo) é o
-  // destaque visual que ocupa o lugar do filtro — ver `QuadroSemana`.
+  // destaque visual que ocupa o lugar do filtro, ver `QuadroSemana`.
   const visiveis = useMemo(
     () => itens.filter((item) => status.includes(item.status)),
     [itens, status],
@@ -376,7 +376,7 @@ export function PlanejamentoAgenda({
 
   // Grupo "alerta" da regra acima: `itens`, nunca `visiveis`. Um serviço
   // vencido que já tem equipe não passa pelo trilho nem pela janela de 28
-  // dias — o filtro não pode decidir se esse alerta existe.
+  // dias, o filtro não pode decidir se esse alerta existe.
   const totalAtrasados = useMemo(() => contarAtrasados(itens), [itens]);
   const semanaAtraso = useMemo(() => semanaDoAtrasoMaisAntigo(itens), [itens]);
 
@@ -387,7 +387,7 @@ export function PlanejamentoAgenda({
 
   // Grupo "conferível": a MESMA fonte da grade. O mini-mapa fica logo ACIMA do
   // quadro, e a coluna de um dia é lida junto com o cabeçalho daquele mesmo dia
-  // (`grade.porDia`, em `cabecalho-dia.tsx`) — com `itens`, o filtro em
+  // (`grade.porDia`, em `cabecalho-dia.tsx`): com `itens`, o filtro em
   // "aprovado" punha dois números diferentes para o mesmo dia a centímetros um
   // do outro. Passar `visiveis` também alinha `equipesComLinha`: quem ganha
   // linha na grade e quem entra no alerta de excesso dos 28 dias passa a ser
@@ -398,12 +398,12 @@ export function PlanejamentoAgenda({
   );
 
   /* A legenda numérica do cabeçalho ("N roçadas · N km") resume a semana que o
-     quadro DESENHA — todo status que o filtro deixou passar, não só o que está
+     quadro DESENHA: todo status que o filtro deixou passar, não só o que está
      em aberto.
      Havia aqui um segundo recorte, `planejadas`, que ficava só com
      sugerido/aprovado. Fazia sentido enquanto o quadro também só desenhava
      esses dois; com "Executado" ligado, o cabeçalho anunciava "0 roçadas · 0,0
-     km" sobre uma semana com oito cartões visíveis — dois números para o mesmo
+     km" sobre uma semana com oito cartões visíveis, dois números para o mesmo
      conjunto, a trinta centímetros um do outro, que é a contradição que
      `dados.tsx` existe para impedir. Este é o grupo CONFERÍVEL da regra dos dois
      grupos (ver abaixo): a pessoa checa contando cartões, então tem de contar o
@@ -416,7 +416,7 @@ export function PlanejamentoAgenda({
   // Grupo "NÃO SEGUE O FILTRO" da regra acima, e pelo mesmo motivo dos
   // vencidos: este número existe para dizer que o filtro escondeu a semana
   // inteira, então o filtro não pode decidir se o que ele esconde existe. Não há
-  // contradição possível com o quadro — quando ele aparece na tela, não sobrou
+  // contradição possível com o quadro, quando ele aparece na tela, não sobrou
   // cartão nenhum para conferir contra. `itens`, e não `visiveis`, é o ponto.
   const servicosNaSemanaSemFiltro = useMemo(
     () => itens.filter((item) => diasDaJanela.has(item.data)).length,
@@ -429,7 +429,7 @@ export function PlanejamentoAgenda({
   // horizonte) e os 28 dias do mini-mapa. Desmarcar "sugerido" tirava dezenas de
   // cartões do trilho enquanto o chip ao lado dizia "6". `controles.tsx` diz
   // "toda a malha" em texto visível e no nome acessível de cada botão, porque um
-  // número com escopo diferente do resto da tela não se deduz — se deduziria
+  // número com escopo diferente do resto da tela não se deduz, se deduziria
   // "nesta semana", que é exatamente o erro que esta contagem veio consertar.
   const porStatusNaMalha = useMemo(() => {
     const contagem = { sugerido: 0, aprovado: 0, executado: 0, descartado: 0 } as Record<
@@ -459,7 +459,7 @@ export function PlanejamentoAgenda({
   // Compara a ÂNCORA, não o valor CRU da URL. `?semana=` chega até aqui por
   // duas portas que não mudam a tela: uma data válida fora da segunda-feira
   // (`?semana=2026-08-13`, uma quinta desta semana) e lixo que `semanaValida`
-  // reprova (`?semana=abc`) produzem os MESMOS sete dias do padrão — e com
+  // reprova (`?semana=abc`) produzem os MESMOS sete dias do padrão, e com
   // `semana !== ""` o botão "Restaurar padrão" aparecia sem nada para
   // restaurar. É o mesmo resíduo que a normalização da âncora tirou por uma
   // porta e deixou por outra; o que governa a tela é `ancora`.
@@ -518,19 +518,19 @@ export function PlanejamentoAgenda({
 
   // Arrastar de uma equipe para outra e desfazer precisa devolver a equipe
   // ANTERIOR, não `null`: com `null` fixo, a tela perderia a equipe enquanto
-  // `desfazerAlocacao` restaura a antiga no banco — tela e banco divergiriam
+  // `desfazerAlocacao` restaura a antiga no banco, tela e banco divergiriam
   // até o próximo `revalidatePath`.
   //
   // O desfazer é registrado no `aoSucesso` de `executar`, nunca ao lado dele: o
   // botão é o remédio para uma mudança que ACONTECEU. Antes ele nascia junto com
   // a chamada, então uma recusa do servidor devolvia o cartão para o lugar antigo
   // e ainda oferecia "Desfazer" ao lado do toast dizendo que nada foi salvo. O
-  // preço é que o botão aparece uma ida ao servidor mais tarde — e é um preço
+  // preço é que o botão aparece uma ida ao servidor mais tarde, e é um preço
   // baixo: os 8 s passam a contar do momento em que a mudança está confirmada (o
   // gestor ganha a janela inteira, em vez de gastar parte dela esperando), a
   // confirmação que o olho acompanha continua sendo o movimento do cartão, que é
-  // instantâneo, e durante essa espera o cartão está `salvando` — sem alça e sem
-  // `onKeyDown` —, então não havia nada que um botão mais cedo permitisse fazer.
+  // instantâneo, e durante essa espera o cartão está `salvando`, sem alça e sem
+  // `onKeyDown`, então não havia nada que um botão mais cedo permitisse fazer.
   const alocar = useCallback(
     (item: ItemAgenda, dia: string, equipe: Equipe) => {
       const anterior = { data: item.data, equipeId: item.equipeId };
@@ -552,7 +552,7 @@ export function PlanejamentoAgenda({
         },
         () => alocarAgendamento(item.id, dia, equipe.id),
         item.id,
-        null, // silencioso — ver o comentário do tipo `Aviso`
+        null, // silencioso, ver o comentário do tipo `Aviso`
         () =>
           registrarDesfazer(item.id, () =>
             // Sem `aoSucesso`: o desfazer não registra outro desfazer, então não
@@ -624,7 +624,7 @@ export function PlanejamentoAgenda({
    *
    * Os três passos do sucesso são um só movimento, e nenhum é enfeite: fecha a
    * gaveta, NAVEGA para a semana da data escolhida e SELECIONA o cartão novo.
-   * Sem os dois últimos, agendar para daqui a três semanas — o caso normal —
+   * Sem os dois últimos, agendar para daqui a três semanas, o caso normal,
    * terminaria com a tela exatamente como estava, e a única prova de que algo
    * aconteceu seria um toast que some em segundos.
    *
@@ -681,12 +681,12 @@ export function PlanejamentoAgenda({
   );
 
   // "Atrasado" só existe em `sugerido`/`aprovado` (ver `dados.tsx`), e o
-  // contador vem da malha INTEIRA, não do filtro de status ativo — de
+  // contador vem da malha INTEIRA, não do filtro de status ativo, de
   // propósito, para o filtro não decidir se o alerta existe (ver a REGRA dos
   // dois grupos, acima). Mas isso cria uma promessa que o
   // clique precisa cumprir: garantir os dois status no filtro antes de
   // navegar, ou a semana de destino pode não ter o cartão que motivou o
-  // clique — o mesmo defeito do eixo tempo, só que no eixo status.
+  // clique: o mesmo defeito do eixo tempo, só que no eixo status.
   const irParaAtrasados = useCallback(() => {
     if (!semanaAtraso) return;
     const necessarios: StatusAgendamento[] = ["sugerido", "aprovado"];
@@ -700,7 +700,7 @@ export function PlanejamentoAgenda({
   /* Memoizado porque agora desce DUAS vezes: para `Controles`, como sempre, e
      para `QuadroSemana`, cuja rede de Tab oferece o mesmo "Restaurar padrão"
      quando o filtro esvaziou a semana. Prop nova no quadro tem de ser escalar ou
-     estável — uma função recriada a cada render atravessaria até os ~130 cartões
+     estável, uma função recriada a cada render atravessaria até os ~130 cartões
      e derrubaria o `memo` deles no meio de um `pointermove`. As três escritas do
      `nuqs` já são estáveis, então a identidade daqui também é. */
   const restaurar = useCallback(() => {

@@ -29,14 +29,14 @@ export function TrilhoFila({
   refCartao,
   aoFocar,
 }: {
-  /** Já cortado por quem chama (`TETO_TRILHO`, em `quadro-semana.tsx`) — o
+  /** Já cortado por quem chama (`TETO_TRILHO`, em `quadro-semana.tsx`), o
    *  corte subiu pra lá porque o roving tabindex da grade inteira
    *  (`usar-foco-grade.ts`) precisa saber exatamente quais ids têm cartão
    *  montado; um teto escondido aqui dentro deixava isso invisível de fora,
    *  e um id além dele podia virar `idAtivo` sem cartão nenhum na tela para
    *  representá-lo. */
   itens: ItemAgenda[];
-  /** Tamanho da fila INTEIRA, sem o corte — para o selo do cabeçalho e o
+  /** Tamanho da fila INTEIRA, sem o corte, para o selo do cabeçalho e o
    *  texto do botão "mostrar os outros". */
   total: number;
   expandido: boolean;
@@ -62,17 +62,17 @@ export function TrilhoFila({
 }) {
   // Grupos por FILTRO, não por índice de corte: risco e data são eixos
   // independentes (um trecho crítico pode ter `data_sugerida` distante), então
-  // `itens` não é monotônica em `data` entre faixas de risco — um
+  // `itens` não é monotônica em `data` entre faixas de risco, um
   // `findIndex(item => item.data > janelaFim)` acharia a primeira ocorrência e
   // cortaria ainda DENTRO de uma faixa de risco, empurrando itens de risco
   // menor mas dentro da semana para debaixo do cabeçalho "Depois". Filtrar
   // preserva a ordem de urgência dentro de cada grupo, porque `itens` já
-  // vem ordenada (e já vem cortada por quem chama — ver o comentário da prop).
+  // vem ordenada (e já vem cortada por quem chama, ver o comentário da prop).
   const destaSemana = itens.filter((item) => item.data <= janelaFim);
   const depois = itens.filter((item) => item.data > janelaFim);
 
   // Fábrica de elemento, não componente: devolve `<CartaoServico>` direto, com
-  // o mesmo `type` de sempre — o `memo` compara por `type` do elemento, não
+  // o mesmo `type` de sempre: o `memo` compara por `type` do elemento, não
   // por esta closure ser recriada a cada render. Existe só para os dois `map`
   // abaixo (por grupo) não divergirem nas mesmas 11 props que o `map` único
   // de antes já passava.
@@ -108,9 +108,9 @@ export function TrilhoFila({
       {/* `data-obstaculo="topo"`: este cabeçalho é `sticky top-0` e come a faixa
           de cima da área em que se solta um cartão na fila. Vale nas DUAS
           montagens do trilho (`trilho-responsivo.tsx`) porque as duas põem um
-          rolador IMEDIATAMENTE em volta deste `<section>` — no largo a coluna
+          rolador IMEDIATAMENTE em volta deste `<section>`, no largo a coluna
           (`overflow-y-auto`, `max-h-[min(78vh,760px)]`), no estreito a doca aberta
-          (`overflow-y-auto`, `max-h-[60vh]`) — e quem lê o atributo é o rolador em
+          (`overflow-y-auto`, `max-h-[60vh]`), e quem lê o atributo é o rolador em
           que o elemento está DENTRO (`medirInsets`, em `usar-arrasto.ts`), não um
           rolador nomeado: o mesmo atributo serve aos dois sem saber qual está
           montado. Com a doca FECHADA o container é `overflow-hidden` e `inert`,
@@ -140,7 +140,7 @@ export function TrilhoFila({
               sem equipe existindo do outro lado do filtro. A fila só carrega o
               que espera decisão (sugerido/aprovado sem equipe), então mencionar
               os status escolhidos é o que torna a frase verdadeira nos dois
-              casos — sem precisar de um sinal novo atravessando três
+              casos, sem precisar de um sinal novo atravessando três
               componentes só para escolher entre duas frases. */}
           <EstadoVazio
             icone={<IconeDominio nome="CircleCheck" />}

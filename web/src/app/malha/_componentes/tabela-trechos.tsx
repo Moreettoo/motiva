@@ -42,7 +42,7 @@ const COLUNAS: Coluna[] = [
   { chave: "rocada", rotulo: "Próxima roçada" },
 ];
 
-/** Valor comparável de cada coluna. `null` significa dado ausente — nunca zero,
+/** Valor comparável de cada coluna. `null` significa dado ausente: nunca zero,
  *  senão um trecho sem previsão apareceria como o mais folgado da malha. */
 const VALOR: Record<Ordenacao, (t: TrechoStatus) => number | string | null> = {
   rodovia: (t) => t.rodovia,

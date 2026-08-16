@@ -38,7 +38,7 @@ export default async function PaginaCopiloto() {
 
   // O cabeçalho mantém a largura cheia (título + ícone de transparência) e
   // altura de conteúdo (`shrink-0`); a conversa, sem mais coluna lateral ao
-  // lado, cresce (`flex-1`) até o rodapé da tela — é o `Shell` que já mede
+  // lado, cresce (`flex-1`) até o rodapé da tela, é o `Shell` que já mede
   // essa altura, essa página só precisa pedir pra usá-la.
   return (
     <div className="mx-auto flex h-full min-h-0 w-full max-w-[1120px] flex-1 flex-col gap-6 lg:gap-8">

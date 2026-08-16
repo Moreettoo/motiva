@@ -2,7 +2,7 @@
  * Navegação pura pela grade do quadro.
  *
  * Separada do hook de arrasto de propósito: é a única parte da interação que dá
- * para testar sem DOM, e é onde os erros de borda doem — um "dá a volta" no fim
+ * para testar sem DOM, e é onde os erros de borda doem, um "dá a volta" no fim
  * da semana faz o gestor perder de vista onde o cartão está.
  */
 
@@ -17,7 +17,7 @@ export type Direcao = "esquerda" | "direita" | "cima" | "baixo";
  *  Duas variantes, e não três: existia um pseudo-alvo `propostas:${dia}` para o
  *  hit-test do ponteiro conseguir nomear a linha "Propostas da IA" e cair na
  *  mesma recusa que o teclado já dava ("um dia só é marcado com equipe"). A
- *  linha saiu do quadro — ela duplicava a fila de decisão —, e com ela o único
+ *  linha saiu do quadro, ela duplicava a fila de decisão, e com ela o único
  *  alvo do tipo que NUNCA era destino de solta. O que sobra aqui é só o que se
  *  pode soltar de verdade. */
 export type Alvo = ChaveCelula | "fila";
@@ -38,7 +38,7 @@ export function proximoAlvo(
   grade: Grade,
   atual: Alvo,
   direcao: Direcao,
-  /** `false` quando o trilho está colapsado numa doca fora da tela — abaixo
+  /** `false` quando o trilho está colapsado numa doca fora da tela, abaixo
    *  de `lg`, sem a doca aberta (ver `trilho-responsivo.tsx`). Nesse estado o
    *  trilho existe no DOM mas está `inert`, então apontar pra ele por teclado
    *  levaria a um alvo que `validar` aceita mas nenhum cartão real representa
@@ -88,13 +88,13 @@ export function proximoAlvo(
 /**
  * O que dizer DEPOIS de descrever a célula quando a seta bateu numa borda
  * (`{tipo: "borda"}` de `proximoAlvo`). Pura, e mora aqui e não dentro de
- * `aoTeclar` porque depende só de direção e alvo — que é justamente o que o
+ * `aoTeclar` porque depende só de direção e alvo, que é justamente o que o
  * vitest alcança sem DOM.
  *
  * Três textos, não dois. O eixo VERTICAL (uma ponta da coluna de equipes) e o
  * trilho (que não tem eixo vertical e só sai pela direita) não são fim de
  * semana nenhum: dizer "fim da semana" ali confundiria quem ouve a tela à toa.
- * No eixo horizontal, os dois extremos precisam de textos DIFERENTES — antes
+ * No eixo horizontal, os dois extremos precisam de textos DIFERENTES, antes
  * havia um só, e a seta para a ESQUERDA no primeiro dia com o trilho
  * indisponível (estreito, doca fechada: `proximoAlvo` devolve `borda` em vez de
  * "fila") anunciava "Fim da semana; Shift e seta para a próxima", errado no
@@ -112,7 +112,7 @@ export function sufixoDeBorda(direcao: Direcao, alvo: Alvo): string {
 /**
  * Realinha o alvo para a semana nova ao atravessar semana em pleno movimento
  * (Shift+seta, ou seta simples no fim da semana): mesmo dia da semana, mesma
- * equipe — só desloca a data em `delta * 7` dias, porque é exatamente quanto
+ * equipe: só desloca a data em `delta * 7` dias, porque é exatamente quanto
  * a semana desloca. "fila" não desloca: o trilho existe em qualquer semana.
  *
  * Sem isto, o alvo continua apontando para um dia que só existia na semana
@@ -127,14 +127,14 @@ export function realinharAlvo(alvo: Alvo, delta: -1 | 1): Alvo {
 
 /**
  * Alvo de BORDA da semana nova quando a SETA SIMPLES (sem Shift) atravessa o
- * fim da semana — o caminho `proximoAlvo` → `{tipo: "semana"}` (só ocorre
+ * fim da semana, o caminho `proximoAlvo` → `{tipo: "semana"}` (só ocorre
  * indo para a direita, no último dia; ver `proximoAlvo` acima). Diferente de
  * `realinharAlvo`: Shift+seta significa "uma semana" (mesmo dia da semana,
- * sete dias adiante); seta simples significa "um dia" — o vizinho imediato
+ * sete dias adiante); seta simples significa "um dia", o vizinho imediato
  * do dia atual, que é o primeiro dia da semana nova (`delta === 1`) ou o
  * último (`delta === -1`). Usar `realinharAlvo` aqui pularia a semana nova
  * inteira (segunda a sábado) e pousaria sete dias à frente, no MESMO dia da
- * semana — um salto, não um passo.
+ * semana: um salto, não um passo.
  *
  * `alvoAtual` nunca é `"fila"` neste caminho (`proximoAlvo` só produz
  * `{tipo: "semana"}` a partir de uma célula), mas o parâmetro aceita `Alvo`

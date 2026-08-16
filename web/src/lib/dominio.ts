@@ -2,7 +2,7 @@
  * Vocabulario visual do dominio.
  *
  * Toda cor de risco, prioridade e status sai daqui. Nenhum componente escolhe
- * cor por conta propria — foi assim que os quatro niveis de risco ficaram
+ * cor por conta propria, foi assim que os quatro niveis de risco ficaram
  * iguais no painel, no mapa, na agenda e no grafico.
  *
  * Regra da skill dataviz que vale em todo lugar: cor de status nunca aparece
@@ -26,7 +26,7 @@ export type TokenStatus = {
   rotulo: string;
   /** Cor solida da marca (barra, ponto, traco). */
   cor: string;
-  /** Cor do texto — o passo legivel sobre a superficie e sobre o chip. */
+  /** Cor do texto, o passo legivel sobre a superficie e sobre o chip. */
   tinta: string;
   /** Fundo do chip. */
   fundo: string;
@@ -74,7 +74,7 @@ export const RISCO: Record<Risco, TokenStatus> = {
 /** Prioridade decidida pela LLM usa a mesma escala do risco calculado. */
 export const PRIORIDADE = RISCO;
 
-/** Ordem de urgencia — use sempre esta, nunca `sort()` alfabetico. */
+/** Ordem de urgencia: use sempre esta, nunca `sort()` alfabetico. */
 export const ORDEM_RISCO: Risco[] = ["critica", "alta", "media", "baixa"];
 
 export function ordemRisco(r: Risco | null | undefined): number {
@@ -82,7 +82,7 @@ export function ordemRisco(r: Risco | null | undefined): number {
 }
 
 /**
- * Pior risco de um conjunto — o que a rodovia inteira herda no cabecalho da
+ * Pior risco de um conjunto, o que a rodovia inteira herda no cabecalho da
  * faixa. Lista vazia devolve `baixa`: sem trecho nao ha o que alarmar.
  */
 export function piorRiscoDe(itens: readonly { risco: Risco }[]): Risco {
@@ -95,11 +95,11 @@ export function piorRiscoDe(itens: readonly { risco: Risco }[]): Risco {
 
 /**
  * Regra: um agendamento só pode ser aprovado ou concluído com uma equipe
- * atribuída — equipe não é opcional em nenhuma das duas transições.
+ * atribuída, equipe não é opcional em nenhuma das duas transições.
  *
  * Fica aqui, e não repetida em `acoes.ts` e nos componentes, porque as pontas
  * (a trava do servidor e o botão desabilitado na tela) precisam continuar de
- * acordo — como `riscoPorPrazo` já é, entre a view e o painel.
+ * acordo, como `riscoPorPrazo` já é, entre a view e o painel.
  */
 export function erroFaltaEquipe(
   equipeId: number | null,
@@ -136,7 +136,7 @@ export const ESPECIE: Record<Especie, { rotulo: string; nomeCientifico: string; 
   },
 };
 
-/** Cores de serie categoricas — atribuidas em ordem fixa, nunca cicladas.
+/** Cores de serie categoricas: atribuidas em ordem fixa, nunca cicladas.
  *  Validadas para ate 4 series adjacentes (barras, linhas, pilhas).
  *  Formas de todos-os-pares (dispersao, mapa) param em 3. */
 export const SERIE = ["var(--s1)", "var(--s2)", "var(--s3)", "var(--s4)"] as const;
@@ -170,7 +170,7 @@ export function riscoPorPrazo(diasAteLimite: number | null | undefined): Risco {
 /**
  * A partir de quantos dias de folga um agendamento em aberto deixa de fazer
  * sentido. Espelha `LIMIAR_FECHAR_DIAS` em `analisar_lote.py`, e as duas
- * precisam continuar iguais — como a regra de risco entre a view e este arquivo.
+ * precisam continuar iguais, como a regra de risco entre a view e este arquivo.
  *
  * Por que 55 e não os 45 de `LIMIAR_DIAS` (o limiar de CRIAR): a banda de 10
  * dias entre criar e fechar é histerese. Com o mesmo número nas duas pontas, um
@@ -185,7 +185,7 @@ export const DIAS_FOLGA_DISPENSA = 55;
  * `null` (nenhuma previsão) NÃO é dispensável, e este é o ponto da função. A
  * view carimba `risco = 'baixa'` quando `dias_ate_limite` é nulo, então testar
  * o risco trataria "trecho sobre o qual não se sabe nada" como "trecho
- * folgado" — e mandaria descartar o agendamento justamente de quem não tem
+ * folgado", e mandaria descartar o agendamento justamente de quem não tem
  * previsão para justificar a decisão. A migração de 2026-08-14 e o
  * `analisar_lote.py` usam esta mesma guarda em SQL e em Python.
  */
@@ -213,12 +213,12 @@ export function textoPrazo(dias: number | null | undefined): string {
 }
 
 /**
- * Estado da altura contra o limite do trecho — o "quanto" do permitido ja foi
+ * Estado da altura contra o limite do trecho, o "quanto" do permitido ja foi
  * consumido.
  *
  * NAO e o risco acima: risco vem de `dias_ate_limite` (o prazo), este vem da
  * razao altura/limite. Sao eixos diferentes e um trecho pode estar folgado num e
- * apertado no outro — limite alto com crescimento rapido da ocupacao baixa e
+ * apertado no outro, limite alto com crescimento rapido da ocupacao baixa e
  * prazo curto.
  */
 export const ESTADO_ALTURA = {
@@ -250,7 +250,7 @@ export type LeituraAltura = {
   /** Mesma conta de `ia.vw_trecho_status.ocupacao_pct`: altura sobre limite. */
   pct: number;
   /** Passou do limite de verdade. Exatamente no limite ja e `acima`, mas nao
-   *  excede — a hachura marca o excedente, e ali nao ha excedente. */
+   *  excede: a hachura marca o excedente, e ali nao ha excedente. */
   excedido: boolean;
   chave: ChaveEstadoAltura;
   token: (typeof ESTADO_ALTURA)[ChaveEstadoAltura];
@@ -260,7 +260,7 @@ export type LeituraAltura = {
  * Leitura unica da altura para toda superficie que compara altura com limite:
  * medidor do trecho, balao da regua, balao do mapa.
  *
- * Devolve `null` quando falta previsao ou o limite nao e utilizavel — e a
+ * Devolve `null` quando falta previsao ou o limite nao e utilizavel, e a
  * ausencia de dado, que o painel mostra como "—" em vez de fingir zero.
  */
 export function estadoDaAltura(

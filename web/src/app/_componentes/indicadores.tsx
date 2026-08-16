@@ -8,7 +8,7 @@ import { CartaoCrescimento, type CrescimentoEspecieDado } from "./cartao-crescim
 
 /**
  * A faixa de leitura do topo. Quatro mostradores, o número sempre com o maior
- * peso visual e o rótulo pequeno acima — a hierarquia vive no `Indicador`.
+ * peso visual e o rótulo pequeno acima, a hierarquia vive no `Indicador`.
  */
 export function Indicadores({
   painel,
@@ -24,7 +24,7 @@ export function Indicadores({
   /** Crescimento médio diário da malha, para o minigráfico. */
   serieCrescimento: number[];
   deltaCrescimento?: DeltaIndicador;
-  /** Mesma leitura, quebrada por espécie — o verso do card de crescimento. */
+  /** Mesma leitura, quebrada por espécie, o verso do card de crescimento. */
   crescimentoPorEspecie: CrescimentoEspecieDado[];
 }) {
   const criticos = painel.por_risco.critica;

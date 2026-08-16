@@ -14,7 +14,7 @@ const ANGULO_FIM = 120;
  *
  * O limite é uma marca radial, não um fim de escala: o arco continua depois
  * dele para que "passou em 6&nbsp;cm" e "passou em 30&nbsp;cm" não desenhem
- * igual. O excedente vem hachurado — a leitura crítica precisa mudar de textura,
+ * igual. O excedente vem hachurado: a leitura crítica precisa mudar de textura,
  * não só de cor.
  */
 export function Medidor({
@@ -55,13 +55,13 @@ export function Medidor({
   const [tickX1, tickY1] = pontoNoArco(cx, cy, raio - traco / 2 - 3, anguloLimite);
   const [tickX2, tickY2] = pontoNoArco(cx, cy, raio + traco / 2 + 3, anguloLimite);
 
-  const leitura = `${rotulo}: ${formatarValor(valor)}, limite ${formatarValor(limite)} — ${token.rotulo}, ${fmt.pct(ocupacao)} do limite.`;
+  const leitura = `${rotulo}: ${formatarValor(valor)}, limite ${formatarValor(limite)}, ${token.rotulo}, ${fmt.pct(ocupacao)} do limite.`;
 
-  // O número e a unidade vêm num só texto ("32,4 cm"), mas só o número varia —
+  // O número e a unidade vêm num só texto ("32,4 cm"), mas só o número varia,
   // "cm" é sempre duas letras. Desenhar as duas partes no mesmo corpo de fonte
   // gasta, na unidade, a mesma largura que um dígito do valor custaria; com
   // dois dígitos inteiros a string inteira passa do vão do arco e o traço
-  // risca as duas pontas (o "3" de um lado, o "m" do outro — a string é
+  // risca as duas pontas (o "3" de um lado, o "m" do outro, a string é
   // centralizada, então as duas bordas colidem à mesma distância). Separar a
   // unidade num corpo menor devolve essa largura para o valor.
   const textoValor = formatarValor(valor);

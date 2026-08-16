@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
 import { NAVEGACAO } from "./barra-lateral";
 
 /** O mínimo que a paleta precisa saber de um trecho. Carregado no servidor e
- *  entregue por prop — a paleta nunca vai ao banco. */
+ *  entregue por prop, a paleta nunca vai ao banco. */
 export type TrechoNaPaleta = {
   id: number;
   rodovia: string;
@@ -112,7 +112,7 @@ function trechoParaOpcao(trecho: TrechoNaPaleta): Opcao {
 
 /**
  * Casca da paleta: só o atalho global e a presença. O conteúdo é desmontado ao
- * fechar, e é isso que zera busca e seleção — não há estado velho para limpar.
+ * fechar, e é isso que zera busca e seleção, não há estado velho para limpar.
  */
 export function PaletaComandos({
   trechos,
@@ -159,7 +159,7 @@ export function PaletaComandos({
             className="fixed inset-0 z-50 bg-bg/75 backdrop-blur-[2px]"
           />
 
-          {/* O filho direto da AnimatePresence é um `motion` — é ele que
+          {/* O filho direto da AnimatePresence é um `motion`, é ele que
               garante o fim da animação de saída. O conteúdo mora um nível
               abaixo justamente para ser desmontado junto. */}
           <motion.div
@@ -249,7 +249,7 @@ function ConteudoPaleta({
 
   const idOpcao = (chave: string) => `${id}-${chave}`;
 
-  // Guarda quem abriu e devolve o foco ao fechar — sem isso o teclado volta para
+  // Guarda quem abriu e devolve o foco ao fechar, sem isso o teclado volta para
   // o topo do documento e o gestor perde o lugar na tela.
   useEffect(() => {
     const gatilho = document.activeElement as HTMLElement | null;
@@ -341,7 +341,7 @@ function ConteudoPaleta({
           aria-controls={idLista}
           aria-autocomplete="list"
           aria-activedescendant={ativa ? idOpcao(ativa.chave) : undefined}
-          placeholder="Rodovia, km ou tela — “SP-330 88”"
+          placeholder="Rodovia, km ou tela: “SP-330 88”"
           autoComplete="off"
           autoCorrect="off"
           spellCheck={false}

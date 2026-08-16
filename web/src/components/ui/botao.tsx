@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 export type VarianteBotao = "primario" | "secundario" | "fantasma" | "perigo";
 export type TamanhoBotao = "sm" | "md";
 
-/** Hover e active AUMENTAM contraste — nunca clareiam para longe da tinta. */
+/** Hover e active AUMENTAM contraste, nunca clareiam para longe da tinta. */
 const VARIANTES: Record<VarianteBotao, string> = {
   primario:
     "border border-transparent bg-accent text-accent-ink hover:bg-accent-hover active:bg-accent-hover",

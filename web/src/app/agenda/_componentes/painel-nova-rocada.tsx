@@ -24,7 +24,7 @@ import {
  *
  * A gaveta é a metade visível de `criarRocadaManual` (em `acoes.ts`), e as duas
  * cobrem regras diferentes de propósito. Aqui não há validação de segurança
- * nenhuma — o servidor revalida tudo, porque o cliente não é fonte confiável.
+ * nenhuma: o servidor revalida tudo, porque o cliente não é fonte confiável.
  * O que esta tela faz é o que o servidor NÃO consegue fazer: dizer antes.
  * O trecho que já tem roçada em aberto chega desabilitado com a data ao lado,
  * a data não aceita passado pelo `min` do próprio calendário, e a prévia de
@@ -87,8 +87,8 @@ export function PainelNovaRocada({
 
   /* Zera o formulário na ABERTURA, não no fechamento: fechando, a gaveta ainda
      está animando para fora e apagar os campos no meio da saída é visível. O
-     padrão de ajustar estado durante o render é o mesmo de `PainelAgendamento`
-     — o React reinicia o render antes de pintar, sem efeito e sem quadro extra. */
+     padrão de ajustar estado durante o render é o mesmo de `PainelAgendamento`,
+     o React reinicia o render antes de pintar, sem efeito e sem quadro extra. */
   const [abertaAntes, setAbertaAntes] = useState(aberta);
   if (aberta !== abertaAntes) {
     setAbertaAntes(aberta);
@@ -106,7 +106,7 @@ export function PainelNovaRocada({
   /* Agrupado por rodovia e não ordenado por risco, ao contrário do resto do
      painel: isto é um SELETOR, e quem procura um trecho procura pelo nome da
      rodovia que tem na cabeça, não pela posição dele na fila de urgência. O
-     risco não some — vai no rótulo de cada opção, junto com o prazo, que é o
+     risco não some: vai no rótulo de cada opção, junto com o prazo, que é o
      contexto que faz escolher entre duas faixas de km da mesma rodovia. */
   const porRodovia = useMemo(() => {
     const grupos = new Map<string, TrechoResumo[]>();
@@ -178,7 +178,7 @@ export function PainelNovaRocada({
       aoFechar={aoFechar}
       largura="md"
       titulo="Nova roçada"
-      descricao="Uma roçada que a IA não propôs — reclamação, obra, evento."
+      descricao="Uma roçada que a IA não propôs: reclamação, obra, evento."
       rodape={
         <div className="flex flex-wrap items-center gap-2">
           {/* `form=` e não um botão dentro do `<form>`: o rodapé da gaveta é uma
@@ -216,7 +216,7 @@ export function PainelNovaRocada({
           id={idTrecho}
           obrigatorio
           erro={erros.trecho}
-          dica="Trecho com roçada já marcada aparece fechado — é uma por trecho."
+          dica="Trecho com roçada já marcada aparece fechado: é uma por trecho."
         >
           <Selecao value={trecho} disabled={pendente} onChange={(e) => setTrecho(e.target.value)}>
             <option value="">Escolha o trecho…</option>
@@ -304,7 +304,7 @@ export function PainelNovaRocada({
  * O que esta roçada faz com a agenda da equipe, antes de ela existir.
  *
  * É a mesma pergunta que a prévia do arrasto responde quando um cartão paira
- * sobre uma célula — e a resposta precisa existir aqui pelo mesmo motivo: o
+ * sobre uma célula, e a resposta precisa existir aqui pelo mesmo motivo: o
  * quadro inteiro é construído para que ninguém estoure uma equipe sem ver. Um
  * formulário que só diz "pronto" depois do fato seria a única porta desta tela
  * por onde o estouro entra às cegas.
@@ -348,7 +348,7 @@ function PreviaDeCarga({
 
       {previa.dias.some((d) => d.excedida) ? (
         <p className="mt-2 text-2xs text-ink-3">
-          Dá para agendar assim mesmo — o quadro vai mostrar o excesso na célula.
+          Dá para agendar assim mesmo, o quadro vai mostrar o excesso na célula.
           Outro dia ou outra equipe resolve.
         </p>
       ) : null}

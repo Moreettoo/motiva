@@ -5,7 +5,7 @@ import { cache } from "react";
 import { db } from "./supabase";
 import { diasEntre, isoHoje, somarDias } from "./format";
 import { ordemRisco } from "./dominio";
-import { groupBy, sum } from "./utils";
+import { distanciaKm, groupBy, sum } from "./utils";
 import type {
   AgendamentoDetalhado,
   Equipe,
@@ -168,7 +168,7 @@ export const montarPainel = cache(async (): Promise<Painel> => {
 });
 
 /**
- * Trechos agrupados por rodovia, ordenados por km — a base da regua da malha.
+ * Trechos agrupados por rodovia, ordenados por km, a base da regua da malha.
  *
  * A chave inclui a UF de proposito. A mesma designacao atravessa estados em
  * faixas de km completamente diferentes: a BR-101 Rio-Santos vai do km 450 ao
@@ -203,7 +203,7 @@ export const trechosPorRodovia = cache(async () => {
 
 /**
  * Serie diaria de crescimento medio da malha nos ultimos N dias.
- * Uma linha por especie — sao 3, dentro do limite de series validado.
+ * Uma linha por especie: sao 3, dentro do limite de series validado.
  */
 export const serieCrescimentoPorEspecie = cache(async (dias = 45) => {
   const desde = somarDias(new Date(), -dias).toISOString().slice(0, 10);
@@ -234,7 +234,7 @@ export const serieCrescimentoPorEspecie = cache(async (dias = 45) => {
   return { especies, pontos };
 });
 
-/** Carga por equipe nos proximos 21 dias — quem esta sobrecarregado. */
+/** Carga por equipe nos proximos 21 dias, quem esta sobrecarregado. */
 export const cargaDasEquipes = cache(async () => {
   const [equipes, agendamentos] = await Promise.all([
     listarEquipes(),
@@ -261,7 +261,7 @@ export const cargaDasEquipes = cache(async () => {
   });
 });
 
-/** Trechos sem previsao ou com medicao velha — o que a operacao precisa corrigir. */
+/** Trechos sem previsao ou com medicao velha, o que a operacao precisa corrigir. */
 export const lacunasDeDados = cache(async () => {
   const trechos = await listarTrechos();
   const hoje = isoHoje();
@@ -273,6 +273,38 @@ export const lacunasDeDados = cache(async () => {
     semAgendamento: trechos.filter((t) => t.agendamento_id == null && (t.risco === "critica" || t.risco === "alta")),
   };
 });
+
+/**
+ * O trecho da malha mais proximo de uma coordenada qualquer.
+ *
+ * Existe para o simulador, que recebe latitude e longitude soltas e precisa de
+ * duas coisas que um ponto no mapa nao tem: a UF (o modelo pede `uf_cod`) e uma
+ * altura limite de referencia (a IA 2 decide QUANDO roçar contra um limite, e
+ * um ponto solto nao tem limite nenhum).
+ *
+ * Resolver pelo vizinho e melhor que pedir mais um campo no formulario e melhor
+ * que chutar: e um dado real da malha, e a tela mostra de qual trecho veio e a
+ * que distancia, quem olha julga se faz sentido.
+ */
+export const trechoMaisProximo = cache(
+  async (latitude: number, longitude: number): Promise<{ trecho: TrechoStatus; distanciaKm: number } | null> => {
+    const trechos = await listarTrechos();
+    if (trechos.length === 0) return null;
+
+    let melhor = trechos[0];
+    let menor = distanciaKm({ latitude, longitude }, melhor);
+
+    for (const t of trechos.slice(1)) {
+      const d = distanciaKm({ latitude, longitude }, t);
+      if (d < menor) {
+        menor = d;
+        melhor = t;
+      }
+    }
+
+    return { trecho: melhor, distanciaKm: menor };
+  },
+);
 
 export type TrechosPorRodovia = Awaited<ReturnType<typeof trechosPorRodovia>>;
 export type SerieCrescimento = Awaited<ReturnType<typeof serieCrescimentoPorEspecie>>;

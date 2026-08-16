@@ -14,7 +14,7 @@ import { ORDEM_RISCO, riscoPorPrazo } from "@/lib/dominio";
 import type { Risco } from "@/lib/types";
 
 /**
- * Ficha do sistema — o que gera confianca nao e a resposta bonita, e o gestor
+ * Ficha do sistema: o que gera confianca nao e a resposta bonita, e o gestor
  * saber de onde ela veio.
  */
 
@@ -36,7 +36,7 @@ const FEATURES = [
 const LIMITACOES = [
   "A altura de hoje é extrapolada, não medida: é a última medição mais o crescimento previsto vezes os dias decorridos.",
   "Medição velha acumula erro. Quanto mais antiga a visita ao trecho, mais a altura atual é estimativa em cima de estimativa.",
-  "A análise em lote só chama a LLM para trechos a menos de 45 dias do limite. Trecho folgado ganha previsão, mas não ganha agendamento — o silêncio ali é economia, não ausência de risco.",
+  "A análise em lote só chama a LLM para trechos a menos de 45 dias do limite. Trecho folgado ganha previsão, mas não ganha agendamento. O silêncio ali é economia, não ausência de risco.",
   "O copiloto lê apenas agendamentos: rodovia, km, UF, prioridade, data e justificativa. Medição, altura, crescimento e escala de equipe ficam fora da pergunta.",
 ];
 
@@ -45,7 +45,7 @@ const TETO_SONDAGEM = 90;
 
 /**
  * As faixas da tabela saem de `riscoPorPrazo`, e nao de uma copia escrita a mao.
- * Se a regra mudar em `@/lib/dominio`, esta tabela muda junto — que e o unico
+ * Se a regra mudar em `@/lib/dominio`, esta tabela muda junto, que e o unico
  * jeito de a explicacao nunca mentir sobre o que o sistema faz.
  */
 function faixasDePrazo(): Map<Risco, { min: number; max: number }> {
@@ -101,8 +101,8 @@ export function FichaModelo({ modeloLlm }: { modeloLlm: string | null }) {
               <p className="mt-1 text-xs text-ink-2">
                 Recebe o cm/dia já calculado e{" "}
                 <strong className="font-medium text-ink">não recalcula o número</strong>. Lê as
-                observações do trecho — curva fechada, reclamação no 0800, risco de incêndio, janela
-                seca — escolhe a data e escreve a justificativa.
+                observações do trecho (curva fechada, reclamação no 0800, risco de incêndio, janela
+                seca) e escolhe a data e escreve a justificativa.
               </p>
             </li>
           </ol>
@@ -114,7 +114,7 @@ export function FichaModelo({ modeloLlm }: { modeloLlm: string | null }) {
           </h3>
 
           {/* Rótulo à esquerda, nome técnico à direita: lê como ficha de
-              instrumento, e o nome inteiro cabe sem truncar — cortado, ele
+              instrumento, e o nome inteiro cabe sem truncar: cortado, ele
               deixaria de servir para achar a coluna no log ou no `.pkl`. */}
           <ul className="mt-3 flex flex-col gap-1.5">
             {FEATURES.map((feature) => (
@@ -171,7 +171,7 @@ export function FichaModelo({ modeloLlm }: { modeloLlm: string | null }) {
           </h3>
           <p className="mt-2 text-xs text-ink-2">
             Open-Meteo, previsão diária de 16 dias, sem chave de API. A consulta é feita uma vez por
-            zona climática de km — a rodovia é uma linha, então trechos vizinhos compartilham o mesmo
+            zona climática de km: a rodovia é uma linha, então trechos vizinhos compartilham o mesmo
             tempo e uma chamada serve a todos.
           </p>
         </section>

@@ -14,7 +14,7 @@ export const metadata: Metadata = { title: "Malha" };
  *
  * Toda a leitura acontece aqui, no servidor, em uma consulta só
  * (`vw_trecho_status`); o cliente recebe a lista pronta e só cuida de filtro,
- * seleção e visão — que vivem na URL para o gestor mandar o link à equipe.
+ * seleção e visão, que vivem na URL para o gestor mandar o link à equipe.
  */
 export default async function PaginaMalha() {
   const [trechos, porRodovia, zonas] = await Promise.all([

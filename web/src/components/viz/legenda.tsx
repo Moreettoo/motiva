@@ -4,12 +4,15 @@ import {
   CircleCheck,
   CircleSlash,
   Clock,
+  CloudSun,
   Fence,
   Flag,
   GitFork,
+  History,
   Minus,
   OctagonAlert,
   Redo2,
+  Repeat,
   Rows3,
   Sparkles,
   Spline,
@@ -20,7 +23,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Ponte entre o nome de ícone guardado em `@/lib/dominio` e o componente.
- * Fica aqui, e não em cada gráfico, porque ícone só aparece colado num rótulo —
+ * Fica aqui, e não em cada gráfico, porque ícone só aparece colado num rótulo,
  * e rótulo colado em marca colorida é exatamente o que a legenda é.
  */
 const ICONES: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
@@ -37,6 +40,12 @@ const ICONES: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
   Redo2,
   Rows3,
   Fence,
+  // Procedência do clima no simulador. Sem estes três o `?? Circle` desenhava
+  // uma bolinha vazia ao lado de "Previsão" e "Média observada", que na tela
+  // lê como ícone que não carregou, não como escolha.
+  CloudSun,
+  History,
+  Repeat,
 };
 
 export function IconeDominio({
@@ -61,14 +70,14 @@ export function IconeDominio({
 
 export type ItemLegenda = {
   rotulo: string;
-  /** Token de cor da entidade — `var(--s1)`, `var(--critical)`… nunca hex. */
+  /** Token de cor da entidade: `var(--s1)`, `var(--critical)`… nunca hex. */
   cor: string;
   valor?: string;
   icone?: ReactNode;
 };
 
 /**
- * Legenda — presente sempre que houver duas séries ou mais.
+ * Legenda, presente sempre que houver duas séries ou mais.
  *
  * O rótulo usa tinta de TEXTO, nunca a cor da série: amarelo e laranja são
  * ilegíveis como texto sobre a superfície. Quem carrega a identidade é a marca

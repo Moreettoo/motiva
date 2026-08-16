@@ -1,6 +1,6 @@
 /**
  * Rodapé compartilhado pelos `error.tsx`. A etiqueta que o gestor lê no telefone
- * para o suporte mora aqui, num lugar só — antes eram quatro redações diferentes
+ * para o suporte mora aqui, num lugar só, antes eram quatro redações diferentes
  * espalhadas por cinco telas.
  */
 export function CodigoDoErro({ digest }: { digest?: string }) {

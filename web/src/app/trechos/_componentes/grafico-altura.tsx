@@ -44,12 +44,12 @@ const OPCOES: OpcaoSegmentada<Periodo>[] = [
 const DIAS_PROJECAO = 45;
 const PASSO_PROJECAO = 5;
 
-/** A projeção é a MESMA entidade da medição — nunca uma segunda cor de série,
+/** A projeção é a MESMA entidade da medição: nunca uma segunda cor de série,
  *  senão o gráfico sugere duas grandezas diferentes.
  *
  *  As duas usam o MESMO passo de cor: quem separa medição de projeção é o traço
  *  tracejado, e a legenda diz isso por extenso. Apagar a projeção com
- *  color-mix chegava a 1,98:1 no tema escuro e 1,82:1 no claro — abaixo do
+ *  color-mix chegava a 1,98:1 no tema escuro e 1,82:1 no claro, abaixo do
  *  mínimo de 3:1 para marca de gráfico. Não se gasta contraste codificando o
  *  que o padrão do traço já carrega. */
 const COR_MEDIDA = "var(--s1)";
@@ -63,7 +63,7 @@ function rotularY(v: number): string {
 /**
  * Altura da vegetação: medição de campo, projeção do modelo e roçadas.
  *
- * Um eixo Y só (cm). A parte tracejada não é medida — é a última medição
+ * Um eixo Y só (cm). A parte tracejada não é medida, é a última medição
  * estendida pela taxa prevista, e por isso muda de traço e de intensidade além
  * de aparecer nomeada na legenda.
  */

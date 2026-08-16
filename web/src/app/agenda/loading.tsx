@@ -4,7 +4,7 @@ import { Esqueleto } from "@/components/ui/esqueleto";
  *  barras iguais não lê como gráfico. */
 const ALTURAS_MAPA = ["h-3", "h-6", "h-8", "h-4", "h-7", "h-5", "h-9"];
 
-/** Quais dias de cada linha de equipe já têm um cartão — larguras/posições
+/** Quais dias de cada linha de equipe já têm um cartão, larguras/posições
  *  irregulares de propósito, mesma razão de sempre: uma coluna de células
  *  idênticas não lê como quadro em uso. */
 const CARTOES_POR_LINHA = [
@@ -14,7 +14,7 @@ const CARTOES_POR_LINHA = [
 ];
 
 /** Mesma silhueta do conteúdo real: cabeçalho, controles, faixa de números e o
- *  quadro da semana — navegação, mini-mapa de 28 dias, trilho da fila à
+ *  quadro da semana: navegação, mini-mapa de 28 dias, trilho da fila à
  *  esquerda e a calha de equipes + 7 dias à direita. Um retângulo cinza
  *  genérico faria a tela pular de layout quando os dados chegassem. */
 export default function CarregandoAgenda() {

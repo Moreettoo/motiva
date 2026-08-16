@@ -25,7 +25,7 @@ export type AlinhamentoMenu = "esquerda" | "direita";
 const ContextoMenu = createContext<{ fechar: (devolverFoco?: boolean) => void } | null>(null);
 
 /**
- * Dropdown de ações. O balão é `absolute` dentro do gatilho — um ancestral com
+ * Dropdown de ações. O balão é `absolute` dentro do gatilho, um ancestral com
  * `overflow: hidden` recorta o menu; use `overflow-visible` nesses casos.
  */
 export function Menu({
@@ -58,7 +58,7 @@ export function Menu({
 
   // Os dois papéis, não só `menuitem`: um menu de FILTRO é feito de
   // `menuitemcheckbox` (ver `ItemMenuAlternavel`), e com o seletor antigo as
-  // setas ↑/↓ não achavam nenhum item — o menu abria mudo, sem foco em nada.
+  // setas ↑/↓ não achavam nenhum item: o menu abria mudo, sem foco em nada.
   const itens = useCallback(() => {
     const raiz = refMenu.current;
     if (!raiz) return [] as HTMLElement[];
@@ -262,7 +262,7 @@ export function ItemMenu({
 }
 
 /**
- * Item de menu que ALTERNA em vez de agir — um filtro, não um comando.
+ * Item de menu que ALTERNA em vez de agir: um filtro, não um comando.
  *
  * Duas diferenças em relação a `ItemMenu`, e as duas são da natureza de filtro:
  *
@@ -272,7 +272,7 @@ export function ItemMenu({
  * formas de item ficarem alinhadas na mesma lista.
  *
  * E ele NÃO fecha o menu. Um menu de ação fecha porque a ação acabou; um filtro
- * quase nunca é um ajuste só — desmarcar "sugerido" e marcar "executado" são
+ * quase nunca é um ajuste só, desmarcar "sugerido" e marcar "executado" são
  * dois cliques, e fechar no primeiro obrigaria a reabrir para o segundo. Quem
  * fecha é Escape, Tab ou o clique fora, que o `Menu` já trata.
  */
@@ -284,7 +284,7 @@ export function ItemMenuAlternavel({
   children,
 }: {
   marcado: boolean;
-  /** Número à direita — quantos itens o filtro alcança. Opcional. */
+  /** Número à direita, quantos itens o filtro alcança. Opcional. */
   contagem?: string;
   /** Ícone da própria entidade (o do risco, o do status), não a marca de
    *  seleção: a marca é o `Check` que este componente desenha. */

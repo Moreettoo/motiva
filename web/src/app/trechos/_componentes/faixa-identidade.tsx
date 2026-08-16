@@ -12,7 +12,7 @@ function Separador() {
 }
 
 /**
- * Identidade do trecho — a linha que responde "qual pedaço de rodovia é este".
+ * Identidade do trecho, a linha que responde "qual pedaço de rodovia é este".
  *
  * Faixa de km, coordenada e tudo que se lê como instrumento vem em monoespaçado;
  * a separação é por hairline, não por espaço vazio.

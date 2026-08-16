@@ -5,7 +5,7 @@ import { classeAnelErro } from "./cartao-servico";
 /**
  * A única lógica pura do cartão: qual classe de anel de erro ele veste.
  *
- * O que estes testes protegem não é a aritmética de paridade — é o INVARIANTE
+ * O que estes testes protegem não é a aritmética de paridade, é o INVARIANTE
  * que ela existe para cumprir: gerações consecutivas nunca produzem a mesma
  * classe. Uma animação CSS não reinicia quando a classe já está aplicada, então
  * uma segunda falha do mesmo cartão dentro dos 450 ms só pisca se o nome da

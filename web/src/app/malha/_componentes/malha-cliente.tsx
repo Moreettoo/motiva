@@ -92,7 +92,7 @@ export function MalhaCliente({
 
   // Guarda o último trecho aberto para o painel poder animar a saída: sem isso
   // ele desmontaria no mesmo quadro do clique em "fechar" e sumiria seco.
-  // Ajuste durante o render, não em efeito — o conteúdo precisa estar correto já
+  // Ajuste durante o render, não em efeito, o conteúdo precisa estar correto já
   // na primeira pintura do fechamento, e um efeito só rodaria depois dela.
   const [ultimoAberto, setUltimoAberto] = useState<TrechoStatus | null>(selecionado);
   const [idAnterior, setIdAnterior] = useState<number | null>(trechoId);

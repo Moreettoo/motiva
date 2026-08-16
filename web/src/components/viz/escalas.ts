@@ -1,5 +1,5 @@
 /**
- * Escalas e caminhos — matemática pura, sem React e sem biblioteca de gráfico.
+ * Escalas e caminhos: matemática pura, sem React e sem biblioteca de gráfico.
  *
  * Tudo aqui devolve número ou string de `path`. Manter essa camada sem DOM é o
  * que permite calcular a geometria durante o render sem forçar layout.
@@ -21,7 +21,7 @@ function finito([x, y]: Ponto): boolean {
  * Projeção linear de domínio em alcance.
  *
  * Domínio degenerado (série constante, ponto único) projeta no meio do alcance
- * em vez de dividir por zero — um NaN dentro de um atributo `d` some da tela sem
+ * em vez de dividir por zero, um NaN dentro de um atributo `d` some da tela sem
  * aviso e é caro de rastrear.
  */
 export function escalaLinear({ dominio, alcance }: { dominio: Faixa; alcance: Faixa }): (v: number) => number {
@@ -153,14 +153,14 @@ export function comprimentoLinha(pontos: Ponto[]): number {
   }
 
   // Folga de 6%: `stroke-linejoin` arredonda os vértices e o traço fica um pouco
-  // mais longo que a poligonal — dash curto demais deixa a linha inacabada.
+  // mais longo que a poligonal, dash curto demais deixa a linha inacabada.
   return Math.ceil(total * 1.06) || 1;
 }
 
 export type LadoArredondado = "direita" | "cima";
 
 /**
- * Retângulo de barra com raio só na ponta do dado — a base fica quadrada,
+ * Retângulo de barra com raio só na ponta do dado: a base fica quadrada,
  * ancorada na linha de zero. `r` encolhe quando a barra é menor que o raio,
  * senão a ponta vira meia-lua e superestima o valor.
  */
@@ -202,7 +202,7 @@ export function caminhoBarra(
 }
 
 /**
- * Retângulo com raio só nas pontas escolhidas — segmento do meio de uma pilha
+ * Retângulo com raio só nas pontas escolhidas, segmento do meio de uma pilha
  * fica reto dos dois lados, e só as extremidades externas da faixa arredondam.
  */
 export function caminhoSegmento(

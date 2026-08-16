@@ -17,10 +17,10 @@ export function CabecalhoPagina({
   titulo: string;
   descricao?: string;
   acoes?: React.ReactNode;
-  /** Faixa de números à direita do título — use `MetricaCabecalho`. */
+  /** Faixa de números à direita do título, use `MetricaCabecalho`. */
   metricas?: React.ReactNode;
   className?: string;
-  /** Título como protagonista da tela, sem descrição abaixo — a porta de entrada usa. */
+  /** Título como protagonista da tela, sem descrição abaixo, a porta de entrada usa. */
   destaque?: boolean;
 }) {
   return (
@@ -54,7 +54,7 @@ export function CabecalhoPagina({
 
 /**
  * Número solto da faixa do cabeçalho. O rótulo vem pequeno e em maiúsculas
- * ACIMA do valor — o número é quem carrega o peso visual.
+ * ACIMA do valor, o número é quem carrega o peso visual.
  */
 export function MetricaCabecalho({
   rotulo,

@@ -176,8 +176,8 @@ function Gaveta({
       <div className="flex flex-wrap items-center gap-2">
         <ChipRisco risco={item.risco} />
         <ChipStatus status={item.status} />
-        {/* Só o manual se anuncia. "Da IA" é o padrão desta tela — 198 das 199
-            linhas —, e carimbar o padrão em todo cartão é ruído; o que muda a
+        {/* Só o manual se anuncia. "Da IA" é o padrão desta tela, 198 das 199
+            linhas, e carimbar o padrão em todo cartão é ruído; o que muda a
             leitura é a exceção. O chip também é o que explica por que a seção
             de baixo diz "Motivo do agendamento" e não "Justificativa da IA". */}
         {item.manual ? (
@@ -208,7 +208,7 @@ function Gaveta({
         <p className="mt-3 rounded-md border border-border bg-surface-2 p-3 text-xs text-ink-2">
           A previsão mudou desde que esta roçada foi marcada: o trecho tem mais
           de {DIAS_FOLGA_DISPENSA} dias de folga até o limite de altura. Se ela
-          não for mais fazer sentido, descarte no rodapé — o lote não faz isso
+          não for mais fazer sentido, descarte no rodapé, o lote não faz isso
           sozinho com uma data que alguém aprovou.
         </p>
       ) : null}
@@ -275,7 +275,7 @@ function Gaveta({
         {ocupacao != null ? (
           <div className="mt-3">
             {/* "Ocupação" nesta tela é carga de equipe (linha do tempo). Aqui a
-                barra compara altura com limite — a altura e o limite estão logo
+                barra compara altura com limite, a altura e o limite estão logo
                 acima, no mesmo `dl`, então o percentual tem referência. */}
             <p className="mb-1.5 text-2xs text-ink-3">Altura contra o limite</p>
             <BarraProgresso
@@ -292,7 +292,7 @@ function Gaveta({
       <section className="mt-6">
         {/* A mesma coluna do banco (`justificativa`) com dois donos possíveis.
             Chamar de "Justificativa da IA" um texto que um gestor escreveu à
-            mão seria atribuir a decisão a quem não a tomou — na tela em que
+            mão seria atribuir a decisão a quem não a tomou, na tela em que
             alguém vai reler essa decisão daqui a três semanas. */}
         <h3 className="text-2xs font-medium tracking-widest text-ink-3 uppercase">
           {item.manual ? "Motivo do agendamento" : "Justificativa da IA"}

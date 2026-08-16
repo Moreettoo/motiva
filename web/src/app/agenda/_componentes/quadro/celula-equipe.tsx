@@ -20,13 +20,13 @@ function fraseDaContinuacao(itens: ItemAgenda[]): string {
 }
 
 /**
- * O corpo do rótulo falado, em TRÊS estados — o quarto, a célula vazia de
+ * O corpo do rótulo falado, em TRÊS estados: o quarto, a célula vazia de
  * verdade, é a ausência do rótulo (ver `nomeada`, abaixo).
  *
  * O estado do meio é o que não existia: sem cartão e com carga, o dia de
  * continuação de um serviço de mais de um dia. Ele caía no ramo "Sem serviço.",
  * que não carrega km nem capacidade, e ainda recebia " Acima da capacidade."
- * quando a carga passava — literalmente "Sem serviço. Acima da capacidade.",
+ * quando a carga passava: literalmente "Sem serviço. Acima da capacidade.",
  * com um "2,5/4,5" visível ao lado que ninguém ouvia. Por isso a frase nomeia o
  * serviço e o dia em que ele começou: o km precisa de dono, senão a célula
  * confessa uma carga que não explica.
@@ -64,7 +64,7 @@ export const CelulaEquipe = memo(function CelulaEquipe({
   realcada: boolean;
   recusada: boolean;
   /** ESTA é a equipe escolhida no seletor de destaque. Era o inverso
-   *  (`atenuada`, nas outras) e não dava sinal visível — ver `linhaDestacada`,
+   *  (`atenuada`, nas outras) e não dava sinal visível: ver `linhaDestacada`,
    *  em `dados.tsx`, para as medições. */
   destacada: boolean;
   children: React.ReactNode;
@@ -74,7 +74,7 @@ export const CelulaEquipe = memo(function CelulaEquipe({
   const idRotulo = idDoGrupo(celula.dia, celula.equipeId);
 
   /* "Tem algo a dizer" são DOIS casos, não um: a célula com cartão, e a célula
-     de CONTINUAÇÃO — sem cartão e com carga, porque `montarGrade` chaveia os
+     de CONTINUAÇÃO: sem cartão e com carga, porque `montarGrade` chaveia os
      itens pelo dia de INÍCIO e o segundo dia de um serviço de 2 dias só herda
      km. Condicionar em `itens.length` sozinho silenciaria justamente a célula em
      que o número visível "2,5/4,5" não tem nenhum cartão ao lado para explicá-lo.
@@ -87,18 +87,18 @@ export const CelulaEquipe = memo(function CelulaEquipe({
 
   return (
     <div
-      /* Grupo nomeado por par (dia, equipe) — SÓ nas células que têm algo a
+      /* Grupo nomeado por par (dia, equipe), SÓ nas células que têm algo a
          dizer. O ganho é o nome COMPUTADO e falado na ENTRADA: por isso ele sai
-         de `aria-labelledby` e não de mover o `sr-only` para ANTES dos cartões —
+         de `aria-labelledby` e não de mover o `sr-only` para ANTES dos cartões,
          a posição física do rótulo no DOM deixa de importar, e ele pode
          continuar no fim, sem disputar espaço com a coluna de cartões. Sem
          grupo, o rótulo era um `sr-only` DEPOIS dos cartões e quem ouve a tela
          recebia "BR-101…" antes de saber de que dia e de que equipe.
 
          Mas isso é tudo que `group` compra: navegação, não. Não é um dos
-         landmarks da ARIA 1.2 — a definição dele é uma exclusão explícita, um
+         landmarks da ARIA 1.2: a definição dele é uma exclusão explícita, um
          conjunto de objetos "not intended to be included in a page summary or
-         table of contents by assistive technologies" —, o Core-AAM mapeia para
+         table of contents by assistive technologies", o Core-AAM mapeia para
          `ROLE_SYSTEM_GROUPING` / Control Type `Group` SEM Landmark Type (nem
          `ROLE_PANEL`, nem `AXGroup`), a lista de elementos do NVDA (`NVDA+F7`)
          tem cinco tipos fechados e nenhum é grouping, e o rotor do VoiceOver
@@ -114,11 +114,11 @@ export const CelulaEquipe = memo(function CelulaEquipe({
          Célula vazia volta a ser `<div>` mudo, e nada se perde: `data-celula` não
          muda (ela continua alvo de solta pelo ponteiro) e no caminho de teclado
          quem narra é `descrever`/`validar`, em `quadro-semana.tsx`, que já falam
-         dia, equipe, carga e o motivo da recusa a cada passo — inclusive o "Essa
+         dia, equipe, carga e o motivo da recusa a cada passo, inclusive o "Essa
          equipe está desativada e não recebe serviço novo." que o rótulo daqui
          carrega quando a célula é nomeada.
 
-         NÃO `region`: seria estritamente pior — inundaria a única lista onde a
+         NÃO `region`: seria estritamente pior, inundaria a única lista onde a
          navegação de fato acontece. NÃO `<section>`: 70 landmarks afogariam o
          rotor de quem navega por região. NÃO `role="grid"`: o eixo aqui é
          transposto (colunas = dias, linhas = equipes) e não se expressa sem um
@@ -126,14 +126,14 @@ export const CelulaEquipe = memo(function CelulaEquipe({
          plana. */
       role={nomeada ? "group" : undefined}
       aria-labelledby={nomeada ? idRotulo : undefined}
-      /* Célula que não aceita solta NÃO emite `data-celula` — essa é a
+      /* Célula que não aceita solta NÃO emite `data-celula`, essa é a
          defesa da regra de negócio no nível do DOM, e não deve relaxar.
          Em vez disso emite `data-celula-recusada`, um atributo PRÓPRIO que o
          hit-test (`alvoSob`, em `usar-arrasto.ts`) sabe ler sem tratar como
          destino válido: carrega a MESMA `celula.chave`, então `validar`
          (que já sabe dizer "Esse dia já passou."/"Essa equipe está
          desativada…") roda normalmente e o estado de recusa é desenhado de
-         verdade — em vez de resolver para `null` e a solta virar um no-op
+         verdade, em vez de resolver para `null` e a solta virar um no-op
          silencioso. */
       data-celula={celula.aceitaSolta ? celula.chave : undefined}
       data-celula-recusada={celula.aceitaSolta ? undefined : celula.chave}
@@ -146,14 +146,14 @@ export const CelulaEquipe = memo(function CelulaEquipe({
            (preto puro) a 3%. O raciocínio de escolher 3% está preservado abaixo
            porque a conclusão dele importa; o que ele nunca mediu é se 3%
            PRODUZ diferença. Produz quase nada no claro (1,072:1) e nada no
-           escuro (1,007:1 — e ainda 1,030:1 a 20%, porque preto sobre
+           escuro (1,007:1, e ainda 1,030:1 a 20%, porque preto sobre
            quase-preto não tem para onde ir). Era um controle que respondia sem
            dar sinal.
 
            `bg-accent-soft` resolve por matiz em vez de luminância: 1,067:1 de
            luminância no claro e 1,224:1 no escuro, mas com desvio de MATIZ nos
-           dois — verde pálido contra quase-branco, verde escuro contra
-           quase-preto —, que é o canal que o olho lê em áreas grandes e
+           dois: verde pálido contra quase-branco, verde escuro contra
+           quase-preto, que é o canal que o olho lê em áreas grandes e
            adjacentes. E custa zero contraste de texto: o único texto que pousa
            direto no fundo da célula é o rótulo `km/capacidade`, e ele carrega
            `bg-surface` próprio (ver mais abaixo), então nem toca esta camada.
@@ -183,14 +183,14 @@ export const CelulaEquipe = memo(function CelulaEquipe({
 
       <ul className="relative flex min-w-0 flex-col gap-1">{children}</ul>
 
-      {/* O `<p>` inteiro é `aria-hidden`, não só a barra. A barra já era — 70
+      {/* O `<p>` inteiro é `aria-hidden`, não só a barra. A barra já era, 70
           `role="progressbar"` é o mesmo ruído que fez rejeitar `listbox` para a
-          grade —, mas o número ao lado dela não, e o nome do grupo acima já diz
+          grade, mas o número ao lado dela não, e o nome do grupo acima já diz
           o MESMO fato em forma falada ("3,0 km de 11,0 km no dia"). Quem ouve a
           tela recebia os dois: a frase com unidade e, de novo, um "3,0/11,0"
           solto que não quer dizer nada fora da coluna. Isto só vale porque o
           rótulo do grupo existe em TODA célula que chega a pintar este `<p>` com
-          carga — inclusive a de continuação, que não tem cartão nenhum (ver
+          carga: inclusive a de continuação, que não tem cartão nenhum (ver
           `nomeada`, acima). Se o grupo deixar de cobrir um desses casos, este
           `aria-hidden` passa a ser o único motivo de um número visível ficar
           inaudível.
@@ -198,12 +198,12 @@ export const CelulaEquipe = memo(function CelulaEquipe({
           O número carrega o PRÓPRIO fundo (`bg-surface`), mesma técnica já usada
           no ícone de excesso, e pelo mesmo motivo: a hachura é `absolute
           inset-0` e pinta ANTES no DOM, este `<p>` é `relative` e pinta DEPOIS,
-          então o número ficava por cima da hachura — justo no estado em que ele
+          então o número ficava por cima da hachura, justo no estado em que ele
           mais importa. Medido, `ink-3` sobre a faixa opaca do gradiente: 3,42:1
           no claro e 3,84:1 no escuro (3,22:1 e 3,87:1 com a veladura de
           atenuação por baixo), contra o piso de 4,5:1 para texto pequeno. Com a
-          placa opaca o par volta a ser o único que a base já mede — `ink-3`
-          sobre `surface`, 4,99:1 no claro e 4,87:1 no escuro — e para de depender
+          placa opaca o par volta a ser o único que a base já mede, `ink-3`
+          sobre `surface`, 4,99:1 no claro e 4,87:1 no escuro, e para de depender
           do que estiver atrás (hachura, veladura ou nada). A placa também tapa a
           veladura de 3% naquele retângulo, diferença imperceptível e o motivo de
           o par ser sempre o limpo. Ela contrasta pouco com a hachura de propósito
@@ -232,24 +232,24 @@ export const CelulaEquipe = memo(function CelulaEquipe({
 
       {/* Cor de status nunca aparece sozinha (spec §2): a hachura acima é só
           textura, e a barra de capacidade só troca de cor. O ícone é o sinal
-          visível de verdade — mesmo padrão de `cabecalho-dia.tsx` (ícone
+          visível de verdade, mesmo padrão de `cabecalho-dia.tsx` (ícone
           visível + `aria-hidden`, rótulo falado à parte; aqui ele é o "Acima da
           capacidade." do nome do grupo). O único caso em que este ícone aparece
           sem grupo para falá-lo é a célula VAZIA sob a prévia do arrasto, e ali
           quem fala é a região `aria-live`: `descrever` termina com a mesma frase.
           Depois do `<ul>`/`<p>` no DOM, não antes: os três são `relative`
           (positioned), e entre positioned a ordem de pintura é a ordem do
-          DOM — antes deles, um cartão no canto superior direito da célula
+          DOM: antes deles, um cartão no canto superior direito da célula
           cobriria o ícone.
           Ficar por cima é justamente o que tornava o contraste imprevisível: o
           fundo atrás do ícone podia ser a célula, a hachura, ou o `fundo` de
-          RISCO do cartão que ele cobre — quatro valores por tema, cada um
+          RISCO do cartão que ele cobre: quatro valores por tema, cada um
           mudando com o risco. O ícone carrega o próprio fundo, no par que o
           design system já reserva para isto (`Chip tom="critical"`:
           `bg-critical-soft` + `text-critical-ink`), então há UM par a medir por
           tema e ele não se move quando um risco novo entrar na tabela: 5,96:1
           no claro e 7,60:1 no escuro, contra o piso de 3:1 de elemento gráfico
-          não textual (WCAG 1.4.11) — o rótulo falado vive no nome do grupo,
+          não textual (WCAG 1.4.11): o rótulo falado vive no nome do grupo,
           então aqui o ícone é reforço visual, não o único canal. */}
       {leitura.excedida ? (
         <span
@@ -266,13 +266,13 @@ export const CelulaEquipe = memo(function CelulaEquipe({
       {/* O rótulo do grupo. `aria-hidden` porque este MESMO texto é o nome do
           grupo: sem isso ele seria falado na entrada e DE NOVO como conteúdo lá
           dentro. O que a computação de nome acessível ignora, em accname 1.2, é
-          a ocultação da RAIZ da travessia — o nó diretamente referenciado por
-          `aria-labelledby`, que é este `<span>` — e a ocultação PROPAGA para a
+          a ocultação da RAIZ da travessia, o nó diretamente referenciado por
+          `aria-labelledby`, que é este `<span>`, e a ocultação PROPAGA para a
           subárvore dele. Os dois lados têm caso de teste normativo: referenciado
           OCULTO com filho normal dá o nome completo (o nosso caso), mas
           referenciado VISÍVEL com filho oculto DESCARTA o filho. Ou seja, mover
-          este `aria-hidden` para um filho que carregue texto — a refatoração
-          óbvia de quem quiser esconder só um pedaço do rótulo — trunca o nome
+          este `aria-hidden` para um filho que carregue texto, a refatoração
+          óbvia de quem quiser esconder só um pedaço do rótulo, trunca o nome
           sem quebrar nada visível e sem erro nenhum. O atributo fica na raiz.
           E `sr-only` recorta (`clip`), não `display: none`: sai da tela sem tirar
           o texto do alcance de quem calcula o nome. */}

@@ -22,7 +22,14 @@ export function NavegacaoMovel() {
       className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface/95 backdrop-blur-md md:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <ul className="grid grid-cols-4">
+      {/* A grade sai do tamanho da lista, e não de uma classe fixa: `grid-cols-4`
+          escrito na mão deixava o quinto item quebrar para uma segunda linha no
+          dia em que a navegação crescesse. Vai por `style` porque o JIT do
+          Tailwind não gera classe montada em tempo de execução. */}
+      <ul
+        className="grid"
+        style={{ gridTemplateColumns: `repeat(${NAVEGACAO.length}, minmax(0, 1fr))` }}
+      >
         {NAVEGACAO.map((item) => {
           const ativo = rotaAtiva(pathname, item.href);
           const Icone = item.icone;

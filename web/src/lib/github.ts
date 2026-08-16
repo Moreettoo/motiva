@@ -6,7 +6,7 @@ import type { ExecucaoAnalise } from "./types";
  * Disparo da reanálise pelo GitHub Actions.
  *
  * O modelo de crescimento é um `HistGradientBoostingRegressor` serializado em
- * `modelo_vegetacao.pkl`. Rodá-lo exige scikit-learn, scipy e numpy — mais de
+ * `modelo_vegetacao.pkl`. Rodá-lo exige scikit-learn, scipy e numpy, mais de
  * 250 MB descompactados, acima do teto de bundle de uma função serverless. Em
  * vez de hospedar um segundo serviço só para isso, o painel aciona o workflow
  * que já existe, já tem os segredos e já roda todo dia às 06:00.
@@ -76,7 +76,7 @@ async function listarExecucoes(token: string, limite = 10) {
 /**
  * Enfileira a reanálise de um trecho e devolve a execução criada.
  *
- * `workflow_dispatch` responde 204 sem corpo — não há id de execução na
+ * `workflow_dispatch` responde 204 sem corpo, não há id de execução na
  * resposta. Por isso o `run-name` do workflow carrega o id do trecho, e aqui a
  * gente procura a execução recém-criada por esse nome. A janela de 90 s evita
  * casar com uma execução antiga do mesmo trecho.
@@ -109,7 +109,7 @@ export async function enfileirarAnalise(trechoId: number): Promise<ResultadoGitH
     // A execução não aparece na listagem no mesmo instante do 204.
     //
     // A comparação é pelo FIM do nome, não por `includes`: o id fica no fim do
-    // `run-name`, e "…trecho 31" contém "trecho 3" — o trecho 3 casaria com a
+    // `run-name`, e "…trecho 31" contém "trecho 3", o trecho 3 casaria com a
     // execução do 31 e o painel acompanharia a análise errada.
     const marca = `trecho ${trechoId}`;
     const limite = Date.now() - 90_000;

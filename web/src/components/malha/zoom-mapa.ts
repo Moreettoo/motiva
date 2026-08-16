@@ -1,7 +1,7 @@
 import { clamp } from "@/lib/utils";
 
 /**
- * Aritmética do enquadramento do mapa da malha — ampliar, deslocar e os limites
+ * Aritmética do enquadramento do mapa da malha: ampliar, deslocar e os limites
  * que impedem de navegar para o vazio.
  *
  * Mora fora do componente porque é a parte que erra em silêncio: uma âncora com
@@ -18,7 +18,7 @@ import { clamp } from "@/lib/utils";
 export const ZOOM_MIN = 1;
 /**
  * Teto do zoom. Com os 50 trechos semeados a malha ocupa ~20° de longitude, o
- * que a 24× deixa ~0,8° na tela — perto de 90 km, a escala em que dois trechos
+ * que a 24× deixa ~0,8° na tela: perto de 90 km, a escala em que dois trechos
  * da mesma rodovia deixam de ser a mesma bolinha. Mais que isso só afastaria os
  * pontos num mapa que não tem traçado de rodovia para servir de referência.
  */
@@ -30,11 +30,11 @@ export const PASSO_ZOOM = 1.6;
  * Folga além da nuvem de pontos, em fração da janela do ajuste. Sem ela o
  * trecho da borda encosta na moldura assim que se amplia na direção dele.
  *
- * Ela é TETADA pela sobra do próprio ajuste — ver `folgaDoEixo`.
+ * Ela é TETADA pela sobra do próprio ajuste, ver `folgaDoEixo`.
  */
 const FOLGA = 0.06;
 
-/** Deslocamento em px que compromete o gesto — abaixo disto ainda é um clique. */
+/** Deslocamento em px que compromete o gesto, abaixo disto ainda é um clique. */
 export const LIMIAR_ARRASTO = 4;
 
 /* A roda chega em três unidades diferentes conforme o navegador e o
@@ -61,7 +61,7 @@ export type Vista = {
 export type Limites = { minX: number; maxX: number; minY: number; maxY: number };
 
 export type Enquadramento = {
-  /** Pixels por grau projetado com zoom 1 — o ajuste que cabe a malha inteira. */
+  /** Pixels por grau projetado com zoom 1, o ajuste que cabe a malha inteira. */
   esc0: number;
   larguraPlot: number;
   alturaPlot: number;
@@ -71,7 +71,7 @@ export type Enquadramento = {
  *  de dado que estiver aqui continua aqui depois de ampliar. */
 export type Ancora = { dx: number; dy: number };
 
-/** O centro da área de plotagem — âncora de zoom por botão e por teclado, onde
+/** O centro da área de plotagem: âncora de zoom por botão e por teclado, onde
  *  não há ponteiro de onde tirar uma. */
 export const ANCORA_CENTRO: Ancora = { dx: 0, dy: 0 };
 
@@ -95,7 +95,7 @@ export function estaAjustada(v: Vista): boolean {
  *
  * O teto pela SOBRA do ajuste (`janela1 - extensão`, metade de cada lado) é o
  * que garante o invariante de que o zoom 1 é um enquadramento só, imóvel: sem
- * ele o eixo APERTADO — aquele que decidiu a escala — ficava com uma fresta de
+ * ele o eixo APERTADO, aquele que decidiu a escala, ficava com uma fresta de
  * deslocamento no próprio ajuste, porque o respiro de 10% da escala é menor que
  * os 6% de folga de cada lado. Uma fresta assim faz o mapa escorregar ao ser
  * arrastado no estado "ajustado" e tira o sentido do botão de voltar.
@@ -107,7 +107,7 @@ function folgaDoEixo(janela1: number, extensao: number): number {
 /**
  * A faixa em que o centro pode andar num eixo.
  *
- * Quando a janela é MAIOR que a nuvem mais a folga — o caso do zoom 1 — a faixa
+ * Quando a janela é MAIOR que a nuvem mais a folga, o caso do zoom 1, a faixa
  * inverte, e aí o centro é fixo no meio do dado. Devolver a faixa invertida
  * faria o `clamp` embaralhar os extremos e prender o mapa numa das bordas.
  */
@@ -124,7 +124,7 @@ function faixaDoCentro(min: number, max: number, meiaJanela: number, janela1: nu
  * centro dentro da nuvem de pontos mais a folga.
  *
  * Toda função deste módulo termina aqui, e o componente também chama direto no
- * render — o `esc0` muda quando a caixa é redimensionada, e um centro que era
+ * render: o `esc0` muda quando a caixa é redimensionada, e um centro que era
  * legal numa largura pode deixar de ser em outra.
  */
 export function limitarVista(v: Vista, lim: Limites, enq: Enquadramento): Vista {
@@ -150,7 +150,7 @@ export function limitarVista(v: Vista, lim: Limites, enq: Enquadramento): Vista 
  *
  * É o que separa um zoom de mapa de um zoom de imagem: quem gira a roda sobre
  * um trecho quer aquele trecho maior, não o centro da tela maior. A conta é
- * ida e volta — descobre que coordenada está sob a âncora na escala VELHA e
+ * ida e volta, descobre que coordenada está sob a âncora na escala VELHA e
  * recoloca o centro para que ela caia no mesmo pixel na escala NOVA.
  *
  * O `y` inverte de sinal nos dois lados porque a latitude cresce para cima e o
@@ -176,7 +176,7 @@ export function aplicarZoom(
 }
 
 /** Desloca a vista pelo arrasto do ponteiro, em pixels de tela. Puxar o mapa
- *  para a direita move o centro para a ESQUERDA — é o conteúdo que segue o
+ *  para a direita move o centro para a ESQUERDA, é o conteúdo que segue o
  *  dedo, não a janela. */
 export function deslocar(
   v: Vista,
@@ -198,7 +198,7 @@ const ZONA_CONFORTO = 0.8;
  * zoom.
  *
  * Existe pela tabulação. Só as marcas na vista viram alvo de foco, então o Tab
- * nunca pousa num trecho que sumiu da tela — mas pousa nos que estão COLADOS na
+ * nunca pousa num trecho que sumiu da tela, mas pousa nos que estão COLADOS na
  * moldura, com metade do alvo recortada e o balão nascendo por cima do eixo.
  * Nesses a vista dá um passo para trazê-los ao miolo.
  *

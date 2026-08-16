@@ -33,3 +33,29 @@ export function groupBy<T, K extends string | number>(items: T[], key: (item: T)
 export function sum(ns: number[]) {
   return ns.reduce((a, b) => a + b, 0);
 }
+
+/** Raio medio da Terra, em km. */
+const RAIO_TERRA_KM = 6371;
+
+/**
+ * Distancia em linha reta entre dois pontos, pela formula de haversine.
+ *
+ * O simulador usa para achar o trecho da malha mais proximo de uma coordenada
+ * qualquer. Nas distancias em jogo aqui, dezenas a centenas de km dentro do
+ * Sudeste, a diferenca para uma geodesica de elipsoide fica bem abaixo do erro
+ * de arredondar a coordenada, entao haversine basta e nao traz dependencia.
+ */
+export function distanciaKm(
+  a: { latitude: number; longitude: number },
+  b: { latitude: number; longitude: number },
+): number {
+  const rad = Math.PI / 180;
+  const dLat = (b.latitude - a.latitude) * rad;
+  const dLon = (b.longitude - a.longitude) * rad;
+
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(a.latitude * rad) * Math.cos(b.latitude * rad) * Math.sin(dLon / 2) ** 2;
+
+  return 2 * RAIO_TERRA_KM * Math.asin(Math.min(1, Math.sqrt(h)));
+}

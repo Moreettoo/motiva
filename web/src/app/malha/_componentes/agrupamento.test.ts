@@ -6,7 +6,7 @@ import type { TrechoStatus } from "@/lib/types";
 import { detectarAgrupamentos } from "./agrupamento";
 
 /** Dois trechos vizinhos, mesma rodovia/UF/semana, sempre elegíveis para
- *  agrupamento — só o que muda por teste é data_sugerida/equipe_id. */
+ *  agrupamento, só o que muda por teste é data_sugerida/equipe_id. */
 function trecho(overrides: Partial<TrechoStatus>): TrechoStatus {
   return {
     id: 1,
@@ -48,7 +48,7 @@ function trecho(overrides: Partial<TrechoStatus>): TrechoStatus {
 
 const HOJE = parseData("2026-08-10");
 
-describe("detectarAgrupamentos — resolvido", () => {
+describe("detectarAgrupamentos: resolvido", () => {
   it("marca resolvido quando os dois trechos já estão na mesma data e equipe", () => {
     const trechos = [
       trecho({ id: 1, km_inicio: 10, km_fim: 15 }),
@@ -94,7 +94,7 @@ describe("detectarAgrupamentos — resolvido", () => {
   });
 });
 
-describe("detectarAgrupamentos — ordenação", () => {
+describe("detectarAgrupamentos: ordenação", () => {
   it("mantém grupos pendentes antes dos resolvidos, mesmo com risco pior", () => {
     const resolvidoCritico = [
       trecho({

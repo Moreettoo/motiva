@@ -55,7 +55,7 @@ export type Filtros = {
   especies: Especie[];
 };
 
-/** Liga/desliga um valor mantendo a ordem canônica — a URL não embaralha
+/** Liga/desliga um valor mantendo a ordem canônica, a URL não embaralha
  *  conforme a sequência de cliques, então dois gestores geram o mesmo link. */
 export function alternarEm<T>(lista: readonly T[], valor: T, ordem: readonly T[]): T[] {
   const proxima = lista.includes(valor) ? lista.filter((v) => v !== valor) : [...lista, valor];
@@ -100,7 +100,7 @@ export function zonaDoTrecho(trecho: TrechoStatus, zonas: ZonaClima[]): ZonaClim
 /**
  * Texto que o campo de busca varre, um por trecho.
  *
- * A zona de clima entra porque é ela que carrega o nome da cidade — `ia.trechos`
+ * A zona de clima entra porque é ela que carrega o nome da cidade, `ia.trechos`
  * não tem esse campo, e "cidade" é como a operação se refere ao trecho no rádio.
  */
 export function montarIndiceBusca(
@@ -149,7 +149,7 @@ export function filtrarTrechos(
   });
 }
 
-/** O agrupamento por rodovia vive em `@/lib/malha` — o servidor usa a mesma
+/** O agrupamento por rodovia vive em `@/lib/malha`, o servidor usa a mesma
  *  função em `trechosPorRodovia`. Reexportado aqui só para quem já importava. */
 export { agruparPorRodovia, type GrupoRodovia } from "@/lib/malha";
 

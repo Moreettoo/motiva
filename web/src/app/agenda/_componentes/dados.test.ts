@@ -47,7 +47,7 @@ function agendamento(p: {
    *  de dois agendamentos no MESMO trecho. */
   trechoId?: number;
   origem?: AgendamentoDetalhado["origem"];
-  /** Vira a `previsao` do agendamento — o caminho reserva de `dispensavel` e de
+  /** Vira a `previsao` do agendamento, o caminho reserva de `dispensavel` e de
    *  `riscoDoItem` quando a lista de trechos não traz o trecho. */
   diasAteLimite?: number;
 }): AgendamentoDetalhado {
@@ -123,7 +123,7 @@ describe("montarJanela", () => {
 describe("idDoGrupo", () => {
   it("não usa pipe, para o id servir como seletor CSS sem escapar", () => {
     // A chave de MEMÓRIA usa pipe; a de DOM não pode, senão qualquer
-    // `querySelector("#" + id)` futuro precisaria de `CSS.escape` — e quem
+    // `querySelector("#" + id)` futuro precisaria de `CSS.escape`, e quem
     // escrever esse seletor daqui a seis meses não vai lembrar.
     expect(chaveCelula("2026-08-13", 7)).toBe("2026-08-13|7");
     expect(idDoGrupo("2026-08-13", 7)).toBe("grupo-2026-08-13-7");
@@ -217,7 +217,7 @@ describe("montarGrade", () => {
     }
   });
 
-  it("aceita `aprovado` sem equipe na fila — são 10 no banco e sumiriam do quadro", () => {
+  it("aceita `aprovado` sem equipe na fila: são 10 no banco e sumiriam do quadro", () => {
     const lista = itens([agendamento({ id: 3, data: "2026-08-13", equipeId: null, status: "aprovado" })], eqs);
     const g = montarGrade({ itens: lista, equipes: eqs, janela, hoje: "2026-08-13" });
     expect(g.fila.map((i) => i.id)).toEqual([3]);
@@ -245,7 +245,7 @@ describe("montarGrade", () => {
 
     // `comEquipe` conta 1, e não 2: o cabeçalho só promete o que a coluna
     // abaixo dele desenha. O serviço 2 está na fila, e a fila fica fora da
-    // coluna — ver `ResumoColuna`, em `dados.tsx`.
+    // coluna: ver `ResumoColuna`, em `dados.tsx`.
     expect(coluna?.comEquipe).toBe(1);
   });
 
@@ -286,7 +286,7 @@ describe("montarGrade", () => {
     expect(g.porCelula.get(chaveCelula("2026-08-14", 9))?.aceitaSolta).toBe(false);
   });
 
-  it("gera uma célula por par dia × equipe, mesmo vazia — toda célula é alvo", () => {
+  it("gera uma célula por par dia × equipe, mesmo vazia: toda célula é alvo", () => {
     const g = montarGrade({ itens: [], equipes: eqs, janela, hoje: "2026-08-13" });
     expect(g.porCelula.size).toBe(7 * 2);
     expect(g.linhas[0].celulas).toHaveLength(7);
@@ -295,7 +295,7 @@ describe("montarGrade", () => {
 
 /* ---------- o dia de continuação ---------- */
 
-describe("montarGrade — continuações", () => {
+describe("montarGrade: continuações", () => {
   const lenta = equipe({ id: 1, capacidade_km_dia: 4.5 });
   const janela = montarJanela("2026-08-13");
 
@@ -316,7 +316,7 @@ describe("montarGrade — continuações", () => {
     expect(seguinte?.itens).toEqual([]);
     expect(seguinte?.km).toBeCloseTo(2.5);
     // Sem esta lista o rótulo falado dessa célula dizia "Sem serviço." com a
-    // barra mostrando 2,5/4,5 — km sem dono.
+    // barra mostrando 2,5/4,5, km sem dono.
     expect(seguinte?.continuacoes.map((i) => i.id)).toEqual([1]);
   });
 
@@ -343,7 +343,7 @@ describe("montarGrade — continuações", () => {
     expect(primeiro?.continuacoes.map((i) => i.id)).toEqual([1]);
   });
 
-  it("célula sem cartão pode passar da capacidade — era a frase 'Sem serviço. Acima da capacidade.'", () => {
+  it("célula sem cartão pode passar da capacidade: era a frase 'Sem serviço. Acima da capacidade.'", () => {
     // Dois serviços de 5km na mesma equipe de 4,5km/dia: cada um deposita 2,5km
     // no dia seguinte, e 5,0 > 4,5. A célula excede sem ter um único cartão.
     const lista = itens(
@@ -456,7 +456,7 @@ describe("equipesComLinha compartilhada entre montarGrade e resumo28", () => {
     const lista = itens(
       [
         // 4 + 3 = 7km no dia 13, contra 6km/dia: excede. `data` está dentro
-        // da janela das duas chamadas — a equipe inativa qualifica nas duas.
+        // da janela das duas chamadas, a equipe inativa qualifica nas duas.
         agendamento({ id: 1, data: "2026-08-13", equipeId: 9, kmInicio: 0, kmFim: 4 }),
         agendamento({ id: 2, data: "2026-08-13", equipeId: 9, kmInicio: 0, kmFim: 3 }),
       ],
@@ -476,8 +476,8 @@ describe("equipesComLinha compartilhada entre montarGrade e resumo28", () => {
 
   it("não conta equipe inativa sem NENHUM serviço dentro da janela de 28 dias, mesmo com fatia antiga vazando para dentro dela", () => {
     // As duas datas de início (08-08 e 08-09) ficam ANTES do início da janela
-    // de 28 dias (08-10, a segunda-feira de "2026-08-13"). Só as FATIAS —
-    // não os itens — alcançam o primeiro dia da janela.
+    // de 28 dias (08-10, a segunda-feira de "2026-08-13"). Só as FATIAS,
+    // não os itens, alcançam o primeiro dia da janela.
     const inativa = equipe({ id: 9, ativo: false, capacidade_km_dia: 6 });
     const lista = itens(
       [
@@ -490,10 +490,10 @@ describe("equipesComLinha compartilhada entre montarGrade e resumo28", () => {
     );
 
     // No dia 08-10 (primeiro dia da janela de 28), as duas fatias somam
-    // ~7,83km contra 6km/dia de capacidade — excederia, SE a equipe contasse.
+    // ~7,83km contra 6km/dia de capacidade: excederia, SE a equipe contasse.
     // Mas nenhum dos dois itens tem `data` dentro da janela: a equipe
     // inativa não tem serviço "seu" ali, só sobra de serviço que já tinha
-    // começado antes dela — e não ganharia linha nenhuma em `montarGrade`
+    // começado antes dela, e não ganharia linha nenhuma em `montarGrade`
     // para nenhuma semana que contenha esse dia.
     const faixa = resumo28(lista, "2026-08-13", [inativa]);
 
@@ -514,7 +514,7 @@ describe("resolverEquipeFoco", () => {
     expect(resolverEquipeFoco("1", eqs)).toBe(1);
   });
 
-  it("equipe desativada ainda resolve — quem decide se ela aparece na semana é a grade", () => {
+  it("equipe desativada ainda resolve: quem decide se ela aparece na semana é a grade", () => {
     expect(resolverEquipeFoco("2", eqs)).toBe(2);
   });
 
@@ -535,7 +535,7 @@ describe("linhaDestacada", () => {
 
   /* Substituiu `linhaAtenuada`, e a inversão é a correção de um defeito
      MEDIDO, não uma troca de nome. O destaque marcava as OUTRAS linhas com uma
-     veladura preta a 3% — e veladura preta não produz sinal no tema escuro em
+     veladura preta a 3%, e veladura preta não produz sinal no tema escuro em
      alfa nenhum: medida, a diferença entre linha atenuada e normal é 1,007:1 a
      3% e 1,030:1 a 20%. No claro ela produz sinal, mas já a 6% derruba `ink-3`
      para 4,37:1, abaixo do piso. Não existe alfa simultaneamente legal e
@@ -555,7 +555,7 @@ describe("linhaDestacada", () => {
   });
 
   it("equipe em foco sem NENHUMA linha na semana visível: nada se destaca", () => {
-    // id 999 não existe em `grade.linhas` — o caso de um link salvo apontando
+    // id 999 não existe em `grade.linhas`, o caso de um link salvo apontando
     // para uma equipe desativada sem serviço aberto na semana. Nenhuma linha
     // casa o id, então o destaque simplesmente não aparece; é `destaqueVisivel`
     // que conta essa história para quem usa leitor de tela.
@@ -616,7 +616,7 @@ describe("semanaDoAtrasoMaisAntigo", () => {
   it("segunda-feira da semana do atrasado com a data MAIS ANTIGA, não do mais recente", () => {
     const lista = itens(
       [
-        agendamento({ id: 1, data: "2026-07-30" }), // quinta — semana de 2026-07-27
+        agendamento({ id: 1, data: "2026-07-30" }), // quinta, semana de 2026-07-27
         agendamento({ id: 2, data: "2026-08-05" }), // vencido também, mas mais recente
       ],
       [],
@@ -644,7 +644,7 @@ describe("montarItens · origem manual", () => {
   });
 
   it("NUNCA marca uma roçada manual como dispensável, por folgado que esteja o trecho", () => {
-    // 200 dias de folga passa com sobra de `DIAS_FOLGA_DISPENSA` (55) — e é o
+    // 200 dias de folga passa com sobra de `DIAS_FOLGA_DISPENSA` (55), e é o
     // caso TÍPICO da roçada manual, não o excepcional: agenda-se na mão
     // justamente quando o modelo não vê necessidade.
     const [daIa, naMao] = itens(
@@ -676,7 +676,7 @@ describe("agendamentosAbertosPorTrecho", () => {
     expect(mapa.get(2)).toBe("2026-08-18");
   });
 
-  it("ignora executado e descartado — o trecho volta a aceitar roçada nova", () => {
+  it("ignora executado e descartado: o trecho volta a aceitar roçada nova", () => {
     const mapa = agendamentosAbertosPorTrecho(
       itens(
         [
@@ -743,7 +743,7 @@ describe("previaDeNovoServico", () => {
     expect(previa.dias[1].excedida).toBe(false);
   });
 
-  it("enxerga carga fora da semana visível — a grade não serviria aqui", () => {
+  it("enxerga carga fora da semana visível: a grade não serviria aqui", () => {
     // A `Grade` só cobre 7 dias; agendar para daqui a três semanas é o caso
     // normal desta gaveta, e a prévia não pode ficar muda nele.
     const longe = itens([agendamento({ id: 1, data: "2026-09-15", equipeId: 1 })], [eq]);

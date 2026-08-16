@@ -43,7 +43,7 @@ export function Delta({ delta }: { delta: DeltaIndicador }) {
  * Bloco de leitura do topo do painel.
  *
  * O numero vem primeiro na hierarquia visual; o rotulo fica pequeno, acima,
- * em maiusculas — le como mostrador de instrumento, nao como cartao de SaaS.
+ * em maiusculas: le como mostrador de instrumento, nao como cartao de SaaS.
  */
 export function Indicador({
   rotulo,

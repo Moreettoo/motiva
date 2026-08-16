@@ -11,7 +11,7 @@ import type { TrechoStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 /**
- * Trecho em forma de cartão — para listas, busca e resultados filtrados.
+ * Trecho em forma de cartão: para listas, busca e resultados filtrados.
  *
  * A régua continua sendo a leitura principal da malha; este cartão é o formato
  * de quando o trecho aparece fora do contexto da rodovia.

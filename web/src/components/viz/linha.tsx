@@ -40,7 +40,7 @@ export type SerieLinha = {
   pontos: PontoSerie[];
 };
 
-/** Largura média de caractere nas fontes Geist no corpo 11px — só para reservar margem. */
+/** Largura média de caractere nas fontes Geist no corpo 11px, só para reservar margem. */
 const LARGURA_CARACTERE = 6.3;
 const LARGURA_MINIMA_ROTULO_DIRETO = 480;
 
@@ -244,7 +244,7 @@ export function GraficoLinha({
         });
 
         // Rótulo direto só quando as pontas se separam. Empilhar rótulo que
-        // colide descola o texto da linha e vira ruído — nesse caso a legenda resolve.
+        // colide descola o texto da linha e vira ruído, nesse caso a legenda resolve.
         const pontas = tracados
           .filter((t) => t.coordenadas.length > 0)
           .map((t) => ({
@@ -343,7 +343,7 @@ export function GraficoLinha({
               );
             })}
 
-            {/* Ponto só nas pontas — marcar todo vértice transforma a linha em colar. */}
+            {/* Ponto só nas pontas, marcar todo vértice transforma a linha em colar. */}
             {tracados.map(({ serie, coordenadas }) => {
               if (coordenadas.length === 0) return null;
               const extremos =

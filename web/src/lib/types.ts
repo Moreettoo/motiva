@@ -50,7 +50,7 @@ export type Trecho = {
   criado_em: string;
 };
 
-/** Uma linha de `ia.vw_trecho_status` — o modelo central do painel. */
+/** Uma linha de `ia.vw_trecho_status`, o modelo central do painel. */
 export type TrechoStatus = {
   id: number;
   rodovia: string;
@@ -83,8 +83,8 @@ export type TrechoStatus = {
   justificativa: string | null;
   fatores: string[] | null;
   agendamento_status: StatusAgendamento | null;
-  /** Quem criou o agendamento aberto deste trecho. `null` quando nao ha nenhum
-   *  — e por isso nao e `Origem` puro, ao contrario da coluna da tabela. As
+  /** Quem criou o agendamento aberto deste trecho. `null` quando nao ha nenhum,
+   *  e por isso nao e `Origem` puro, ao contrario da coluna da tabela. As
    *  telas que mostram `justificativa` a partir da view precisam dele para nao
    *  chamar de "Decisao da IA" um texto que um gestor digitou. */
   agendamento_origem: Origem | null;
@@ -131,7 +131,7 @@ export type Agendamento = {
   criado_em: string;
 };
 
-/** Agendamento com o trecho e a equipe ja resolvidos — o que a agenda lista. */
+/** Agendamento com o trecho e a equipe ja resolvidos, o que a agenda lista. */
 export type AgendamentoDetalhado = Agendamento & {
   trecho: Pick<
     Trecho,
@@ -179,13 +179,13 @@ export type ZonaClima = {
  * Uma execucao do workflow de reanalise no GitHub Actions.
  *
  * Vive aqui, e nao em `github.ts`, porque o componente cliente que acompanha o
- * progresso precisa do tipo — e `github.ts` importa `server-only`.
+ * progresso precisa do tipo, e `github.ts` importa `server-only`.
  */
 export type ExecucaoAnalise = {
   id: number;
   nome: string;
   url: string;
-  /** `queued` | `in_progress` | `completed` — vocabulario da propria API. */
+  /** `queued` | `in_progress` | `completed`, vocabulario da propria API. */
   situacao: string;
   /** `success` | `failure` | `cancelled` | … So existe quando `completed`. */
   desfecho: string | null;

@@ -9,7 +9,7 @@ import { NavegacaoMovel } from "./navegacao-movel";
 import type { TrechoNaPaleta } from "./paleta-comandos";
 
 /** `previsto_em` chega como data pura em alguns casos e como carimbo completo em
- *  outros. `new Date()` numa data pura voltaria um dia no Brasil — daí o `fmt`. */
+ *  outros. `new Date()` numa data pura voltaria um dia no Brasil, daí o `fmt`. */
 function formatarCarimbo(iso: string): string {
   const soData = /^\d{4}-\d{2}-\d{2}$/.test(iso);
   return soData ? fmt.dataCurta(iso) : `${fmt.dataCurta(iso)} · ${fmt.horaMin(iso)}`;
@@ -59,7 +59,7 @@ export async function Shell({ children }: { children: React.ReactNode }) {
             className="flex-1 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
           >
             {/* Monitor de sala de controle: a largura máxima é generosa de
-                propósito, mas não infinita — linha de texto longa demais cansa.
+                propósito, mas não infinita, linha de texto longa demais cansa.
                 `flex h-full flex-col` é inerte pra quem não pede: uma página
                 comum preenche por conteúdo como sempre preencheu. Só quem
                 marca a própria raiz com `flex-1` (o copiloto, pra crescer até

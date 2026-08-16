@@ -10,7 +10,7 @@ import { CodigoDoErro } from "@/components/ui/codigo-do-erro";
 
 /**
  * O painel só falha por leitura do banco. A mensagem diz o que fazer, não só o
- * que quebrou — em produção o `message` vem genérico, e aí o `digest` é o que
+ * que quebrou: em produção o `message` vem genérico, e aí o `digest` é o que
  * casa a tela com a linha do log do servidor.
  */
 export default function ErroPainel({

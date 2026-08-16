@@ -15,17 +15,17 @@ import { cn } from "@/lib/utils";
 
 /* O arquivo inteiro é cliente por causa da `Busca` (estado controlado + botão de
    limpar). `Entrada`, `AreaTexto` e `Selecao` não guardam estado; podem ser
-   usados de um Server Component normalmente — viram apenas fronteira.
+   usados de um Server Component normalmente, viram apenas fronteira.
 
    `Campo` é a exceção, e não por estado: ele injeta id e descritores no filho
    com `isValidElement` + `cloneElement` (ver `comAcessibilidade`), e children
-   vindo de um Server Component NÃO é um elemento durante o SSR — atravessa a
+   vindo de um Server Component NÃO é um elemento durante o SSR, atravessa a
    fronteira RSC como referência preguiçosa e só vira elemento depois de
    desserializado no cliente. A decisão então muda entre as duas passadas e o
    React acusa mismatch de hidratação. Foi exatamente esse o defeito medido na
    `Dica`, que usava o mesmo padrão; lá ele está resolvido com
    `useSyncExternalStore`. Os quatro usos atuais de `Campo` estão todos em
-   componentes `"use client"`, então o problema não existe hoje — mas o primeiro
+   componentes `"use client"`, então o problema não existe hoje, mas o primeiro
    uso a partir de um Server Component vai precisar da mesma correção. */
 
 const BASE_CONTROLE =

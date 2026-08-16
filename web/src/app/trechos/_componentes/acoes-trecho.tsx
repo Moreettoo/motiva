@@ -26,7 +26,7 @@ const ROTULO_SITUACAO: Record<string, string> = {
  *
  * A reanálise não é mais síncrona: ela roda no GitHub Actions, porque o modelo
  * exige scikit-learn e não cabe numa função serverless. Aqui a gente enfileira,
- * acompanha por consulta periódica e revalida a tela quando termina — por isso
+ * acompanha por consulta periódica e revalida a tela quando termina, por isso
  * o botão nunca fica preso a uma transição de minutos.
  */
 export function AcoesTrecho({
