@@ -19,6 +19,7 @@ import { DicaGrafico, DicaLinha, DicaTitulo } from "./dica-grafico";
 import {
   almofadaDominio,
   caminhoArea,
+  caminhoFaixa,
   caminhoLinha,
   comprimentoLinha,
   dominioComTicks,
@@ -40,12 +41,29 @@ export type SerieLinha = {
   pontos: PontoSerie[];
 };
 
+/**
+ * Intervalo de incerteza desenhado ATRÁS das linhas.
+ *
+ * Uma faixa e não duas séries: q10 e q90 não são duas entidades, são a margem
+ * de uma. Desenhadas como linhas próprias, com cor própria, o leitor conta três
+ * coisas onde há uma. A faixa entra no domínio do eixo Y e na tabela acessível,
+ * porque ela é dado — o que ela não ganha é traço nem ponta.
+ */
+export type FaixaLinha = {
+  chave: string;
+  rotulo: string;
+  cor: string;
+  superior: PontoSerie[];
+  inferior: PontoSerie[];
+};
+
 /** Largura média de caractere nas fontes Geist no corpo 11px, só para reservar margem. */
 const LARGURA_CARACTERE = 6.3;
 const LARGURA_MINIMA_ROTULO_DIRETO = 480;
 
 export function GraficoLinha({
   series,
+  faixa,
   tipoX = "data",
   linhaLimite,
   formatarY = fmt.d1,
@@ -58,6 +76,7 @@ export function GraficoLinha({
   className,
 }: {
   series: SerieLinha[];
+  faixa?: FaixaLinha;
   tipoX?: "data" | "numero";
   /** Limite de altura do trecho: tracejado em `--critical`, sempre com rótulo. */
   linhaLimite?: { valor: number; rotulo: string };
@@ -93,13 +112,27 @@ export function GraficoLinha({
 
     const eixo = [...new Set(mapas.flatMap((m) => [...m.keys()]))].sort((a, b) => a - b);
 
+    const mapaFaixa = faixa
+      ? {
+          superior: new Map(
+            faixa.superior.map((p) => [paraNumero(p.x), p.y] as const).filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y)),
+          ),
+          inferior: new Map(
+            faixa.inferior.map((p) => [paraNumero(p.x), p.y] as const).filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y)),
+          ),
+        }
+      : null;
+
     const todosY = mapas.flatMap((m) => [...m.values()]);
     if (valorLimite != null) todosY.push(valorLimite);
+    if (mapaFaixa) {
+      todosY.push(...mapaFaixa.superior.values(), ...mapaFaixa.inferior.values());
+    }
 
-    return { usadas, mapas, eixo, todosY };
-  }, [series, tipoX, valorLimite]);
+    return { usadas, mapas, eixo, todosY, mapaFaixa };
+  }, [series, faixa, tipoX, valorLimite]);
 
-  const { usadas, mapas, eixo, todosY } = modelo;
+  const { usadas, mapas, eixo, todosY, mapaFaixa } = modelo;
 
   const topo = unidadeY ? 24 : 14;
   const baixo = 26;
@@ -128,7 +161,10 @@ export function GraficoLinha({
     esquerda,
   });
 
-  const itensLegenda = usadas.map((s) => ({ rotulo: s.rotulo, cor: s.cor }));
+  const itensLegenda = [
+    ...usadas.map((s) => ({ rotulo: s.rotulo, cor: s.cor })),
+    ...(faixa ? [{ rotulo: faixa.rotulo, cor: faixa.cor, opacidade: 0.35 }] : []),
+  ];
   const unidade = unidadeY ? ` ${unidadeY}` : "";
 
   const tabela = (
@@ -141,6 +177,7 @@ export function GraficoLinha({
               {s.rotulo}
             </TabelaTitulo>
           ))}
+          {faixa ? <TabelaTitulo numerica>{faixa.rotulo}</TabelaTitulo> : null}
         </tr>
       </TabelaCabecalho>
       <TabelaCorpo>
@@ -155,6 +192,15 @@ export function GraficoLinha({
                 </TabelaCelula>
               );
             })}
+            {faixa ? (
+              <TabelaCelula numerica className="font-mono">
+                {mapaFaixa?.inferior.has(vx) && mapaFaixa?.superior.has(vx)
+                  ? `${formatarY(mapaFaixa.inferior.get(vx) as number)} – ${formatarY(
+                      mapaFaixa.superior.get(vx) as number,
+                    )}`
+                  : "—"}
+              </TabelaCelula>
+            ) : null}
           </TabelaLinha>
         ))}
       </TabelaCorpo>
@@ -170,7 +216,7 @@ export function GraficoLinha({
       altura={altura}
       margens={margens}
       className={className}
-      legenda={usadas.length >= 2 ? <Legenda itens={itensLegenda} /> : undefined}
+      legenda={itensLegenda.length >= 2 ? <Legenda itens={itensLegenda} /> : undefined}
       tabela={tabela}
       vazio={
         semDados ? (
@@ -214,6 +260,15 @@ export function GraficoLinha({
                   valor={`${formatarY(l.valor)}${unidade}`}
                 />
               ))}
+              {mapaFaixa && faixa && mapaFaixa.inferior.has(vx) && mapaFaixa.superior.has(vx) ? (
+                <DicaLinha
+                  cor={faixa.cor}
+                  rotulo={faixa.rotulo}
+                  valor={`${formatarY(mapaFaixa.inferior.get(vx) as number)} a ${formatarY(
+                    mapaFaixa.superior.get(vx) as number,
+                  )}${unidade}`}
+                />
+              ) : null}
               {leituras.length === 0 ? (
                 <p className="text-ink-3">Sem leitura nesta data.</p>
               ) : null}
@@ -287,6 +342,17 @@ export function GraficoLinha({
                 {unidadeY}
               </text>
             ) : null}
+
+            {mapaFaixa && faixa
+              ? (() => {
+                  const coords = (m: Map<number, number>) =>
+                    eixo.filter((vx) => m.has(vx)).map((vx) => [escalaX(vx), escalaY(m.get(vx) as number)] as Ponto);
+                  const d = caminhoFaixa(coords(mapaFaixa.superior), coords(mapaFaixa.inferior));
+                  return d ? (
+                    <path d={d} style={{ fill: faixa.cor }} fillOpacity="0.16" className="fade" />
+                  ) : null;
+                })()
+              : null}
 
             {area
               ? tracados.map(({ serie, coordenadas }) => (

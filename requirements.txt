@@ -1,5 +1,8 @@
-
-scikit-learn==1.6.1
+# O .pkl foi treinado nestas versoes exatas (Colab, 18/08/2026). Trocar faz o
+# joblib.load falhar com InconsistentVersionWarning -- que `modelo.py` promove a
+# ERRO de proposito, porque o modo de falha silencioso (carregar e prever torto)
+# e pior que nao carregar.
+scikit-learn==1.9.0
 numpy==2.2.4
 
 fastapi==0.115.6

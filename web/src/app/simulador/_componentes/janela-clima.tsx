@@ -8,8 +8,7 @@ import { Leitura } from "@/components/ui/leitura";
 import { FaixaEmpilhada } from "@/components/viz/faixa-empilhada";
 import { corSerie } from "@/lib/dominio";
 import { fmt } from "@/lib/format";
-import type { AgregadoClima } from "@/lib/modelo/campos";
-import type { Janela } from "@/lib/clima";
+import type { Janela, ResumoClima } from "@/lib/clima";
 
 /**
  * De onde veio cada dia de clima.
@@ -19,7 +18,7 @@ import type { Janela } from "@/lib/clima";
  * padrao previsto). Quem olha a curva precisa saber onde a previsao acaba,
  * porque a confianca nao e a mesma nos dois trechos.
  */
-export function JanelaClima({ janela, agregado }: { janela: Janela; agregado: AgregadoClima }) {
+export function JanelaClima({ janela, resumo }: { janela: Janela; resumo: ResumoClima }) {
   const complementares = janela.dias.length - janela.diasPrevistos;
 
   const rotuloComplemento =
@@ -68,16 +67,31 @@ export function JanelaClima({ janela, agregado }: { janela: Janela; agregado: Ag
         </div>
       )}
 
-      {/* Quatro colunas de novo: o cartão passou a ocupar a largura toda quando
-          o de faixas de treino saiu do lado dele. */}
-      <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
-        <Leitura rotulo="Temperatura média" valor={fmt.celsius(agregado.temperaturaMediaC)} />
-        <Leitura rotulo="Chuva no período" valor={fmt.mm(agregado.precipitacaoTotalMm)} />
-        <Leitura rotulo="Umidade média" valor={`${fmt.n(Math.round(agregado.umidadeMediaPct))} %`} />
+      {/* As cinco leituras que o modelo de fato consome desta janela. O
+          "balanço hídrico" que ficava aqui era feature do modelo antigo e
+          sumiu com ele: no v3.1 quem carrega a água é o balde diário, e o que
+          o modelo recebe é a média dele, não uma razão chuva/ET0. */}
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 lg:grid-cols-5">
+        <Leitura rotulo="Temperatura média" valor={fmt.celsius(resumo.temperaturaMediaC)} />
         <Leitura
-          rotulo="Balanço hídrico"
-          valor={fmt.d2(agregado.balancoHidrico)}
-          nota="chuva ÷ evapotranspiração"
+          rotulo="Extremos"
+          valor={`${fmt.d1(resumo.temperaturaMinC)} a ${fmt.celsius(resumo.temperaturaMaxC)}`}
+          nota="mínima e máxima do período"
+        />
+        <Leitura
+          rotulo="Chuva no período"
+          valor={fmt.mm(resumo.precipitacaoTotalMm)}
+          nota={fmt.contar(resumo.diasComChuva, "dia") + " com chuva"}
+        />
+        <Leitura rotulo="Umidade média" valor={`${fmt.n(Math.round(resumo.umidadeMediaPct))} %`} />
+        <Leitura
+          rotulo="Água no solo"
+          valor={
+            resumo.aguaSoloMediaPct == null
+              ? "—"
+              : `${fmt.n(Math.round(resumo.aguaSoloMediaPct))} %`
+          }
+          nota="do que a raiz alcança"
         />
       </dl>
 

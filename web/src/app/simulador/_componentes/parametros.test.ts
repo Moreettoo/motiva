@@ -10,7 +10,11 @@ import {
   DIAS_TREINO_MIN,
   interpretar,
   PADRAO,
+  ROCADA_MAX,
 } from "./parametros";
+
+/** O resto do vetor de extrapolação, para os testes falarem de um campo só. */
+const DENTRO = { diasDesdeRocada: 40, fertilidade: 0.35, capacidadeMm: 60 };
 
 describe("interpretar", () => {
   it("sem parâmetro nenhum: preenche o formulário e não roda simulação", () => {
@@ -38,6 +42,9 @@ describe("interpretar", () => {
       longitude: -47.1,
       alturaCm: 8,
       dias: 30,
+      diasDesdeRocada: Number(PADRAO.rocada),
+      fertilidade: null,
+      capacidadeMm: null,
     });
   });
 
@@ -76,29 +83,50 @@ describe("interpretar", () => {
   });
 
   it("a faixa de treino do período é a exata, recuperada dos limiares de bin", () => {
-    // Os limiares de `dias_periodo` vão de 7,5 a 119,5, de um em um. Limiar de
-    // bin é PONTO MÉDIO entre valores distintos observados, então 7,5 prova que
-    // 7 e 8 estão ambos no treino: o modelo viu de 7 a 120 dias.
+    // Os limiares de `dias_periodo` vão de 1,5 a 119,5, de um em um. Limiar de
+    // bin é PONTO MÉDIO entre valores distintos observados, então 1,5 prova que
+    // 1 e 2 estão ambos no treino: o modelo v3.1 viu de 1 a 120 dias.
     //
-    // Já houve aqui um `ceil`/`floor` sobre os limiares, que devolvia 8 e 119 —
-    // e a tela passou a afirmar que o modelo nunca tinha visto período de 7
-    // dias. Estas duas expectativas existem para essa regressão não voltar em
-    // silêncio.
-    expect(DIAS_TREINO_MIN).toBe(7);
+    // Já houve aqui um `ceil`/`floor` sobre os limiares, que estreitava a faixa
+    // em um dia nas duas pontas — e a tela passou a afirmar que o modelo nunca
+    // tinha visto o período mínimo. Estas duas expectativas existem para essa
+    // regressão não voltar em silêncio.
+    expect(DIAS_TREINO_MIN).toBe(1);
     expect(DIAS_TREINO_MAX).toBe(120);
   });
 
-  it("o campo é mais largo que o treino só na ponta de baixo", () => {
-    expect(DIAS_MIN).toBeLessThan(DIAS_TREINO_MIN);
-    // O teto do campo coincide com o do treino: pedir 120 dias não extrapola.
+  it("o campo do período agora coincide com o treino nas duas pontas", () => {
+    // Mudou com o modelo v3.1: o gerador passou a sortear janelas de 1 dia, e
+    // a extrapolação que existia de 1 a 6 dias acabou.
+    expect(DIAS_MIN).toBe(DIAS_TREINO_MIN);
     expect(DIAS_MAX).toBe(DIAS_TREINO_MAX);
 
-    expect(extrapolacoes({ alturaInicialCm: 12, dias: 3, latitude: -22 }).map((e) => e.campo)).toContain(
-      "dias_periodo",
-    );
-    expect(extrapolacoes({ alturaInicialCm: 12, dias: 7, latitude: -22 })).toHaveLength(0);
-    expect(extrapolacoes({ alturaInicialCm: 12, dias: 120, latitude: -22 })).toHaveLength(0);
-    expect(extrapolacoes({ alturaInicialCm: 12, dias: 45, latitude: -22 })).toHaveLength(0);
+    expect(extrapolacoes({ ...DENTRO, alturaInicialCm: 12, dias: 1, latitude: -22 })).toHaveLength(0);
+    expect(extrapolacoes({ ...DENTRO, alturaInicialCm: 12, dias: 120, latitude: -22 })).toHaveLength(0);
+    expect(extrapolacoes({ ...DENTRO, alturaInicialCm: 12, dias: 45, latitude: -22 })).toHaveLength(0);
+  });
+
+  it("marca extrapolação quando os dias desde a roçada passam do treino", () => {
+    // O campo aceita até um ano; o modelo viu até ~203 dias. Passar disso é
+    // permitido e avisado, como a altura.
+    const fora = extrapolacoes({ ...DENTRO, diasDesdeRocada: ROCADA_MAX, alturaInicialCm: 12, dias: 30, latitude: -22 });
+    expect(fora.map((e) => e.campo)).toContain("dias_desde_rocada_inicio");
+  });
+
+  it("os dois campos de solo são opcionais e vazio quer dizer SoilGrids", () => {
+    const automatico = interpretar({ lat: "-22", lon: "-47", altura: "10", dias: "20" });
+    expect(automatico.pedido?.fertilidade).toBeNull();
+    expect(automatico.pedido?.capacidadeMm).toBeNull();
+
+    const manual = interpretar({ lat: "-22", lon: "-47", altura: "10", dias: "20", fert: "0,7", solo: "95" });
+    expect(manual.pedido?.fertilidade).toBe(0.7);
+    expect(manual.pedido?.capacidadeMm).toBe(95);
+  });
+
+  it("recusa fertilidade fora de 0 a 1 em vez de mandar para o modelo", () => {
+    const r = interpretar({ lat: "-22", lon: "-47", altura: "10", dias: "20", fert: "3" });
+    expect(r.pedido).toBeNull();
+    expect(r.erros.fertilidade).toBeDefined();
   });
 
   it("deixa a altura passar da faixa de treino: é onde a saturação aparece", () => {

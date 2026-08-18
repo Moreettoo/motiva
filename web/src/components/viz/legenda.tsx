@@ -72,6 +72,12 @@ export type ItemLegenda = {
   rotulo: string;
   /** Token de cor da entidade: `var(--s1)`, `var(--critical)`… nunca hex. */
   cor: string;
+  /** Para item que na área do gráfico é PREENCHIMENTO translúcido, e não traço:
+   *  a faixa de incerteza do gráfico de linha usa a mesma cor da mediana, e uma
+   *  marca sólida faria a legenda anunciar duas séries onde há uma com margem.
+   *  Não é a mesma opacidade do preenchimento (0,16 num quadrado de 8 px some);
+   *  é a menor que ainda lê como "versão clara da mesma cor". */
+  opacidade?: number;
   valor?: string;
   icone?: ReactNode;
 };
@@ -107,7 +113,7 @@ export function Legenda({
           <span
             aria-hidden="true"
             className="size-2 shrink-0 rounded-[2px]"
-            style={{ backgroundColor: item.cor }}
+            style={{ backgroundColor: item.cor, opacity: item.opacidade }}
           />
 
           {item.icone ? (

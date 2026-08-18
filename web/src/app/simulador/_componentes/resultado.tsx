@@ -1,18 +1,16 @@
 import { Suspense } from "react";
-import { Brain, MapPin, Ruler, Sparkles, TrendingUp } from "lucide-react";
+import { Brain, MapPin, Ruler, Shovel, Sparkles, TrendingUp } from "lucide-react";
 
-import { Aviso } from "@/components/ui/aviso";
 import { Cartao, CartaoCabecalho, CartaoCorpo } from "@/components/ui/cartao";
 import { Indicador } from "@/components/ui/indicador";
 import { Leitura } from "@/components/ui/leitura";
-import { agregar } from "@/lib/clima";
+import { resumir } from "@/lib/clima";
 import { ESPECIE } from "@/lib/dominio";
 import { fmt, isoHoje, somarDias } from "@/lib/format";
-import { ufConhecidaPeloModelo, UFS_DO_MODELO } from "@/lib/modelo/campos";
 import { janelaDoPonto } from "@/lib/open-meteo";
 import { trechoMaisProximo } from "@/lib/queries";
-import { diaQueCruza, simular } from "@/lib/simulacao";
-import type { UF } from "@/lib/types";
+import { bandaQueCruza, simular } from "@/lib/simulacao";
+import { soloDoPonto } from "@/lib/solo";
 
 import { Curva } from "./curva";
 import { JanelaClima } from "./janela-clima";
@@ -24,55 +22,54 @@ import type { Pedido } from "./parametros";
 const LONGE_DEMAIS_KM = 150;
 
 export async function Resultado({ pedido }: { pedido: Pedido }) {
-  const [janela, vizinho] = await Promise.all([
+  // As três buscas são independentes e nenhuma delas encadeia na outra. O
+  // SoilGrids é o mais lento dos três e seria bobagem serializá-lo atrás do
+  // clima; cada um tem seu próprio cache e seu próprio orçamento de tempo.
+  const [janela, vizinho, soloDoMapa] = await Promise.all([
     janelaDoPonto(pedido.latitude, pedido.longitude, pedido.dias),
     trechoMaisProximo(pedido.latitude, pedido.longitude),
+    soloDoPonto(pedido.latitude, pedido.longitude),
   ]);
 
-  // A UF sai do trecho mais próximo em vez de virar um quinto campo. O modelo
-  // pede `uf_cod` e um ponto solto no mapa não tem UF; o vizinho tem, é dado
-  // real da malha, e a tela mostra de onde veio para quem olha julgar.
-  const uf: UF = vizinho?.trecho.uf ?? "SP";
-  const mes = Number(isoHoje().slice(5, 7));
+  // O formulário só sobrepõe o mapa quando alguém digitou. Vazio quer dizer
+  // "pergunte ao SoilGrids", que é o que o lote diário faz.
+  const fertilidade = pedido.fertilidade ?? soloDoMapa.fertilidade;
+  const capacidadeMm = pedido.capacidadeMm ?? soloDoMapa.capacidadeMm;
+  const soloManual = pedido.fertilidade != null || pedido.capacidadeMm != null;
 
   const simulacao = simular(
     {
       especie: pedido.especie,
-      uf,
       latitude: pedido.latitude,
       alturaInicialCm: pedido.alturaCm,
       dias: pedido.dias,
-      mes,
+      diasDesdeRocada: pedido.diasDesdeRocada,
+      fertilidade,
+      capacidadeMm,
     },
     janela,
   );
 
   const diasSimulados = simulacao.pontos.length - 1;
-  const agregado = agregar(janela.dias.slice(0, diasSimulados));
+  const resumo = {
+    ...resumir(janela.dias.slice(0, diasSimulados)),
+    aguaSoloMediaPct: simulacao.aguaSoloMediaPct,
+  };
 
   const perto = vizinho != null && vizinho.distanciaKm <= LONGE_DEMAIS_KM;
   const limiteCm = vizinho ? Number(vizinho.trecho.altura_limite_cm) : null;
-  const cruza = limiteCm != null ? diaQueCruza(simulacao, limiteCm) : null;
+  const banda = limiteCm != null ? bandaQueCruza(simulacao, limiteCm) : null;
+  const cruza = banda?.mediana ?? null;
 
   const dataFinal = somarDias(isoHoje(), diasSimulados).toISOString().slice(0, 10);
 
   return (
     <div className="flex flex-col gap-6 lg:gap-8">
       {/* A faixa amarela "Este pedido sai do que o modelo viu no treino" saiu
-          daqui a pedido. A informação não sumiu: o cartão "Até onde o modelo foi
-          treinado" continua marcando em âmbar a régua que estourou, com o texto
-          "fora do treino, o modelo satura aqui". O que mudou foi o peso: ela
-          deixou de interromper o topo do resultado. `simulacao.extrapolacoes`
-          segue existindo e testado, e é de onde qualquer outra superfície
-          futura deve ler; não recalcule a regra. */}
-
-      {!ufConhecidaPeloModelo(uf) ? (
-        <Aviso tom="warning" titulo={`O modelo nunca viu a UF ${uf}`}>
-          Ele foi treinado em {UFS_DO_MODELO.join(", ")}. Neste ponto a UF entra codificada como a
-          primeira da lista, mesmo comportamento do lote diário. A latitude e o clima continuam
-          valendo, e são eles que carregam quase toda a geografia.
-        </Aviso>
-      ) : null}
+          daqui a pedido. `simulacao.extrapolacoes` segue existindo e testado, e
+          é de onde qualquer outra superfície futura deve ler; não recalcule a
+          regra. O componente `faixas-modelo.tsx` continua no repositório sem
+          chamador — ver o cabeçalho daquele arquivo. */}
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Indicador
@@ -85,10 +82,15 @@ export async function Resultado({ pedido }: { pedido: Pedido }) {
         />
         <Indicador
           rotulo="Crescimento no período"
-          valor={`+${fmt.d1(simulacao.crescimentoTotalCm)}`}
+          valor={`+${fmt.d1(simulacao.crescimento.q50)}`}
           unidade="cm"
           icone={<TrendingUp />}
-          nota={`De ${fmt.cm(simulacao.alturaInicialCm)} para ${fmt.cm(simulacao.alturaFinalCm)}`}
+          // O intervalo na nota, e não escondido: é a diferença entre o modelo
+          // novo e o antigo. Um número sozinho aqui prometeria uma precisão
+          // que o crescimento de grama não tem.
+          nota={`Intervalo de 80%: +${fmt.d1(simulacao.crescimento.q10)} a +${fmt.d1(
+            simulacao.crescimento.q90,
+          )} cm`}
           indice={1}
         />
         <Indicador
@@ -96,7 +98,10 @@ export async function Resultado({ pedido }: { pedido: Pedido }) {
           valor={fmt.d3(simulacao.crescimentoCmDia)}
           unidade="cm/dia"
           icone={<Brain />}
-          nota={`Média do período, pelo modelo · ${ESPECIE[pedido.especie].rotulo}`}
+          nota={`Média do período · ${ESPECIE[pedido.especie].rotulo} · ${fmt.contar(
+            pedido.diasDesdeRocada,
+            "dia",
+          )} desde a roçada`}
           indice={2}
         />
         <Indicador
@@ -112,7 +117,12 @@ export async function Resultado({ pedido }: { pedido: Pedido }) {
               : cruza === 0
                 ? `Já começa acima dos ${fmt.cm(limiteCm)} do trecho vizinho`
                 : cruza != null
-                  ? `Limite de ${fmt.cm(limiteCm)} do trecho vizinho`
+                  ? // As pontas trocam de papel: mais crescimento cruza ANTES.
+                    banda?.cedo != null && banda.cedo !== cruza
+                    ? `Entre ${banda.cedo} e ${
+                        banda.tarde == null ? "mais de " + diasSimulados : banda.tarde
+                      } dias · limite de ${fmt.cm(limiteCm)}`
+                    : `Limite de ${fmt.cm(limiteCm)} do trecho vizinho`
                   : `Fica abaixo de ${fmt.cm(limiteCm)} no período inteiro`
           }
           indice={3}
@@ -131,21 +141,82 @@ export async function Resultado({ pedido }: { pedido: Pedido }) {
             }
             descricao={`${ESPECIE[pedido.especie].rotulo} a partir de ${fmt.cm(
               pedido.alturaCm,
-            )}. A curva entorta porque o ritmo cai com a altura e com o tamanho do período, não é reta.`}
+            )}. A curva entorta porque o ritmo cai com a altura, muda com o tamanho do período e acompanha a virada da estação — não é reta. A faixa é o que o modelo admite não saber.`}
           />
         </CartaoCorpo>
       </Cartao>
 
-      {/* O cartão "Até onde o modelo foi treinado" saiu daqui a pedido, e com
-          ele a grade de duas colunas: sozinho, o clima ocupa a largura toda.
-          `FaixasDoModelo` continua no repositório, sem chamador — ver o
-          cabeçalho daquele arquivo. */}
-      <Cartao>
-        <CartaoCabecalho titulo="De onde veio o clima" />
-        <CartaoCorpo>
-          <JanelaClima janela={janela} agregado={agregado} />
-        </CartaoCorpo>
-      </Cartao>
+      <div className="grid gap-6 lg:gap-8 xl:grid-cols-[1.4fr_1fr]">
+        <Cartao>
+          <CartaoCabecalho titulo="De onde veio o clima" />
+          <CartaoCorpo>
+            <JanelaClima janela={janela} resumo={resumo} />
+          </CartaoCorpo>
+        </Cartao>
+
+        <Cartao>
+          <CartaoCabecalho
+            titulo="De onde veio o solo"
+            descricao="Duas entradas do modelo que nenhum sensor de estrada mede. O painel estima as duas do mapa de solo SoilGrids no ponto."
+            icone={<Shovel />}
+          />
+          <CartaoCorpo>
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-4">
+              <Leitura
+                rotulo="Fertilidade"
+                valor={fmt.d2(fertilidade)}
+                nota={
+                  pedido.fertilidade != null
+                    ? "digitada no formulário"
+                    : soloDoMapa.fonte === "soilgrids"
+                      ? `SoilGrids · ${fmt.d2(soloDoMapa.nitrogenioGkg ?? 0)} g/kg de N`
+                      : "premissa de beira de estrada"
+                }
+              />
+              <Leitura
+                rotulo="Água disponível"
+                valor={`${fmt.n(Math.round(capacidadeMm))} mm`}
+                nota={
+                  pedido.capacidadeMm != null
+                    ? "digitada no formulário"
+                    : soloDoMapa.fonte === "soilgrids"
+                      ? "SoilGrids + Saxton & Rawls"
+                      : "premissa de 60 mm"
+                }
+              />
+            </dl>
+
+            <p className="mt-5 max-w-prose text-xs leading-relaxed text-ink-3">
+              {soloManual ? (
+                <>
+                  Um dos dois valores veio do formulário e sobrepôs o mapa. É para isso que os
+                  campos existem: a fertilidade sozinha move o crescimento previsto em cerca de 71%
+                  entre as pontas da escala, e ver isso acontecer vale mais que ler.
+                </>
+              ) : soloDoMapa.fonte === "soilgrids" ? (
+                <>
+                  A água disponível sai da textura do solo pela pedotransferência de Saxton &amp;
+                  Rawls; a fertilidade é uma rampa sobre o nitrogênio total, e essa rampa é premissa
+                  declarada, não equação publicada.{" "}
+                  {soloDoMapa.distanciaKm > 0
+                    ? `O mapa não cobre o ponto exato — mancha urbana ou água —, então o valor vem de ${fmt.km(
+                        soloDoMapa.distanciaKm,
+                      )} dali.`
+                    : "O mapa cobre o ponto exato."}{" "}
+                  O SoilGrids descreve o solo da paisagem, e faixa de domínio é terraplenada e
+                  compactada: o número tende a ser generoso.
+                </>
+              ) : (
+                <>
+                  O SoilGrids não cobre este ponto nem a vizinhança de 2 km — costuma ser mancha
+                  urbana ou água. Os dois valores acima são a premissa de beira de estrada, a mesma
+                  do caderno de calibração. Não são medição deste lugar.
+                </>
+              )}
+            </p>
+          </CartaoCorpo>
+        </Cartao>
+      </div>
 
       <Cartao>
         <CartaoCabecalho
@@ -158,7 +229,7 @@ export async function Resultado({ pedido }: { pedido: Pedido }) {
               fronteira entre simulações e o texto da anterior fica na tela
               enquanto a nova carrega. */}
           <Suspense
-            key={`${pedido.especie}|${pedido.latitude}|${pedido.longitude}|${pedido.alturaCm}|${pedido.dias}`}
+            key={`${pedido.especie}|${pedido.latitude}|${pedido.longitude}|${pedido.alturaCm}|${pedido.dias}|${pedido.diasDesdeRocada}|${fertilidade}|${capacidadeMm}`}
             fallback={<LeituraCarregando />}
           >
             <LeituraGestor
@@ -172,11 +243,33 @@ export async function Resultado({ pedido }: { pedido: Pedido }) {
                 altura_inicial_cm: pedido.alturaCm,
                 altura_prevista_cm: Number(simulacao.alturaFinalCm.toFixed(1)),
                 dias_simulados: diasSimulados,
+                dias_desde_a_ultima_rocada: pedido.diasDesdeRocada,
                 crescimento_previsto_cm_por_dia: Number(simulacao.crescimentoCmDia.toFixed(3)),
+                crescimento_no_periodo_cm: {
+                  q10: Number(simulacao.crescimento.q10.toFixed(1)),
+                  q50: Number(simulacao.crescimento.q50.toFixed(1)),
+                  q90: Number(simulacao.crescimento.q90.toFixed(1)),
+                },
                 dias_ate_cruzar_o_limite: cruza,
+                quando_cruza_o_limite: {
+                  mais_cedo_dias: banda?.cedo ?? null,
+                  mais_tarde_dias: banda?.tarde ?? null,
+                },
                 altura_limite_de_referencia_cm: limiteCm,
-                temperatura_media_prevista_c: Number(agregado.temperaturaMediaC.toFixed(1)),
-                chuva_total_prevista_mm: Math.round(agregado.precipitacaoTotalMm),
+                temperatura_media_prevista_c: Number(resumo.temperaturaMediaC.toFixed(1)),
+                temperatura_minima_prevista_c: Number(resumo.temperaturaMinC.toFixed(1)),
+                chuva_total_prevista_mm: Math.round(resumo.precipitacaoTotalMm),
+                dias_com_chuva_previstos: resumo.diasComChuva,
+                agua_no_solo_media_pct: Math.round(simulacao.aguaSoloMediaPct),
+                solo: {
+                  fertilidade_0_a_1: Number(fertilidade.toFixed(2)),
+                  capacidade_de_agua_mm: Math.round(capacidadeMm),
+                  origem: soloManual
+                    ? "digitado no formulário do simulador"
+                    : soloDoMapa.fonte === "soilgrids"
+                      ? "estimado do mapa SoilGrids"
+                      : "premissa, o SoilGrids não cobre este ponto",
+                },
                 dias_de_previsao_real: janela.diasPrevistos,
                 origem_do_resto_do_clima:
                   janela.complemento === "historico"
@@ -205,7 +298,7 @@ export async function Resultado({ pedido }: { pedido: Pedido }) {
         <Cartao>
           <CartaoCabecalho
             titulo="Referência na malha"
-            descricao="O ponto simulado não é um trecho cadastrado. A UF que o modelo recebeu e o limite de altura da decisão vêm do trecho monitorado mais próximo."
+            descricao="O ponto simulado não é um trecho cadastrado. O limite de altura contra o qual a decisão é tomada vem do trecho monitorado mais próximo."
             icone={<MapPin />}
           />
           <CartaoCorpo>
@@ -220,7 +313,7 @@ export async function Resultado({ pedido }: { pedido: Pedido }) {
                 valor={fmt.km(vizinho.distanciaKm)}
                 nota={perto ? "em linha reta" : "fora da malha monitorada"}
               />
-              <Leitura rotulo="UF usada no modelo" valor={vizinho.trecho.uf} />
+              <Leitura rotulo="UF" valor={vizinho.trecho.uf} nota="do trecho vizinho" />
               <Leitura
                 rotulo="Limite de altura"
                 valor={fmt.cm(Number(vizinho.trecho.altura_limite_cm))}

@@ -141,6 +141,25 @@ export function caminhoArea(pontos: Ponto[], base: number): string {
 }
 
 /**
+ * Faixa fechada entre dois tracados: o de cima na ida, o de baixo na volta.
+ *
+ * Existe para intervalo de incerteza. Desenhar q10 e q90 como duas linhas
+ * extras faria o leitor ler tres entidades onde ha uma com margem; a area
+ * preenchida na mesma cor da mediana le como "a resposta esta em algum lugar
+ * aqui dentro", que e o que ela e.
+ */
+export function caminhoFaixa(superior: Ponto[], inferior: Ponto[]): string {
+  const cima = superior.filter(finito);
+  const baixo = inferior.filter(finito);
+  if (cima.length === 0 || baixo.length === 0) return "";
+
+  const ida = cima.map(([x, y], i) => `${i === 0 ? "M" : "L"}${q(x)} ${q(y)}`).join(" ");
+  const volta = [...baixo].reverse().map(([x, y]) => `L${q(x)} ${q(y)}`).join(" ");
+
+  return `${ida} ${volta} Z`;
+}
+
+/**
  * Comprimento aproximado da poligonal, para alimentar `--dash` da classe `.draw`.
  * `getTotalLength()` seria exato, mas exigiria ler o DOM depois da pintura.
  */
