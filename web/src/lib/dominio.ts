@@ -194,10 +194,24 @@ export function dispensaAgendamento(diasAteLimite: number | null | undefined): b
 }
 
 /** Rotulo curto do prazo, incluindo o caso "ja passou". */
+/**
+ * Acima disto o prazo deixa de ser um número e vira "mais de um ano".
+ *
+ * `dias_ate_limite` só é uma varredura de verdade até 120 dias, o horizonte do
+ * modelo; além dele o lote estende em linha pela taxa média (ver
+ * `modelo.cruzamento`). Escrever "621 dias" sobre uma extrapolação linear de
+ * uma esmeralda que cresce 0,03 cm/dia é precisão de mentira — e é o mesmo
+ * defeito que este projeto já registrou uma vez, quando a agenda mostrava
+ * 2.196 dias. O número CRU continua no banco, porque é dele que a regra de
+ * fechar agendamento (> 55 dias) depende; o que muda é só como a tela o lê.
+ */
+export const PRAZO_LONGO_DEMAIS = 365;
+
 export function rotuloPrazo(dias: number | null | undefined): string {
   if (dias == null) return "sem crescimento";
   if (dias <= 0) return "acima do limite";
   if (dias === 1) return "1 dia";
+  if (dias > PRAZO_LONGO_DEMAIS) return "mais de 1 ano";
   return `${dias} dias`;
 }
 

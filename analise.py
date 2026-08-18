@@ -55,10 +55,32 @@ def analisar_trecho(sb, t: dict, serie: clima.Serie, terra: solo.Solo, hoje: dat
     # verdade: `ia.execucoes` guarda o que foi roçado e quando. Sem execucao
     # nenhuma, o trecho e tratado como ha muito sem corte (fase rapida da
     # curva), que e a leitura conservadora -- preve mais crescimento, nao menos.
-    ex = (sb.table("execucoes").select("data_execucao").eq("trecho_id", t["id"])
+    ex = (sb.table("execucoes")
+          .select("data_execucao,altura_depois_cm").eq("trecho_id", t["id"])
           .order("data_execucao", desc=True).limit(1).execute().data)
     data_rocada = date.fromisoformat(ex[0]["data_execucao"]) if ex else None
+    altura_depois = (None if not ex or ex[0]["altura_depois_cm"] is None
+                     else float(ex[0]["altura_depois_cm"]))
     dias_rocada_hoje = float((hoje - data_rocada).days) if data_rocada else 200.0
+
+    # A ROÇADA PODE SER MAIS RECENTE QUE A MEDICAO, e quando e, a medicao esta
+    # morta: o que ela mediu foi cortado. Crescer a medicao velha para a frente
+    # como se nada tivesse acontecido produz o pior tipo de numero -- plausivel
+    # e errado. Foi o que aconteceu com o trecho 7 na primeira rodada do modelo
+    # v3.1: medido 31,1 cm em 27/07, roçado para 8 cm em 06/08, e o painel
+    # gravou 42,33 cm e carimbou "critica" num trecho que estava com ~15 cm.
+    #
+    # O codigo antigo tinha a mesma cegueira e errava menos so porque previa um
+    # quinto do crescimento. Agora `ia.execucoes.altura_depois_cm` resolve: a
+    # roçada e uma MEDICAO, feita pela equipe que cortou, e e dela que a janela
+    # parte. De quebra o `dias_desde_rocada_inicio` da janela passa a ser 0 de
+    # verdade -- coerente com uma altura de residuo, e nao com 31 cm.
+    if data_rocada and altura_depois is not None and data_rocada > data_med:
+        altura_base, data_base = altura_depois, data_rocada
+        partiu_da_rocada = True
+    else:
+        altura_base, data_base = altura_med, data_med
+        partiu_da_rocada = False
 
     limite = float(t["altura_limite_cm"])
     lat = float(t["latitude"])
@@ -70,23 +92,23 @@ def analisar_trecho(sb, t: dict, serie: clima.Serie, terra: solo.Solo, hoje: dat
     # PREVISAO com o clima que de fato aconteceu naqueles dias: a janela
     # [medicao, hoje) esta inteira no passado da serie, entao o modelo ve
     # temperatura, chuva e agua no solo observadas, e nao uma media projetada.
-    decorridos = (hoje - data_med).days
-    fr_med, en_med = clima.balanco_solo(serie.dias, terra.capacidade_mm, altura_med)
+    decorridos = (hoje - data_base).days
+    fr_med, en_med = clima.balanco_solo(serie.dias, terra.capacidade_mm, altura_base)
     crescido = 0.0
     janela_medicao = 0
 
     if decorridos >= 1:
-        dias_rocada_med = (max(0.0, float((data_med - data_rocada).days))
-                           if data_rocada else 200.0)
+        dias_rocada_base = (max(0.0, float((data_base - data_rocada).days))
+                            if data_rocada else 200.0)
         linha = clima.montar_features(
-            especie=especie, altura_cm=altura_med, dias_desde_rocada=dias_rocada_med,
-            latitude=lat, serie=serie, inicio=data_med, dias_periodo=decorridos,
+            especie=especie, altura_cm=altura_base, dias_desde_rocada=dias_rocada_base,
+            latitude=lat, serie=serie, inicio=data_base, dias_periodo=decorridos,
             fertilidade=terra.fertilidade, capacidade_mm=terra.capacidade_mm,
             fracoes=fr_med, encharcado=en_med)
         janela_medicao = linha["dias_periodo"]
         crescido = float(modelo.prever([linha])[0, 1])
 
-    altura_hoje = max(altura_med + crescido, 0.5)
+    altura_hoje = max(altura_base + crescido, 0.5)
 
     # --- 2. a curva daqui para a frente ------------------------------------
     fr, en = clima.balanco_solo(serie.dias, terra.capacidade_mm, altura_hoje)
@@ -118,6 +140,8 @@ def analisar_trecho(sb, t: dict, serie: clima.Serie, terra: solo.Solo, hoje: dat
 
     return {
         "altura_med": altura_med, "data_med": data_med, "decorridos": decorridos,
+        "altura_base": altura_base, "data_base": data_base,
+        "partiu_da_rocada": partiu_da_rocada,
         "janela_medicao": janela_medicao, "crescido": crescido,
         "altura_hoje": altura_hoje, "limite": limite,
         "dias": dias, "taxa": taxa, "prev30": prev30,

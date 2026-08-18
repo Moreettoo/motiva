@@ -167,11 +167,20 @@ def cruzamento(altura_inicial_cm: float, limite_cm: float,
 
     folga = limite_cm - altura_inicial_cm
     if folga <= 0:
-        return 0, float(crescimento_q50[min(JANELA_REFERENCIA, n) - 1]) / min(JANELA_REFERENCIA, n)
+        # Ja acima do limite. O ritmo aqui pode sair NEGATIVO -- batatais a 36 cm
+        # esta acima do teto de sitio dela (22-34 cm) e o modelo preve
+        # senescencia. E resposta honesta do modelo e mesmo assim nao pode ir
+        # crua para a coluna: `grafico-altura.tsx` desenha a projecao a partir
+        # dela, e uma linha DESCENDO num trecho que precisa de roçada hoje le
+        # como "relaxa, esta encolhendo". Zero desenha reta, que e o que um
+        # trecho saturado faz, e o prazo (`0`, "acima do limite") ja carrega a
+        # urgencia. Ver tambem `page.tsx`, que filtra `> 0` na media do grupo.
+        ref = min(JANELA_REFERENCIA, n)
+        return 0, max(0.0, float(crescimento_q50[ref - 1]) / ref)
 
     for d in range(1, n + 1):
         if crescimento_q50[d - 1] >= folga:
-            return d, float(crescimento_q50[d - 1]) / d
+            return d, max(0.0, float(crescimento_q50[d - 1]) / d)
 
     taxa = float(crescimento_q50[n - 1]) / n
     if taxa < CRESCIMENTO_DESPREZIVEL:
