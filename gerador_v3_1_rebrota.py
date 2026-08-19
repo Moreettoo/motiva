@@ -23,6 +23,28 @@ cortada a 10 cm -> 17 cm em 4 dias = 1,75 cm/dia, o teto da TAlF do marandu):
   4. A braquiaria 1.60 -> 1.90 cm/dia e sigma do sitio 0.22 -> 0.30
      (micrositios de valeta umida/fertil existem na faixa e geram as
      leituras extremas reais).
+v3.2 (cobertura das bordas, depois do caso de 12-16/ago/2026 em Juiz de
+Fora): o modelo previu +3,9 cm onde o campo deu +7. Nao foi a fisica - o teto
+A=1,90 ja estava aqui desde a v3.1 e o dataset o respeita (p99 diario da
+braquiaria = 1,92 cm/dia). Foi AMOSTRAGEM. Sorteando janelas uniformemente de
+dentro das trajetorias, a celula "braquiaria x recem-rocada x inverno x 4-6
+dias" ficou com 1.047 linhas em 1.000.000 (0,1%); em Juiz de Fora, em agosto,
+com SETE. Com sete exemplos o q90 daquela folha vale o que vale: o modelo
+respondeu +4,2 de teto porque o maior que ele viu ali foi +4,05.
+  1. CENARIOS DE BORDA: alem dos 6 cenarios sorteados por local x especie,
+     CENARIOS_BORDA deterministicos - um sitio-teto (fertil, balde fundo) e um
+     sitio-chao (talude raspado, balde raso). Antes o sitio rico era cauda de
+     Beta(2; 3,2) e caia por acaso em climas quentes; agora existe em TODO
+     clima, inclusive no inverno mineiro.
+     As bordas mexem so em fertilidade e capacidade - as duas que o modelo VE.
+     O micrositio `qual` continua sorteado de proposito: ver a nota em simular.
+  2. AMOSTRAGEM POR COTA: depois do lote natural, um suplemento enche as
+     celulas rasas de (fase da rebrota x tamanho da janela x faixa termica x
+     faixa hidrica). A cota olha SO para as condicoes (X). Nunca para o
+     crescimento (y): sortear pelo y inclinaria exatamente os quantis que o
+     modelo existe para estimar. O lote natural continua sendo o esqueleto,
+     com a distribuicao real de condicoes; o suplemento so adensa os cantos.
+
 Simulacao DIARIA com clima real (Open-Meteo/ERA5), rebrota sigmoide,
 balanco de agua no solo, geada, fogo, floracao e rocadas.
 
@@ -149,7 +171,54 @@ ESPECIES = {
 }
 NOMES = list(ESPECIES.keys())
 CENARIOS_POR_LOCAL = 6          # sorteios de fertilidade/solo/manejo
+CENARIOS_BORDA = 2              # v3.2: 1 sitio-teto + 1 sitio-chao por local x especie
 D_MIN, D_MAX = 1, 120           # janelas de medicao, em dias
+
+# ---------------------------------------------------------------------------
+# v3.2 - AS CELULAS DA COTA
+# ---------------------------------------------------------------------------
+# O espaco de condicoes cortado em 5 x 6 x 3 x 3 = 270 celulas. Sao os quatro
+# eixos que mandam no crescimento e que a amostragem natural cobre de forma
+# desigual: a fase da rebrota depende de quando calhou a rocada, e a faixa
+# termica depende de onde a janela caiu no ano.
+#
+# ALVO_POR_CELULA = 1000 nao e chute. O numero de observacoes abaixo do q10 e
+# ~Binomial(n; 0,10), cujo erro relativo e 3/sqrt(n). Para estimar o decil com
+# erro relativo <= 10% e preciso n >= 900. Mil arredonda para cima.
+CORTES_FASE    = np.array([1, 7, 20, 45])          # 0-1, 2-7, 8-20, 21-45, 46+
+CORTES_JANELA  = np.array([3, 7, 15, 30, 60])      # 1-3, 4-7, ... 61-120 dias
+CORTES_TERMICA = np.array([15., 22.])              # frio, ameno, quente
+CORTES_HIDRICA = np.array([25., 60.])              # seco, medio, umido
+N_CELULAS = 5 * 6 * 3 * 3
+ALVO_POR_CELULA = 1000
+MIN_ALCANCAVEL = 25             # celula que o lote natural nunca tocou 25x e
+                                # provavelmente impossivel (nao existe inverno
+                                # quente em Fortaleza): nao insistir nela.
+
+
+def celula(fase, dias, tmed, agua):
+    """Indice da celula de condicao de cada janela. So X, nunca y."""
+    a = np.searchsorted(CORTES_FASE,    fase, side="left")
+    b = np.searchsorted(CORTES_JANELA,  dias, side="left")
+    c = np.searchsorted(CORTES_TERMICA, tmed, side="left")
+    d = np.searchsorted(CORTES_HIDRICA, agua, side="left")
+    return ((a * 6 + b) * 3 + c) * 3 + d
+
+
+def celula_do_df(df):
+    return celula(df.dias_desde_rocada_inicio.to_numpy(),
+                  df.dias_periodo.to_numpy(),
+                  df.temperatura_media_c.to_numpy(),
+                  df.agua_solo_media_pct.to_numpy())
+
+
+def nome_da_celula(i):
+    d = i % 3; i //= 3
+    c = i % 3; i //= 3
+    b = i % 6; a = i // 6
+    return (f"{['0-1','2-7','8-20','21-45','46+'][a]:>5} d de rocada | "
+            f"{['1-3','4-7','8-15','16-30','31-60','61-120'][b]:>6} d | "
+            f"{['frio','ameno','quente'][c]:>6} | {['seco','medio','umido'][d]:>5}")
 
 # ---------------------------------------------------------------------------
 # DOWNLOAD / CACHE (Open-Meteo, ERA5)
@@ -257,21 +326,43 @@ def simular(diario, rng):
                         lon=float(g.longitude.iloc[0]))
         for esp in NOMES:
             for _ in range(CENARIOS_POR_LOCAL):
-                trajs.append(dict(**meta_loc, especie=esp))
+                trajs.append(dict(**meta_loc, especie=esp, regime_sitio="sorteado"))
+            # v3.2: as bordas nao podem depender da sorte. Um sitio-teto e um
+            # sitio-chao por local x especie garantem que o extremo de sitio
+            # exista em TODO clima - antes ele so aparecia onde a cauda da
+            # Beta calhou de cair, que por acaso foi mais no calor.
+            for i in range(CENARIOS_BORDA):
+                trajs.append(dict(**meta_loc, especie=esp,
+                                  regime_sitio=("teto", "chao")[i % 2]))
     T = len(trajs)
     esp_idx = np.array([NOMES.index(t["especie"]) for t in trajs])
     par = lambda k: np.array([ESPECIES[NOMES[i]][k] for i in esp_idx])
 
     # --- cenario por trajetoria -----------------------------------------
     # fertilidade de beira de estrada: maioria pobre, cauda rara rica
+    regime = np.array([t["regime_sitio"] for t in trajs])
+    teto, chao = regime == "teto", regime == "chao"
     fert = np.clip(rng.beta(2.0, 3.2, T) * 1.15, 0.05, 1.0)
-    f_N = 0.25 + 0.75 * fert                    # Gastal: 3-4x entre extremos
     cap_solo = rng.uniform(35., 120., T)        # mm (talude raso -> plano fundo)
+    # v3.2: as duas bordas, com uma folga estreita para nao virar um pico
+    # degenerado numa unica altura de fertilidade. 0,82-0,98 e a valeta com
+    # materia organica e escoamento da pista; 0,05-0,12 e o talude raspado.
+    fert = np.where(teto, rng.uniform(.82, .98, T),
+           np.where(chao, rng.uniform(.05, .12, T), fert))
+    cap_solo = np.where(teto, rng.uniform(105., 120., T),
+               np.where(chao, rng.uniform(35., 45., T), cap_solo))
+    f_N = 0.25 + 0.75 * fert                    # Gastal: 3-4x entre extremos
     Klo = par("K_range")[:,0] if par("K_range").ndim>1 else None
     Kr = np.array([ESPECIES[NOMES[i]]["K_range"] for i in esp_idx])
     K = Kr[:,0] + rng.random(T) * (Kr[:,1]-Kr[:,0])
     K = K * (0.75 + 0.35 * fert)                # sem N o teto tambem cai
-    qual = np.exp(rng.normal(0., 0.30, T))      # v3.1: micrositio (valeta/talude)
+    # v3.1: micrositio (valeta/talude). v3.2: continua sorteado ATE nas
+    # trajetorias de borda, e isso e deliberado. `qual` nao vira coluna do CSV:
+    # e o fator que o modelo NAO observa. Se as bordas o fixassem junto com a
+    # fertilidade, fertilidade (que o modelo ve) ficaria correlacionada com
+    # qualidade de sitio (que ele nao ve), e o modelo creditaria a primeira o
+    # efeito da segunda. As bordas mexem so no que aparece nas features.
+    qual = np.exp(rng.normal(0., 0.30, T))
     res_r = np.array([ESPECIES[NOMES[i]]["residual"] for i in esp_idx])
 
     # --- clima empilhado (loc -> traj) ----------------------------------
@@ -305,7 +396,15 @@ def simular(diario, rng):
     gq = par("geada_queda"); gtk = par("geada_topkill")
     tol = par("tol_seca"); A = par("A"); sen = par("sen_dorm")
     dormT = par("dorm_T"); gat = par("gatilho_rocada")
-    rmax = par("rocada_max_dias")
+    # v3.2: o ciclo de rocada vira CENARIO, nao constante da especie.
+    # A faixa de dominio e rocada por PROGRAMA - a concessionaria passa a
+    # rocadeira de tantos em tantos meses - e nao so quando o capim chega ao
+    # gatilho de 50 cm. Com o ciclo preso em rocada_max_dias, um local frio era
+    # rocado uma vez por ano, e a fase de rebrota (justamente a que o painel usa
+    # para agendar) ficava em 0,1% do dataset por falta de eventos de reset, nao
+    # por falta de sorteio. A cota nao resolve isso: ela so pode escolher entre
+    # as janelas que existem. Aqui elas passam a existir.
+    rmax = par("rocada_max_dias") * rng.choice([.35, .50, .70, 1.0, 1.3], T)
     fb = par("floracao_boost"); fh = par("floracao_hmin")
     fmeses = [ESPECIES[NOMES[i]]["floracao_meses"] for i in esp_idx]
     Q = 2.5                                    # expoente da saturacao (premissa)
@@ -391,6 +490,7 @@ def simular(diario, rng):
 
     meta = pd.DataFrame(trajs)
     meta["fertilidade"] = np.round(fert,3); meta["cap_solo_mm"] = np.round(cap_solo,0)
+    meta["ciclo_rocada_dias"] = np.round(rmax,0)
     meta["K_cm"] = np.round(K,1)
     return dict(H=oH, Hm=oHm, SW=oSW, VIG=oVig, TR=oTR, MOW=oMow, GEA=oGeada,
                 FOG=oFogo, ENC=oEnch, FLOR=oFlor, TMED=TMED.astype(np.float32),
@@ -405,31 +505,120 @@ def simular(diario, rng):
 def _cs(a): return np.concatenate([np.zeros((a.shape[0],1),a.dtype),
                                    np.cumsum(a,axis=1)], axis=1)
 
-def amostrar(sim, especie, n, rng, id0):
+def _tabelas(sim, especie):
+    """Somas acumuladas, montadas uma vez e reaproveitadas.
+
+    Sao doze arrays de (trajetorias x dias) e nao dependem do sorteio: refaze-las
+    a cada lote de 250 mil linhas era repetir o mesmo trabalho. A cota tambem
+    precisa delas para saber, ANTES de montar a linha, em que celula a janela
+    candidata cai. So a de graus-dia depende da especie (t_base e t_ot2 sao
+    dela). As de TMIN/TMAX sairam: eram montadas e nunca lidas - o minimo e o
+    maximo da janela vem de uma varredura, nao de uma soma acumulada.
+    """
+    cs = sim.get("_cs")
+    if cs is None:
+        cs = sim["_cs"] = dict(
+            T=_cs(sim["TMED"]), C=_cs(sim["CH"]), E=_cs(sim["ET0"]),
+            R=_cs(sim["RAD"]), U=_cs(sim["UM"]), S=_cs(sim["SW"]),
+            V=_cs(sim["VIG"]), Mw=_cs(sim["MOW"].astype(np.int32)),
+            G=_cs(sim["GEA"].astype(np.int32)), F=_cs(sim["FOG"].astype(np.int32)),
+            En=_cs(sim["ENC"].astype(np.int32)), Fl=_cs(sim["FLOR"].astype(np.int32)),
+            Rain=_cs((sim["CH"] > 1.0).astype(np.int32)))
+    gdd = sim.setdefault("_cs_gdd", {})
+    if especie not in gdd:
+        e = ESPECIES[especie]
+        d = np.clip(np.minimum(sim["TMED"], e["t_ot2"]) - e["t_base"], 0, None)
+        gdd[especie] = _cs(d.astype(np.float32))
+    return cs, gdd[especie]
+
+
+def sortear_por_cota(sim, especie, falta, rng, rodadas=14, teto_pool=4_000_000):
+    """v3.2: escolhe janelas ate encher a cota de cada celula rasa.
+
+    Sorteia um pool grande de candidatas, calcula a celula de cada uma pelas
+    CONDICOES e fica com as que caem em celula ainda faminta, ate a cota. Como
+    o pool e sorteado do mesmo jeito que o lote natural e o corte e por celula,
+    dentro de cada celula as janelas continuam sendo uma amostra aleatoria dela.
+
+    O criterio olha so para X - fase da rebrota, tamanho da janela, temperatura
+    media e agua no solo. O crescimento nao entra em lugar nenhum desta funcao.
+    Nao e escrupulo teorico: escolher janela pelo y mudaria p(y|x) e inclinaria
+    justamente os quantis que os tres modelos existem para estimar.
+
+    Devolve ((tj, ini, dias), o que sobrou por encher).
+    """
+    cs, _ = _tabelas(sim, especie)
+    tsel = np.flatnonzero(sim["esp_idx"] == NOMES.index(especie))
+    nd = sim["n_dias"]
+    resta = np.asarray(falta, dtype=np.int64).copy()
+    saida = []
+    for k in range(rodadas):
+        if resta.sum() <= 0: break
+        # O pool DOBRA a cada rodada. Dimensiona-lo pelo que ainda falta seria
+        # ao contrario: as celulas comuns enchem primeiro, `resta` encolhe, e o
+        # sorteio mingua justamente quando so sobraram as celulas raras - que
+        # sao as que precisam de mais candidatas. Uma celula com frequencia
+        # natural de 6 em 100 mil precisa de ~17 milhoes de sorteios para render
+        # mil linhas; dimensionada pelo resto, ela nunca chegaria la.
+        m = int(min(teto_pool, max(500_000, resta.sum() * 8) * (2 ** k)))
+        tj = tsel[rng.integers(0, len(tsel), m)]
+        # janela uniforme de 1 a 120, e nao a mistura 35/25/40 do lote natural:
+        # o buraco esta espalhado por todos os tamanhos, inclusive os longos.
+        dias = rng.integers(D_MIN, D_MAX + 1, m)
+        ini = rng.integers(30, nd - D_MAX - 1, m)
+        fim = ini + dias
+        # So contam as janelas que o treinar_modelo.py vai de fato usar: ele
+        # descarta janela com rocada ou fogo DENTRO, e isso e 46% do dataset.
+        # Encher a cota com linha que o treino joga fora e encher no papel - foi
+        # o que aconteceu na primeira versao desta funcao, e a celula do caso de
+        # Juiz de Fora saiu com 1.020 linhas no CSV e 361 no treino.
+        # Condicionar aqui pelo mesmo evento que o treinador condiciona mantem a
+        # cota na mesma populacao do lote natural depois do filtro.
+        vale = (((cs["Mw"][tj, fim] - cs["Mw"][tj, ini]) == 0) &
+                ((cs["F"][tj, fim] - cs["F"][tj, ini]) == 0))
+        tj, ini, dias, fim = tj[vale], ini[vale], dias[vale], fim[vale]
+        m = len(tj)
+        if m == 0: continue
+        cel = celula(sim["TR"][tj, ini], dias,
+                     (cs["T"][tj, fim] - cs["T"][tj, ini]) / dias,
+                     (cs["S"][tj, fim] - cs["S"][tj, ini]) / dias * 100.)
+        ordem = np.argsort(cel, kind="stable")
+        c_ord = cel[ordem]
+        grupo = np.flatnonzero(np.r_[True, c_ord[1:] != c_ord[:-1]])
+        pos = np.arange(m) - np.repeat(grupo, np.diff(np.r_[grupo, m]))
+        fica = ordem[pos < resta[c_ord]]
+        if len(fica) == 0: break
+        resta -= np.bincount(cel[fica], minlength=N_CELULAS)
+        saida.append((tj[fica], ini[fica], dias[fica]))
+    if not saida:
+        return None, resta
+    return tuple(np.concatenate([x[i] for x in saida]) for i in range(3)), resta
+
+
+def amostrar(sim, especie, n, rng, id0, escolha=None, origem="natural"):
     ei = NOMES.index(especie)
     tsel = np.flatnonzero(sim["esp_idx"] == ei)
     nd = sim["n_dias"]
-    # mistura de duracoes: 35% em 1-7 d, 25% em 8-30, 40% em 31-120
-    u = rng.random(n)
-    dias = np.where(u<.35, rng.integers(1,8,n),
-            np.where(u<.60, rng.integers(8,31,n), rng.integers(31,D_MAX+1,n)))
-    tj = tsel[rng.integers(0, len(tsel), n)]
-    ini = rng.integers(30, nd - D_MAX - 1, n)
+    if escolha is None:
+        # mistura de duracoes: 35% em 1-7 d, 25% em 8-30, 40% em 31-120
+        u = rng.random(n)
+        dias = np.where(u<.35, rng.integers(1,8,n),
+                np.where(u<.60, rng.integers(8,31,n), rng.integers(31,D_MAX+1,n)))
+        tj = tsel[rng.integers(0, len(tsel), n)]
+        ini = rng.integers(30, nd - D_MAX - 1, n)
+    else:
+        tj, ini, dias = escolha           # v3.2: janelas ja escolhidas pela cota
+        n = len(tj)
     fim = ini + dias
 
-    csT,csN,csX = _cs(sim["TMED"]),_cs(sim["TMIN"]),_cs(sim["TMAX"])
-    csC,csE,csR = _cs(sim["CH"]),_cs(sim["ET0"]),_cs(sim["RAD"])
-    csU,csS,csV = _cs(sim["UM"]),_cs(sim["SW"]),_cs(sim["VIG"])
-    csMw = _cs(sim["MOW"].astype(np.int32)); csG=_cs(sim["GEA"].astype(np.int32))
-    csF = _cs(sim["FOG"].astype(np.int32)); csEn=_cs(sim["ENC"].astype(np.int32))
-    csFl = _cs(sim["FLOR"].astype(np.int32))
-    csRain = _cs((sim["CH"]>1.0).astype(np.int32))
-    gdd_d = np.clip(np.minimum(sim["TMED"],
-             ESPECIES[especie]["t_ot2"]) - ESPECIES[especie]["t_base"], 0, None)
-    csGdd = _cs(gdd_d.astype(np.float32))
+    cst, csGdd = _tabelas(sim, especie)
+    csT, csC, csE, csR = cst["T"], cst["C"], cst["E"], cst["R"]
+    csU, csS, csV = cst["U"], cst["S"], cst["V"]
+    csMw, csG, csF = cst["Mw"], cst["G"], cst["F"]
+    csEn, csFl, csRain = cst["En"], cst["Fl"], cst["Rain"]
 
-    ag = lambda cs: (cs[tj,fim]-cs[tj,ini])
-    med = lambda cs: ag(cs)/dias
+    ag = lambda x: (x[tj,fim]-x[tj,ini])
+    med = lambda x: ag(x)/dias
 
     m = sim["meta"].iloc[tj].reset_index(drop=True)
     H0f, H1f = sim["H"][tj,ini], sim["H"][tj,fim]
@@ -448,6 +637,10 @@ def amostrar(sim, especie, n, rng, id0):
     df = pd.DataFrame({
         "id": np.arange(id0, id0+n, dtype=np.int64),
         "especie": especie,
+        # v3.2: duas colunas de auditoria. O treinar_modelo.py le por
+        # `usecols=lambda c: c in usar`, entao coluna a mais nao o incomoda -
+        # e sem elas nao da para saber, depois, de onde veio cada linha.
+        "regime_sitio": m.regime_sitio, "origem": origem,
         "local": m.local, "uf": m.uf,
         "latitude": np.round(m.lat,4), "longitude": np.round(m.lon,4),
         "fertilidade_solo": m.fertilidade,
@@ -501,6 +694,13 @@ def main():
                     help="segundos entre pedidos (default 6; aumente se der 429)")
     ap.add_argument("--locais", default=None, help="CSV nome,uf,lat,lon")
     ap.add_argument("--linhas-por-especie", type=int, default=1_000_000)
+    ap.add_argument("--suplemento", type=int, default=-1,
+                    help="v3.2: linhas extras por especie para encher as celulas "
+                         "rasas de condicao. -1 (default) = exatamente o deficit "
+                         "medido no proprio lote; 0 desliga; N>0 limita a N.")
+    ap.add_argument("--alvo-celula", type=int, default=ALVO_POR_CELULA,
+                    help=f"linhas por celula que a cota persegue (default "
+                         f"{ALVO_POR_CELULA}: erro relativo de 10%% no q10)")
     ap.add_argument("--saida", default="dataset_gramas_v3.csv")
     ap.add_argument("--uf", default=None); ap.add_argument("--listar", action="store_true")
     ap.add_argument("--seed", type=int, default=42)
@@ -547,16 +747,62 @@ def main():
           f"em {time.time()-t0:.1f}s")
 
     if os.path.exists(a.saida): os.remove(a.saida)
-    total, header = 0, True
+    total = 0
+    mil = lambda x: f"{int(x):,}".replace(",", ".")
+
+    def escrever(df):
+        df.to_csv(a.saida, mode="a", header=escrever.cabecalho, index=False,
+                  date_format="%Y-%m-%d", lineterminator="\n")
+        escrever.cabecalho = False
+        return len(df)
+    escrever.cabecalho = True
+
     for esp in NOMES:
+        # --- lote natural: o esqueleto, com a distribuicao real de condicoes
         feitas = 0
+        conta = np.zeros(N_CELULAS, np.int64)
         while feitas < a.linhas_por_especie:
             k = min(a.lote, a.linhas_por_especie - feitas)
             df = amostrar(sim, esp, k, rng, total+1)
-            df.to_csv(a.saida, mode="a", header=header, index=False,
-                      date_format="%Y-%m-%d", lineterminator="\n")
-            header = False; feitas += k; total += k
-            print(f"  {esp}: {feitas:,}/{a.linhas_por_especie:,}".replace(",","."), flush=True)
+            # mesma razao da nota em sortear_por_cota: o deficit tem que ser
+            # medido sobre as linhas que vao treinar, nao sobre as escritas
+            treina = df[(df.rocadas_no_periodo == 0) &
+                        (~df.fogo_no_periodo.astype(bool))]
+            conta += np.bincount(celula_do_df(treina), minlength=N_CELULAS)
+            total += escrever(df); feitas += k
+            print(f"  {esp}: {mil(feitas)}/{mil(a.linhas_por_especie)}", flush=True)
+
+        # --- v3.2: suplemento de cota, medido no lote que acabou de sair
+        if a.suplemento == 0:
+            continue
+        falta = np.maximum(0, a.alvo_celula - conta)
+        # celula que o lote natural nao tocou MIN_ALCANCAVEL vezes provavelmente
+        # nao existe no clima destes locais (nao ha inverno quente em Fortaleza):
+        # insistir nela so gastaria sorteio.
+        falta = np.where(conta >= MIN_ALCANCAVEL, falta, 0)
+        if a.suplemento > 0 and falta.sum() > a.suplemento:
+            falta = np.floor(falta * (a.suplemento / falta.sum())).astype(np.int64)
+        rasas = int((falta > 0).sum())
+        if not rasas:
+            print(f"  {esp}: nenhuma celula abaixo de {mil(a.alvo_celula)}.")
+            continue
+        print(f"  {esp}: cota de {mil(falta.sum())} linhas em {rasas} celulas rasas...",
+              flush=True)
+        escolha, resta = sortear_por_cota(sim, esp, falta, rng)
+        if escolha is not None:
+            n_sup = len(escolha[0])
+            for i in range(0, n_sup, a.lote):
+                fatia = tuple(x[i:i+a.lote] for x in escolha)
+                total += escrever(amostrar(sim, esp, 0, rng, total+1,
+                                           escolha=fatia, origem="cota"))
+            print(f"  {esp}: +{mil(n_sup)} linhas de cota", flush=True)
+        # nunca cortar em silencio: o que nao coube tem que aparecer
+        if resta.sum() > 0:
+            print(f"  {esp}: AVISO - {mil(resta.sum())} linhas nao couberam em "
+                  f"{int((resta>0).sum())} celulas raras demais. As tres piores:")
+            for c in np.argsort(-resta)[:3]:
+                if resta[c]:
+                    print(f"      faltam {mil(resta[c]):>6} em [{nome_da_celula(int(c))}]")
     mb = os.path.getsize(a.saida)/1048576
     print(f"\nOK -> {a.saida} | {total:,} linhas".replace(",",".") +
           f" | {mb:.0f} MB | {time.time()-t0:.1f}s")

@@ -247,7 +247,13 @@ def main():
     ap.add_argument("--saida-modelo", default=MODELO)
     ap.add_argument("--alvo", default="crescimento_total_cm",
                     choices=["crescimento_total_cm", "crescimento_fisiologico_cm"])
-    ap.add_argument("--max-linhas", type=int, default=1_200_000)
+    # v3.2: 1.200.000 jogava fora um terco do dataset - e, pior, jogava fora de
+    # forma UNIFORME, entao as celulas que o gerador adensa de proposito eram
+    # diluidas na mesma proporcao que as ja abundantes. Gerar linha para a
+    # subamostragem descartar e uma esteira: cada linha nova reduz o fator.
+    # 2.000.000 cobre o dataset v3.2 inteiro depois do filtro de rocada/fogo
+    # (1.814.535 linhas), que e o que faz a cota por celula valer alguma coisa.
+    ap.add_argument("--max-linhas", type=int, default=2_000_000)
     ap.add_argument("--iteracoes", type=int, default=400)
     ap.add_argument("--seed", type=int, default=42)
     for n, t, dflt in [("especie",str,"braquiaria"),("altura-inicial",float,10.),
