@@ -171,6 +171,14 @@ export function Formulario({
           />
         </Campo>
 
+      </div>
+
+      {/* Os três campos de tempo numa grade própria, de três colunas.
+          Eram dois e cabiam na grade de dois; com "De" e "Até" viraram três, e
+          o sétimo campo órfão deixava metade de uma linha vazia — o formulário
+          parecia meio-renderizado. Agrupá-los também é honesto: os três
+          respondem à mesma pergunta, QUANDO. */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Campo
           rotulo="Dias desde a última roçada"
           dica="A fase da rebrota. Recém-cortada cresce de reservas; madura já está na fase rápida."
