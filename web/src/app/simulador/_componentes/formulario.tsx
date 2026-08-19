@@ -7,6 +7,8 @@ import { FlaskConical, RotateCcw } from "lucide-react";
 import { Botao } from "@/components/ui/botao";
 import { Campo, Entrada, Selecao } from "@/components/ui/campo";
 import { ESPECIE } from "@/lib/dominio";
+import { fmt } from "@/lib/format";
+import { diferencaEmDias } from "@/lib/periodo";
 import { ESPECIES } from "@/lib/types";
 
 import {
@@ -16,8 +18,6 @@ import {
   CAPACIDADE_MIN,
   DIAS_MAX,
   DIAS_MIN,
-  DIAS_TREINO_MAX,
-  DIAS_TREINO_MIN,
   FERTILIDADE_MAX,
   FERTILIDADE_MIN,
   PADRAO,
@@ -30,7 +30,12 @@ import {
 /**
  * Os campos do experimento.
  *
- * Eram quatro; o modelo v3.1 trouxe `dias_desde_rocada_inicio` como feature, e
+ * O período deixou de ser "quantos dias a partir de hoje" e virou duas datas.
+ * Amarrar a pergunta ao dia em que ela é feita impedia o uso mais útil da
+ * página: reproduzir uma janela que já passou, com o clima OBSERVADO daqueles
+ * dias, que é como o caderno de calibração confere o modelo contra o campo.
+ *
+ * Eram quatro campos; o modelo v3.1 trouxe `dias_desde_rocada_inicio`, e
  * ela nao e derivavel de coordenada nem de clima -- e a FASE da curva de
  * rebrota, e o modelo a usa para saber se a planta esta saindo do corte
  * (crescendo de reservas) ou na fase linear rapida. Sem esse campo o simulador
@@ -67,7 +72,8 @@ export function Formulario({
       lat: parseAsString,
       lon: parseAsString,
       altura: parseAsString,
-      dias: parseAsString,
+      de: parseAsString,
+      ate: parseAsString,
       rocada: parseAsString,
       fert: parseAsString,
       solo: parseAsString,
@@ -81,6 +87,16 @@ export function Formulario({
     setCampos((atual) => ({ ...atual, [campo]: valor }));
   }
 
+  // A contagem fica visível enquanto a pessoa escolhe, e não só depois de
+  // simular. As duas datas são INCLUSIVAS, e o caderno de calibração usa a
+  // convenção contrária — sem este número na tela a diferença de um dia entre
+  // os dois ficaria implícita, que é o pior lugar para ela ficar.
+  const dias = diferencaEmDias(campos.dataInicio, campos.dataFim) + 1;
+  const dicaFim =
+    Number.isFinite(dias) && dias >= DIAS_MIN && dias <= DIAS_MAX
+      ? `Último dia, incluído. São ${fmt.contar(dias, "dia")}.`
+      : `Último dia, incluído. O período precisa ter de ${DIAS_MIN} a ${DIAS_MAX} dias.`;
+
   function enviar(evento: FormEvent) {
     evento.preventDefault();
     void setUrl({
@@ -88,7 +104,8 @@ export function Formulario({
       lat: campos.latitude,
       lon: campos.longitude,
       altura: campos.altura,
-      dias: campos.dias,
+      de: campos.dataInicio,
+      ate: campos.dataFim,
       rocada: campos.rocada,
       // Vazio sai da URL em vez de virar "": o link compartilhado fica limpo e
       // "sem parametro" e exatamente o significado de "automatico".
@@ -101,7 +118,7 @@ export function Formulario({
     setCampos(PADRAO);
     void setUrl({
       especie: null, lat: null, lon: null, altura: null,
-      dias: null, rocada: null, fert: null, solo: null,
+      de: null, ate: null, rocada: null, fert: null, solo: null,
     });
   }
 
@@ -172,18 +189,23 @@ export function Formulario({
         </Campo>
 
         <Campo
-          rotulo="Deixar crescendo por"
-          dica={`De ${DIAS_MIN} a ${DIAS_MAX} dias, a mesma faixa que o modelo viu no treino (${DIAS_TREINO_MIN} a ${DIAS_TREINO_MAX}).`}
-          erro={erros.dias}
+          rotulo="De"
+          dica="Primeiro dia do período. Pode ser no passado: aí o clima é o observado."
+          erro={erros.dataInicio}
         >
           <Entrada
-            type="number"
-            min={DIAS_MIN}
-            max={DIAS_MAX}
-            step={1}
-            inputMode="numeric"
-            value={campos.dias}
-            onChange={(e) => mudar("dias", e.target.value)}
+            type="date"
+            value={campos.dataInicio}
+            onChange={(e) => mudar("dataInicio", e.target.value)}
+            className="font-mono tnum"
+          />
+        </Campo>
+
+        <Campo rotulo="Até" dica={dicaFim} erro={erros.dataFim}>
+          <Entrada
+            type="date"
+            value={campos.dataFim}
+            onChange={(e) => mudar("dataFim", e.target.value)}
             className="font-mono tnum"
           />
         </Campo>

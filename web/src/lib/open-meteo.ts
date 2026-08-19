@@ -69,6 +69,18 @@ function iso(base: string, dias: number): string {
   return somarDias(base, dias).toISOString().slice(0, 10);
 }
 
+/** Diferenca em dias entre duas datas AAAA-MM-DD. */
+function dif(a: string, b: string): number {
+  const n = (d: string) => {
+    const [y, m, x] = d.split("-").map(Number);
+    return Date.UTC(y, m - 1, x);
+  };
+  return Math.round((n(b) - n(a)) / 86_400_000);
+}
+
+/** Atraso do ERA5. Pedir dia mais recente que isto volta vazio. */
+const LAG_DO_ARQUIVO = 6;
+
 /** A mesma data, `anos` anos atras. 29 de fevereiro cai para 28. */
 function menosAnos(data: string, anos: number): string {
   const [a, m, d] = data.split("-").map(Number);
@@ -173,31 +185,106 @@ const historicoDoPonto = unstable_cache(
 );
 
 /**
- * A janela de clima completa para `total` dias a partir de hoje, mais o
- * aquecimento que o balanco de agua no solo precisa.
+ * ERA5 observado para um intervalo de datas REAIS do passado.
  *
- * Previsao de verdade nos primeiros 16 dias; do 17 em diante, a media do ERA5
- * observado nos mesmos dias do calendario. Se o arquivo recusar, o padrao dos
- * 16 dias previstos e repetido, e o `Janela` devolvido diz qual dos dois valeu,
- * porque a tela mostra isso.
+ * Diferente de `historicoDoPonto`, que pega os mesmos dias do calendario em
+ * anos anteriores para adivinhar o futuro. Aqui as datas sao as proprias: e o
+ * que faz o simulador conseguir reproduzir uma janela que ja passou, com o
+ * clima que de fato aconteceu.
  */
-export async function janelaDoPonto(
+const arquivoDoPonto = unstable_cache(
+  async (lat: number, lon: number, de: string, ate: string): Promise<DiaClima[]> => {
+    const url =
+      `${API_ARQUIVO}?latitude=${lat}&longitude=${lon}&daily=${VARIAVEIS}` +
+      `&start_date=${de}&end_date=${ate}&timezone=America%2FSao_Paulo`;
+    return lerDiario(await pedir(url), "observado");
+  },
+  ["open-meteo-arquivo"],
+  { revalidate: 86_400, tags: ["clima"] },
+);
+
+/** Junta series por DATA, com as ultimas da lista ganhando de empate. A ordem
+ *  de chamada e que decide qual fonte prevalece onde elas se sobrepoem. */
+function emendar(...series: DiaClima[][]): DiaClima[] {
+  const porData = new Map<string, DiaClima>();
+  for (const serie of series) for (const d of serie) porData.set(d.data, d);
+  return [...porData.values()].sort((a, b) => a.data.localeCompare(b.data));
+}
+
+/**
+ * A janela de clima de um PERIODO qualquer, mais o aquecimento que o balanco de
+ * agua no solo precisa.
+ *
+ * Ate tres fontes, porque um periodo arbitrario atravessa tres regimes:
+ *
+ *   arquivo ERA5   qualquer dia anterior a ~63 dias atras (a previsao guarda
+ *                  so isso de passado), com atraso de ~5 dias
+ *   previsao       de ~63 dias atras a 16 dias a frente, numa requisicao so
+ *   ERA5 do ano    depois de 16 dias a frente: os mesmos dias do calendario em
+ *   anterior       anos anteriores, que acertam a ESTACAO e nao o dia
+ *
+ * As tres sao emendadas por data com a previsao GANHANDO nas sobreposicoes: nos
+ * dias que as duas cobrem ela e mais fresca que o arquivo.
+ *
+ * Quando o arquivo recusa (429) e sobra buraco, `montarJanela` cai para repetir
+ * o padrao previsto e o `Janela` devolvido diz qual dos dois valeu -- numa
+ * demonstracao ao vivo um 429 nao pode virar pagina de erro.
+ */
+export async function janelaDoPeriodo(
   latitude: number,
   longitude: number,
-  total: number,
+  inicio: string,
+  fim: string,
 ): Promise<Janela> {
   const lat = arredondar(latitude);
   const lon = arredondar(longitude);
 
   const hoje = isoHoje();
-  const datas = Array.from({ length: total }, (_, i) => iso(hoje, i));
+  const total = dif(inicio, fim) + 1;
+  const datas = Array.from({ length: total }, (_, i) => iso(inicio, i));
 
-  const { aquecimento, previsao } = await janelaDaApi(lat, lon, hoje);
+  // A requisicao que ja se fazia: ~63 dias de passado e 16 de previsao.
+  const daApi = await janelaDaApi(lat, lon, hoje);
+  const cobreDeApi = iso(hoje, -DIAS_DE_AQUECIMENTO);
 
-  if (total <= previsao.length) {
-    return montarJanela({ aquecimento, previsao, historico: [], anos: [], total, datas });
+  // O balde precisa de passado ANTES do inicio, e nao antes de hoje.
+  const aquecimentoDe = iso(inicio, -DIAS_DE_AQUECIMENTO);
+  const arquivoAte = iso(hoje, -LAG_DO_ARQUIVO);
+
+  let observado: DiaClima[] = [];
+  let avisoArquivo: string | null = null;
+  if (aquecimentoDe < cobreDeApi) {
+    // Buscar so ate onde a previsao comeca a cobrir: pedir alem disso e pagar
+    // por dado que vai ser sobrescrito.
+    const ate = [fim, arquivoAte, cobreDeApi].sort()[0];
+    try {
+      observado = await arquivoDoPonto(lat, lon, aquecimentoDe, ate);
+    } catch (e) {
+      avisoArquivo =
+        e instanceof Error && /429|concurrent/i.test(e.message)
+          ? "O arquivo do Open-Meteo recusou a consulta (limite de uso gratuito)."
+          : "O arquivo do Open-Meteo não respondeu.";
+    }
   }
 
+  const tudo = emendar(observado, daApi.aquecimento, daApi.previsao);
+  const aquecimento = tudo.filter((d) => d.data < inicio);
+  const previsao = tudo.filter((d) => d.data >= inicio && d.data <= fim);
+
+  if (previsao.length >= total) {
+    return montarJanela({
+      aquecimento,
+      previsao,
+      historico: [],
+      anos: [],
+      total,
+      datas,
+      avisoDoComplemento: avisoArquivo,
+    });
+  }
+
+  // Sobrou futuro alem dos 16 dias de previsao: os mesmos dias do calendario em
+  // anos anteriores.
   const { dias, anos, aviso } = await historicoDoPonto(
     lat,
     lon,
@@ -212,6 +299,6 @@ export async function janelaDoPonto(
     anos,
     total,
     datas,
-    avisoDoComplemento: aviso,
+    avisoDoComplemento: aviso ?? avisoArquivo,
   });
 }

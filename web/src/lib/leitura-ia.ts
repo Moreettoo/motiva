@@ -46,6 +46,10 @@ export type ContextoLeitura = {
   altura_inicial_cm: number;
   altura_prevista_cm: number;
   dias_simulados: number;
+  /** O intervalo pedido. `ja_aconteceu` avisa que o periodo esta no PASSADO e o
+   *  clima e observado, nao previsto -- caso em que sugerir data de roçada
+   *  dentro dele nao faz sentido. */
+  periodo: { de: string; ate: string; ja_aconteceu: boolean };
   dias_desde_a_ultima_rocada: number;
   crescimento_previsto_cm_por_dia: number;
   /**
@@ -127,6 +131,10 @@ Considere, além disso:
 - Parte do clima pode não vir de previsão, e sim de média histórica
   ("origem_do_resto_do_clima"). Quanto mais longe o horizonte, menos firme é a data, diga
   isso quando for o caso.
+- "periodo.ja_aconteceu" verdadeiro significa que a janela está no PASSADO: a
+  pessoa está conferindo o modelo contra o que já aconteceu, não planejando.
+  Nesse caso diga o que o período mostra e sugira a data da próxima roçada
+  contada a partir de hoje, deixando claro que o período simulado já passou.
 - "dias_desde_a_ultima_rocada" é a fase da rebrota: trecho recém-cortado ainda cresce de
   reservas e acelera depois; trecho maduro já está na fase rápida ou saturando.
 - O campo "solo" pode ter vindo de um mapa (SoilGrids) ou de premissa, e "origem" diz qual.
@@ -249,6 +257,8 @@ export async function lerSimulacao(ctx: ContextoLeitura): Promise<ResultadoLeitu
     ctx.longitude.toFixed(2),
     ctx.altura_inicial_cm.toFixed(1),
     ctx.dias_simulados,
+    ctx.periodo.de,
+    ctx.periodo.ate,
     ctx.altura_prevista_cm.toFixed(1),
     ctx.dias_desde_a_ultima_rocada,
     ctx.dias_ate_cruzar_o_limite ?? "nao-cruza",

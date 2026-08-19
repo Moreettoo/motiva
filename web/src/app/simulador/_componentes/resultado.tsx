@@ -6,8 +6,8 @@ import { Indicador } from "@/components/ui/indicador";
 import { Leitura } from "@/components/ui/leitura";
 import { resumir } from "@/lib/clima";
 import { ESPECIE } from "@/lib/dominio";
-import { fmt, isoHoje, somarDias } from "@/lib/format";
-import { janelaDoPonto } from "@/lib/open-meteo";
+import { fmt, isoHoje } from "@/lib/format";
+import { janelaDoPeriodo } from "@/lib/open-meteo";
 import { trechoMaisProximo } from "@/lib/queries";
 import { bandaQueCruza, simular } from "@/lib/simulacao";
 import { soloDoPonto } from "@/lib/solo";
@@ -26,7 +26,7 @@ export async function Resultado({ pedido }: { pedido: Pedido }) {
   // SoilGrids é o mais lento dos três e seria bobagem serializá-lo atrás do
   // clima; cada um tem seu próprio cache e seu próprio orçamento de tempo.
   const [janela, vizinho, soloDoMapa] = await Promise.all([
-    janelaDoPonto(pedido.latitude, pedido.longitude, pedido.dias),
+    janelaDoPeriodo(pedido.latitude, pedido.longitude, pedido.periodo.inicio, pedido.periodo.fim),
     trechoMaisProximo(pedido.latitude, pedido.longitude),
     soloDoPonto(pedido.latitude, pedido.longitude),
   ]);
@@ -42,7 +42,7 @@ export async function Resultado({ pedido }: { pedido: Pedido }) {
       especie: pedido.especie,
       latitude: pedido.latitude,
       alturaInicialCm: pedido.alturaCm,
-      dias: pedido.dias,
+      dias: pedido.periodo.dias,
       diasDesdeRocada: pedido.diasDesdeRocada,
       fertilidade,
       capacidadeMm,
@@ -61,7 +61,11 @@ export async function Resultado({ pedido }: { pedido: Pedido }) {
   const banda = limiteCm != null ? bandaQueCruza(simulacao, limiteCm) : null;
   const cruza = banda?.mediana ?? null;
 
-  const dataFinal = somarDias(isoHoje(), diasSimulados).toISOString().slice(0, 10);
+  // A data final sai do PERIODO, e nao mais de "hoje + n". Quando a série de
+  // clima é mais curta que o pedido, `diasSimulados` encolhe e a data tem que
+  // encolher junto — senão o cartão anuncia uma data que a curva não alcança.
+  const dataFinal = janela.dias[diasSimulados - 1]?.data ?? pedido.periodo.fim;
+  const noPassado = pedido.periodo.fim < isoHoje();
 
   return (
     <div className="flex flex-col gap-6 lg:gap-8">
@@ -73,11 +77,11 @@ export async function Resultado({ pedido }: { pedido: Pedido }) {
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Indicador
-          rotulo={`Altura em ${fmt.contar(diasSimulados, "dia")}`}
+          rotulo={noPassado ? "Altura ao fim do período" : `Altura em ${fmt.contar(diasSimulados, "dia")}`}
           valor={fmt.d1(simulacao.alturaFinalCm)}
           unidade="cm"
           icone={<Ruler />}
-          nota={fmt.dataMedia(dataFinal)}
+          nota={`${fmt.dataMedia(pedido.periodo.inicio)} a ${fmt.dataMedia(dataFinal)}`}
           indice={0}
         />
         <Indicador
@@ -229,7 +233,7 @@ export async function Resultado({ pedido }: { pedido: Pedido }) {
               fronteira entre simulações e o texto da anterior fica na tela
               enquanto a nova carrega. */}
           <Suspense
-            key={`${pedido.especie}|${pedido.latitude}|${pedido.longitude}|${pedido.alturaCm}|${pedido.dias}|${pedido.diasDesdeRocada}|${fertilidade}|${capacidadeMm}`}
+            key={`${pedido.especie}|${pedido.latitude}|${pedido.longitude}|${pedido.alturaCm}|${pedido.periodo.inicio}|${pedido.periodo.fim}|${pedido.diasDesdeRocada}|${fertilidade}|${capacidadeMm}`}
             fallback={<LeituraCarregando />}
           >
             <LeituraGestor
@@ -243,6 +247,8 @@ export async function Resultado({ pedido }: { pedido: Pedido }) {
                 altura_inicial_cm: pedido.alturaCm,
                 altura_prevista_cm: Number(simulacao.alturaFinalCm.toFixed(1)),
                 dias_simulados: diasSimulados,
+                periodo: { de: pedido.periodo.inicio, ate: dataFinal,
+                           ja_aconteceu: noPassado },
                 dias_desde_a_ultima_rocada: pedido.diasDesdeRocada,
                 crescimento_previsto_cm_por_dia: Number(simulacao.crescimentoCmDia.toFixed(3)),
                 crescimento_no_periodo_cm: {

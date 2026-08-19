@@ -1,5 +1,15 @@
 import { LIMITES } from "@/lib/modelo/campos";
+import {
+  DIAS_MAX,
+  DIAS_MIN,
+  montarPeriodo,
+  periodoPadrao,
+  validarPeriodo,
+  type Periodo,
+} from "@/lib/periodo";
 import { ESPECIES, type Especie } from "@/lib/types";
+
+export { DIAS_MAX, DIAS_MIN };
 
 /**
  * Leitura e validacao dos parametros da URL.
@@ -17,7 +27,8 @@ export type Pedido = {
   latitude: number;
   longitude: number;
   alturaCm: number;
-  dias: number;
+  /** O intervalo pedido, com as duas datas inclusivas. */
+  periodo: Periodo;
   /** Fase da curva de rebrota. Feature do modelo, nao enfeite. */
   diasDesdeRocada: number;
   /** `null` = deixa o SoilGrids responder pelo ponto. */
@@ -32,7 +43,8 @@ export type ValoresFormulario = {
   latitude: string;
   longitude: string;
   altura: string;
-  dias: string;
+  dataInicio: string;
+  dataFim: string;
   rocada: string;
   /** Vazio significa "automatico". Nao ha valor padrao para mostrar aqui: ele
    *  so existe depois que o SoilGrids responde, no servidor. */
@@ -42,19 +54,12 @@ export type ValoresFormulario = {
 
 export type Erros = Partial<Record<keyof ValoresFormulario, string>>;
 
-/**
- * Faixa que o CAMPO aceita, de propósito mais larga que a faixa de treino.
+/** As pontas do que o modelo realmente viu, para o texto de ajuda do campo.
  *
- * O modelo viu períodos de `LIMITES.dias.min` a `LIMITES.dias.max` — agora 1 a
- * 120 dias, recuperados EXATAMENTE dos limiares de bin (ver
- * `exportar_modelo.py`). O modelo anterior via de 7 a 120, e a ponta de baixo
- * do campo extrapolava; a v3.1 do gerador passou a sortear janelas de 1 dia e
- * essa extrapolação acabou. O teto continua coincidindo com o do treino.
- */
-export const DIAS_MIN = 1;
-export const DIAS_MAX = 120;
-
-/** As pontas do que o modelo realmente viu, para o texto de ajuda do campo. */
+ *  O modelo viu periodos de 1 a 120 dias, faixa EXATA recuperada dos limiares
+ *  de bin (ver `exportar_modelo.py`). `DIAS_MIN`/`DIAS_MAX`, em `periodo.ts`,
+ *  sao os mesmos numeros: com o modelo v3.1 o campo deixou de ser mais largo
+ *  que o treino. */
 export const DIAS_TREINO_MIN = LIMITES.dias.min;
 export const DIAS_TREINO_MAX = LIMITES.dias.max;
 
@@ -85,7 +90,10 @@ export const PADRAO: ValoresFormulario = {
   latitude: "-22.53",
   longitude: "-47.43",
   altura: "12",
-  dias: "45",
+  // O padrao acompanha o relogio: de hoje a 45 dias. Uma data fixa aqui
+  // envelheceria e a primeira visita abriria com um periodo no passado.
+  dataInicio: periodoPadrao().inicio,
+  dataFim: periodoPadrao().fim,
   rocada: "40",
   fertilidade: "",
   capacidade: "",
@@ -126,7 +134,8 @@ export function interpretar(
     latitude: texto(params.lat),
     longitude: texto(params.lon),
     altura: texto(params.altura),
-    dias: texto(params.dias),
+    dataInicio: texto(params.de),
+    dataFim: texto(params.ate),
     rocada: texto(params.rocada),
     fertilidade: texto(params.fert),
     capacidade: texto(params.solo),
@@ -141,7 +150,8 @@ export function interpretar(
     latitude: cru.latitude ?? PADRAO.latitude,
     longitude: cru.longitude ?? PADRAO.longitude,
     altura: cru.altura ?? PADRAO.altura,
-    dias: cru.dias ?? PADRAO.dias,
+    dataInicio: cru.dataInicio ?? PADRAO.dataInicio,
+    dataFim: cru.dataFim ?? PADRAO.dataFim,
     rocada: cru.rocada ?? PADRAO.rocada,
     fertilidade: cru.fertilidade ?? PADRAO.fertilidade,
     capacidade: cru.capacidade ?? PADRAO.capacidade,
@@ -173,10 +183,13 @@ export function interpretar(
     erros.altura = `A altura precisa ficar entre ${ALTURA_MIN} e ${ALTURA_MAX} cm.`;
   }
 
-  const dias = numero(valores.dias);
-  if (dias == null || !Number.isInteger(dias)) erros.dias = "Digite o período em dias inteiros.";
-  else if (!entre(dias, DIAS_MIN, DIAS_MAX)) {
-    erros.dias = `O período precisa ficar entre ${DIAS_MIN} e ${DIAS_MAX} dias.`;
+  // As duas datas viram um problema só: a validação do par mora em
+  // `periodo.ts`, porque a ordem dos testes importa (fim antes do início tem
+  // que ser diagnosticado antes de "período longo demais", ou a contagem
+  // negativa sairia com a mensagem errada).
+  const problema = validarPeriodo(valores.dataInicio, valores.dataFim);
+  if (problema) {
+    erros[problema.campo === "inicio" ? "dataInicio" : "dataFim"] = problema.texto;
   }
 
   const rocada = numero(valores.rocada);
@@ -209,7 +222,7 @@ export function interpretar(
       latitude: lat as number,
       longitude: lon as number,
       alturaCm: altura as number,
-      dias: dias as number,
+      periodo: montarPeriodo(valores.dataInicio, valores.dataFim),
       diasDesdeRocada: rocada as number,
       fertilidade,
       capacidadeMm: capacidade,
