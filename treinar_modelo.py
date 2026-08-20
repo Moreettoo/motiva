@@ -48,6 +48,13 @@ BLOQUEADAS = {
     "indice_vigor_medio", "coloracao_final", "atingiu_limite_rocada_50cm",
     "altura_teto_sitio_cm",          # so o simulador sabe o teto do sitio
     "id", "data_inicio", "data_fim", "local",
+    # v3.3: rotulos de cenario do gerador. `regime_manejo` e LIDO (para o
+    # --regimes filtrar) mas nunca vira feature: pasto e faixa nao diferem numa
+    # funcao de crescimento diferente, diferem nos estados que visitam, e esses
+    # estados JA chegam pelas features de altura, fase e capacidade. Virar
+    # feature deixaria o modelo aprender o rotulo em vez da condicao -- e no
+    # campo nao existe coluna "regime" para preencher com honestidade.
+    "regime_manejo", "regime_sitio", "origem",
 }
 
 # Medivel/estimavel em campo antes de prever.
@@ -62,15 +69,34 @@ FEATURES = [
 QUANTIS = [0.10, 0.50, 0.90]
 
 
-def carregar(caminho, alvo, max_linhas=None, seed=0):
+def carregar(caminho, alvo, max_linhas=None, seed=0, regimes=None):
     print(f"Lendo {caminho} ...")
     usar = sorted(set(FEATURES) | {alvo, "local", "rocadas_no_periodo",
-                                   "fogo_no_periodo"})
+                                   "fogo_no_periodo", "regime_manejo"})
     d = pd.read_csv(caminho, usecols=lambda c: c in usar)
     n0 = len(d)
     d = d[(d.rocadas_no_periodo == 0) & (~d.fogo_no_periodo.astype(bool))]
     print(f"  {n0:,} linhas -> {len(d):,} apos remover janelas com rocada/fogo"
           .replace(",", "."))
+
+    # v3.3: o dataset pode trazer mais de um regime de manejo. Sem filtro entram
+    # todos, e o resumo abaixo diz quais -- treinar em pasto sem saber que se
+    # esta treinando em pasto e o modo de falha que este print existe para
+    # evitar. Dataset antigo nao tem a coluna e segue igual.
+    if "regime_manejo" in d.columns:
+        presentes = sorted(d.regime_manejo.dropna().unique())
+        if regimes:
+            faltando = [r for r in regimes if r not in presentes]
+            if faltando:
+                sys.exit(f"O dataset nao tem o regime {faltando}. "
+                         f"Tem: {presentes}. Gere com "
+                         f"'--regimes {','.join(regimes)}'.")
+            d = d[d.regime_manejo.isin(regimes)]
+            print(f"  {len(d):,} linhas apos filtrar regime {regimes}"
+                  .replace(",", "."))
+        for r, n in d.regime_manejo.value_counts().items():
+            marca = "" if r == "faixa" else "   <- EXPERIMENTAL"
+            print(f"    regime {r:<8} {n:>12,}".replace(",", ".") + marca)
     if max_linhas and len(d) > max_linhas:
         d = d.sample(max_linhas, random_state=seed)
         print(f"  subamostrado para {len(d):,}".replace(",", "."))
@@ -90,7 +116,8 @@ def montar_X(d):
 
 
 def treinar(args):
-    d = carregar(args.treinar, args.alvo, args.max_linhas, args.seed)
+    d = carregar(args.treinar, args.alvo, args.max_linhas, args.seed,
+                 args.regimes and [r.strip() for r in args.regimes.split(',')])
     y = d[args.alvo].to_numpy()
     X = montar_X(d)
     cat = [X.columns.get_loc("especie")]
@@ -254,6 +281,10 @@ def main():
     # 2.000.000 cobre o dataset v3.2 inteiro depois do filtro de rocada/fogo
     # (1.814.535 linhas), que e o que faz a cota por celula valer alguma coisa.
     ap.add_argument("--max-linhas", type=int, default=2_000_000)
+    ap.add_argument("--regimes", default=None,
+                    help="v3.3: treinar so nestes regimes de manejo do "
+                         "dataset (ex.: faixa). Default: todos os que o "
+                         "arquivo tiver, com o resumo impresso na carga.")
     ap.add_argument("--iteracoes", type=int, default=400)
     ap.add_argument("--seed", type=int, default=42)
     for n, t, dflt in [("especie",str,"braquiaria"),("altura-inicial",float,10.),

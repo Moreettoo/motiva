@@ -13,6 +13,25 @@ export type UF = (typeof UFS)[number];
 export const ESPECIES = ["batatais", "braquiaria", "esmeralda"] as const;
 export type Especie = (typeof ESPECIES)[number];
 
+/**
+ * O sistema em que o capim esta, e por consequencia o conjunto de premissas de
+ * solo e de manejo que valem para ele.
+ *
+ * `faixa` e o dominio do produto: canteiro e talude de rodovia, rocados por
+ * programa de concessionaria. `pasto` e EXPERIMENTAL e existe por um motivo
+ * pratico -- medicao de campo em pastagem se consegue; em faixa de dominio,
+ * quase nao. Validar o motor de crescimento em pasto e o unico jeito barato de
+ * testar contra a realidade a parte do modelo que nunca foi validada.
+ *
+ * O que ele muda esta em `solo.ts` (profundidade de raiz) e em `REGIMES`, no
+ * `gerador_v3_1_rebrota.py` (eventos de desfolha). O que ele NAO muda: nenhuma
+ * feature do modelo. Mora aqui, e nao em `solo.ts`, porque `solo.ts` e
+ * `server-only` e o formulario do simulador e componente de cliente.
+ */
+export const REGIMES = ["faixa", "pasto"] as const;
+export type Regime = (typeof REGIMES)[number];
+export const REGIME_PADRAO: Regime = "faixa";
+
 export const PRIORIDADES = ["critica", "alta", "media", "baixa"] as const;
 export type Prioridade = (typeof PRIORIDADES)[number];
 

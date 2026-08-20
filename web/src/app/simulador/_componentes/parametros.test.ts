@@ -38,6 +38,7 @@ describe("interpretar", () => {
     expect(r.erros).toEqual({});
     expect(r.pedido).toEqual({
       especie: "esmeralda",
+      regime: "faixa",
       latitude: -21.9,
       longitude: -47.1,
       alturaCm: 8,
@@ -46,6 +47,27 @@ describe("interpretar", () => {
       fertilidade: null,
       capacidadeMm: null,
     });
+  });
+
+  it("o regime padrão é faixa de domínio, e não pasto", () => {
+    // O default importa: pasto é experimental e o modelo não foi treinado nele.
+    // Um link sem `regime` não pode cair no regime experimental por acidente.
+    expect(interpretar({ lat: "-22", lon: "-47", altura: "10" })?.pedido?.regime).toBe("faixa");
+    expect(PADRAO.regime).toBe("faixa");
+  });
+
+  it("aceita o regime experimental quando ele é pedido de propósito", () => {
+    const r = interpretar({ regime: "pasto", lat: "-22", lon: "-47", altura: "10" });
+
+    expect(r.erros).toEqual({});
+    expect(r.pedido?.regime).toBe("pasto");
+  });
+
+  it("recusa regime desconhecido em vez de cair no padrão em silêncio", () => {
+    const r = interpretar({ regime: "jardim", lat: "-22", lon: "-47", altura: "10" });
+
+    expect(r.pedido).toBeNull();
+    expect(r.erros.regime).toMatch(/pasto/);
   });
 
   it("aceita vírgula decimal, que é o que sai do teclado brasileiro", () => {

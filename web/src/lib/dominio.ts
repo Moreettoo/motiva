@@ -10,7 +10,7 @@
  * `serious` ficam abaixo de 3:1 de proposito.
  */
 
-import type { Especie, Risco, StatusAgendamento } from "./types";
+import type { Especie, Regime, Risco, StatusAgendamento } from "./types";
 
 /** Tom da `BarraProgresso` para cada risco. Fica aqui, e nao no componente,
  *  porque a tabela, o cartao e o painel da agenda pintavam a mesma barra a
@@ -133,6 +133,46 @@ export const ESPECIE: Record<Especie, { rotulo: string; nomeCientifico: string; 
     rotulo: "Esmeralda",
     nomeCientifico: "Zoysia japonica",
     nota: "Densa e de porte baixo. Usada onde o corte precisa ficar mais uniforme.",
+  },
+};
+
+/**
+ * Vocabulario do regime de manejo.
+ *
+ * `experimental` nao e enfeite de rotulo: em pasto o modelo esta respondendo
+ * sobre um sistema que ele nao viu no treino, e toda superficie que mostrar o
+ * numero tem obrigacao de dizer isso na mesma tela. Ver `REGIMES` em `types.ts`.
+ *
+ * `raizMm` e a FONTE do numero, e nao uma copia dele para a tela: `solo.ts` le
+ * daqui. Mora neste arquivo, e nao la, porque `solo.ts` e `server-only` e o
+ * formulario do simulador precisa do numero para escrever a dica do campo -- e
+ * duas copias de 500/800 era exatamente o tipo de divergencia silenciosa que o
+ * resto deste arquivo existe para evitar. Espelha `RAIZ_MM` em `solo.py`, e as
+ * duas tem que continuar iguais: e a mesma pedotransferencia nos dois lados.
+ *
+ * Profundidade de raiz efetiva de gramineas, em mm. A FAO-56 da 0,5 a 1,0 m
+ * para pastagem; faixa de dominio fica na ponta de baixo porque e solo
+ * decapitado e compactado, e pasto no meio da faixa.
+ */
+export const REGIME: Record<
+  Regime,
+  { rotulo: string; nota: string; raizMm: number; experimental: boolean }
+> = {
+  faixa: {
+    rotulo: "Faixa de domínio",
+    nota:
+      "Canteiro e talude de rodovia: solo decapitado na terraplenagem e compactado, " +
+      "roçado por programa. É o domínio em que o modelo foi treinado.",
+    raizMm: 500,
+    experimental: false,
+  },
+  pasto: {
+    rotulo: "Pastagem",
+    nota:
+      "Piquete pastejado: raiz mais funda, desfolha frequente e parcial. Experimental — " +
+      "serve para confrontar o modelo com medição de campo, que em pasto se consegue.",
+    raizMm: 800,
+    experimental: true,
   },
 };
 

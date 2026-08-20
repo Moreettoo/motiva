@@ -73,6 +73,22 @@ export type ContextoLeitura = {
     fertilidade_0_a_1: number;
     capacidade_de_agua_mm: number;
     origem: string;
+    /** Por quantos milimetros de solo a textura do mapa foi multiplicada. Sai
+     *  do regime, e e a diferenca fisica entre faixa de dominio e pasto. */
+    profundidade_de_raiz_mm: number;
+  };
+  /**
+   * Em que sistema o ponto esta, e se o modelo foi treinado nele.
+   *
+   * `o_modelo_foi_treinado_neste_sistema: false` nao e detalhe de rodape: a
+   * LLM decide data de roçada a partir de um numero que, nesse caso, veio de um
+   * modelo treinado em outro sistema. As instrucoes abaixo mandam ela dizer
+   * isso na justificativa em vez de escrever a mesma frase confiante sempre.
+   */
+  sistema: {
+    regime: string;
+    rotulo: string;
+    o_modelo_foi_treinado_neste_sistema: boolean;
   };
   dias_de_previsao_real: number;
   origem_do_resto_do_clima: string;
@@ -139,6 +155,11 @@ Considere, além disso:
   reservas e acelera depois; trecho maduro já está na fase rápida ou saturando.
 - O campo "solo" pode ter vindo de um mapa (SoilGrids) ou de premissa, e "origem" diz qual.
   Quando for premissa, não afirme nada sobre o solo daquele ponto como se fosse medição.
+- "sistema" diz em que tipo de área o ponto está. Quando
+  "o_modelo_foi_treinado_neste_sistema" for falso, o número de crescimento veio de um modelo
+  treinado em OUTRO sistema: mantenha a prioridade pela tabela, mas diga numa das frases que
+  a previsão está fora do sistema em que o modelo foi treinado e que a data pede confirmação
+  por medição no local. Não invente correção: você não sabe para que lado ela erraria.
 
 data_sugerida em AAAA-MM-DD. Justificativa em português do Brasil, até 3 frases, citando o
 número previsto.
@@ -266,6 +287,9 @@ export async function lerSimulacao(ctx: ContextoLeitura): Promise<ResultadoLeitu
     // dois campos de solo devolveria o texto da simulacao anterior.
     ctx.solo.fertilidade_0_a_1.toFixed(2),
     Math.round(ctx.solo.capacidade_de_agua_mm),
+    // Pela mesma razao: o regime muda uma frase inteira da justificativa, e
+    // duas simulacoes iguais em regimes diferentes nao podem compartilhar texto.
+    ctx.sistema.regime,
     ctx.referencia_operacional?.rodovia ?? "sem-referencia",
   ].join("|");
 

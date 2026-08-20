@@ -23,7 +23,8 @@ capacidade_agua_solo_mm
     Agua disponivel para a planta = (teta_33kPa - teta_1500kPa) x profundidade
     de raiz. Os dois teores saem da pedotransferencia de Saxton & Rawls (2006)
     aplicada a areia, argila e materia organica dos 0-30 cm. A profundidade de
-    raiz efetiva de gramineas e 500 mm (FAO-56 da 0,5 a 1,0 m para pastagem).
+    raiz efetiva sai do REGIME (ver RAIZ_MM): 500 mm em faixa de dominio, 800 em
+    pasto, dentro da faixa de 0,5 a 1,0 m que a FAO-56 da para pastagem.
     Nada aqui e calibracao minha: e a equacao publicada, com o dado publicado.
 
 fertilidade_solo
@@ -42,6 +43,15 @@ emprestimo. O numero daqui e o do entorno, e tende a superestimar a beira da
 estrada. Nao ha fator de correcao aqui de proposito -- inventar um seria trocar
 um chute conhecido por outro disfarcado de conta. A tela diz de onde veio.
 
+O REGIME MUDA ESSA FRASE
+------------------------
+Em `regime="pasto"` o vies acima desaparece: um pasto E a paisagem que o mapa
+descreve, nao uma faixa terraplenada dentro dela. E por isso que o regime nao e
+enfeite de tela -- ele muda o que o numero significa, e nao so quanto ele vale.
+O que o regime NAO conserta e o resto: o mapa continua sendo de 250 m e
+continua cego para o micrositio (mancha de urina, sombra de arvore, pe de
+talude), que e onde uma touceira isolada pode crescer o dobro do piquete.
+
 O SOILGRIDS MASCARA MANCHA URBANA
 ---------------------------------
 E o ponto medio de uma zona de rodovia cai em cidade com frequencia: Campinas,
@@ -54,7 +64,8 @@ solo a 2 km da mesma paisagem e estimativa melhor que uma constante global, e o
 Quando nem a vizinhanca responde, cai na PREMISSA, que e o par do notebook de
 calibracao: 0,35 e 60 mm. E os 60 mm nao sao numero redondo por acaso -- a
 mediana medida nesta malha deu 59,6 mm, entao a queda e para perto de onde o
-dado teria caido.
+dado teria caido. Em pasto sao 95 mm: a mesma mediana medida, reescalada dos
+500 mm de raiz para os 800.
 """
 
 import math
@@ -72,8 +83,21 @@ CAMADAS = (("0-5cm", 50.0), ("5-15cm", 100.0), ("15-30cm", 150.0))
 PROPRIEDADES = ("clay", "sand", "soc", "nitrogen")
 
 # Profundidade de raiz efetiva de gramineas, em mm (FAO-56: 0,5 a 1,0 m para
-# pastagem; a ponta de baixo, porque faixa de dominio e solo raso e compactado).
-RAIZ_MM = 500.0
+# pastagem). O REGIME escolhe onde cair dentro dessa faixa publicada, e a
+# escolha e a diferenca fisica que separa os dois sistemas:
+#
+#   faixa  500 mm  a ponta de baixo, porque faixa de dominio e decapitada na
+#                  terraplenagem, compactada e muitas vezes sobre material de
+#                  emprestimo -- raiz de graminea nao desce ali.
+#   pasto  800 mm  o meio da faixa da FAO-56. Pasto estabelecido em solo nao
+#                  compactado enraiza mais fundo; o topo (1000) fica de fora
+#                  porque exigiria saber que o perfil nao tem impedimento, e
+#                  isso o SoilGrids nao diz.
+#
+# Nao ha terceira opcao escondida: qualquer numero aqui e premissa, e as duas
+# estao nomeadas com a fonte que as sustenta.
+RAIZ_MM = {"faixa": 500.0, "pasto": 800.0}
+REGIME_PADRAO = "faixa"
 
 # A faixa que o modelo VIU no treino. Fora dela ele satura, entao o valor sai
 # preso aqui em vez de ser entregue cru -- ver `faixas` no modelo.json.
@@ -86,9 +110,15 @@ CAP_MIN, CAP_MAX = 35.0, 120.0
 N_POBRE_GKG, N_RICO_GKG = 0.5, 3.5
 FERT_MIN, FERT_MAX = 0.05, 1.0
 
-# A queda, quando o SoilGrids nao cobre o ponto.
+# A queda, quando o SoilGrids nao cobre o ponto. A de capacidade acompanha o
+# regime porque ela E uma mediana medida nesta malha (59,6 mm na raiz de 500 mm)
+# -- reescalar pela profundidade mantem o mesmo dado medido em vez de trocar por
+# um segundo chute. A de fertilidade NAO acompanha: nao existe mediana medida de
+# fertilidade de pastagem, e inventar uma seria exatamente o que o comentario da
+# rampa, acima, diz para nao fazer. Em pasto ela e a mesma premissa, e a tela
+# tem que dizer que e premissa de beira de estrada usada por falta de melhor.
 FERTILIDADE_PREMISSA = 0.35
-CAPACIDADE_PREMISSA_MM = 60.0
+CAPACIDADE_PREMISSA_MM = {"faixa": 60.0, "pasto": 95.0}
 
 TIMEOUT_S = 60.0
 # O SoilGrids limita taxa e devolve 429 em rajada. Quatro tentativas com espera
@@ -118,9 +148,23 @@ class Solo(NamedTuple):
     #: A que distancia do ponto pedido o mapa respondeu, em km. Zero quando o
     #: proprio ponto tinha dado.
     distancia_km: float = 0.0
+    #: "faixa" ou "pasto": qual conjunto de premissas produziu os numeros acima.
+    #: Vai para a tela junto com `fonte`, porque o MESMO ponto devolve
+    #: capacidades diferentes nos dois regimes, e a diferenca e premissa e nao
+    #: medicao. Ultimo campo de proposito: `Solo(fert, cap, "premissa")`
+    #: posicional continua significando o que sempre significou.
+    regime: str = REGIME_PADRAO
 
 
-PREMISSA = Solo(FERTILIDADE_PREMISSA, CAPACIDADE_PREMISSA_MM, "premissa")
+def premissa(regime: str = REGIME_PADRAO) -> Solo:
+    """A queda, no regime pedido. Era constante; virou funcao quando a
+    capacidade passou a depender da profundidade de raiz."""
+    return Solo(FERTILIDADE_PREMISSA, CAPACIDADE_PREMISSA_MM[regime],
+                "premissa", regime=regime)
+
+
+#: Compatibilidade: a premissa de faixa de dominio, que era o unico regime.
+PREMISSA = premissa()
 
 
 def agua_disponivel(areia_pct: float, argila_pct: float, mo_pct: float) -> float:
@@ -208,16 +252,24 @@ def _consultar(lat: float, lon: float) -> dict[str, dict[str, float | None]] | N
     return None
 
 
-def buscar(lat: float, lon: float) -> Solo:
-    """As duas features para um ponto. Nunca levanta: cai na premissa."""
+def buscar(lat: float, lon: float, regime: str = REGIME_PADRAO) -> Solo:
+    """As duas features para um ponto. Nunca levanta: cai na premissa.
+
+    `regime` escolhe a profundidade de raiz (ver RAIZ_MM). A textura lida do
+    mapa e a mesma; o que muda e por quantos milimetros de solo ela e
+    multiplicada.
+    """
+    if regime not in RAIZ_MM:
+        raise ValueError(f"regime desconhecido: {regime!r}. Use {list(RAIZ_MM)}.")
     for dlat, dlon, distancia in VIZINHANCA:
-        s = _ler_ponto(lat + dlat, lon + dlon, distancia)
+        s = _ler_ponto(lat + dlat, lon + dlon, distancia, regime)
         if s is not None:
             return s
-    return PREMISSA
+    return premissa(regime)
 
 
-def _ler_ponto(lat: float, lon: float, distancia: float) -> Solo | None:
+def _ler_ponto(lat: float, lon: float, distancia: float,
+               regime: str = REGIME_PADRAO) -> Solo | None:
     bruto = _consultar(lat, lon)
     if bruto is None:
         return None
@@ -232,7 +284,7 @@ def _ler_ponto(lat: float, lon: float, distancia: float) -> Solo | None:
 
     # SOC em g/kg -> % de massa -> materia organica pelo fator de Van Bemmelen.
     materia_organica = (carbono / 10.0) * 1.724
-    capacidade = agua_disponivel(areia, argila, materia_organica) * RAIZ_MM
+    capacidade = agua_disponivel(areia, argila, materia_organica) * RAIZ_MM[regime]
 
     if not math.isfinite(capacidade) or capacidade <= 0:
         return None
@@ -243,4 +295,5 @@ def _ler_ponto(lat: float, lon: float, distancia: float) -> Solo | None:
         fonte="soilgrids",
         nitrogenio_g_kg=nitrogenio,
         distancia_km=distancia,
+        regime=regime,
     )

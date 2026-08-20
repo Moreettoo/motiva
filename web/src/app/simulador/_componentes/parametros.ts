@@ -7,7 +7,7 @@ import {
   validarPeriodo,
   type Periodo,
 } from "@/lib/periodo";
-import { ESPECIES, type Especie } from "@/lib/types";
+import { ESPECIES, REGIMES, REGIME_PADRAO, type Especie, type Regime } from "@/lib/types";
 
 export { DIAS_MAX, DIAS_MIN };
 
@@ -24,6 +24,8 @@ export { DIAS_MAX, DIAS_MIN };
 
 export type Pedido = {
   especie: Especie;
+  /** O sistema do ponto. Escolhe as premissas de solo, nao as equacoes. */
+  regime: Regime;
   latitude: number;
   longitude: number;
   alturaCm: number;
@@ -40,6 +42,7 @@ export type Pedido = {
 /** O que os campos mostram: sempre preenchido, mesmo sem parametro na URL. */
 export type ValoresFormulario = {
   especie: Especie;
+  regime: Regime;
   latitude: string;
   longitude: string;
   altura: string;
@@ -87,6 +90,9 @@ const CAIXA_BRASIL = { latMin: -34, latMax: 6, lonMin: -74, lonMax: -34 };
  *  vazia obriga quem esta vendo a inventar uma coordenada. */
 export const PADRAO: ValoresFormulario = {
   especie: "braquiaria",
+  // O padrao e o dominio do produto. Pasto e uma escolha explicita de quem
+  // esta conferindo o modelo contra campo, nunca o que a pagina abre fazendo.
+  regime: REGIME_PADRAO,
   latitude: "-22.53",
   longitude: "-47.43",
   altura: "12",
@@ -131,6 +137,7 @@ export function interpretar(
 ): Leitura {
   const cru = {
     especie: texto(params.especie),
+    regime: texto(params.regime),
     latitude: texto(params.lat),
     longitude: texto(params.lon),
     altura: texto(params.altura),
@@ -147,6 +154,9 @@ export function interpretar(
     especie: (ESPECIES as readonly string[]).includes(cru.especie ?? "")
       ? (cru.especie as Especie)
       : PADRAO.especie,
+    regime: (REGIMES as readonly string[]).includes(cru.regime ?? "")
+      ? (cru.regime as Regime)
+      : PADRAO.regime,
     latitude: cru.latitude ?? PADRAO.latitude,
     longitude: cru.longitude ?? PADRAO.longitude,
     altura: cru.altura ?? PADRAO.altura,
@@ -163,6 +173,10 @@ export function interpretar(
 
   if (cru.especie != null && !(ESPECIES as readonly string[]).includes(cru.especie)) {
     erros.especie = `O modelo só conhece ${ESPECIES.join(", ")}.`;
+  }
+
+  if (cru.regime != null && !(REGIMES as readonly string[]).includes(cru.regime)) {
+    erros.regime = `O painel só conhece os regimes ${REGIMES.join(" e ")}.`;
   }
 
   const lat = numero(valores.latitude);
@@ -219,6 +233,7 @@ export function interpretar(
   return {
     pedido: {
       especie: valores.especie,
+      regime: valores.regime,
       latitude: lat as number,
       longitude: lon as number,
       alturaCm: altura as number,

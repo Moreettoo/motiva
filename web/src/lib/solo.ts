@@ -2,6 +2,9 @@ import "server-only";
 
 import { unstable_cache } from "next/cache";
 
+import { REGIME } from "./dominio";
+import { REGIME_PADRAO, type Regime } from "./types";
+
 /**
  * As duas features de solo que o modelo pede e o banco nao tem.
  *
@@ -34,9 +37,10 @@ const CAMADAS = [
 
 const PROPRIEDADES = ["clay", "sand", "soc", "nitrogen"] as const;
 
-/** Profundidade de raiz efetiva de gramineas, em mm (FAO-56 da 0,5 a 1,0 m para
- *  pastagem; a ponta de baixo, porque faixa de dominio e solo raso). */
-const RAIZ_MM = 500;
+/** Profundidade de raiz efetiva por regime, em mm. Vem de `REGIME`, em
+ *  `dominio.ts`, porque o formulario tambem precisa dela e este arquivo e
+ *  `server-only` -- ver a nota longa la. */
+const raizMm = (regime: Regime): number => REGIME[regime].raizMm;
 
 /** A faixa que o modelo VIU. Fora dela ele satura, entao o valor sai preso. */
 const CAP_MIN = 35;
@@ -48,8 +52,11 @@ const N_RICO_GKG = 3.5;
 const FERT_MIN = 0.05;
 const FERT_MAX = 1;
 
+/** A queda. A capacidade acompanha o regime porque ela e uma mediana MEDIDA
+ *  (59,6 mm na raiz de 500 mm), reescalada pela profundidade; a fertilidade nao
+ *  acompanha porque nao existe mediana medida de pastagem para reescalar. */
 export const FERTILIDADE_PREMISSA = 0.35;
-export const CAPACIDADE_PREMISSA_MM = 60;
+export const CAPACIDADE_PREMISSA_MM: Record<Regime, number> = { faixa: 60, pasto: 95 };
 
 /** Deslocamentos sondados quando o ponto exato esta mascarado: ~2 km. */
 const VIZINHANCA = [
@@ -73,15 +80,24 @@ export type Solo = {
   distanciaKm: number;
   /** Nitrogenio total 0-30 cm em g/kg, quando veio do mapa. */
   nitrogenioGkg: number | null;
+  /** Qual conjunto de premissas produziu os dois numeros. O mesmo ponto devolve
+   *  capacidades diferentes nos dois regimes, e a tela precisa poder dizer isso. */
+  regime: Regime;
 };
 
-export const PREMISSA: Solo = {
-  fertilidade: FERTILIDADE_PREMISSA,
-  capacidadeMm: CAPACIDADE_PREMISSA_MM,
-  fonte: "premissa",
-  distanciaKm: 0,
-  nitrogenioGkg: null,
-};
+export function premissa(regime: Regime = REGIME_PADRAO): Solo {
+  return {
+    fertilidade: FERTILIDADE_PREMISSA,
+    capacidadeMm: CAPACIDADE_PREMISSA_MM[regime],
+    fonte: "premissa",
+    distanciaKm: 0,
+    nitrogenioGkg: null,
+    regime,
+  };
+}
+
+/** A premissa de faixa de dominio, que era o unico regime. */
+export const PREMISSA: Solo = premissa();
 
 /**
  * Agua disponivel para a planta, em fracao volumetrica.
@@ -169,7 +185,7 @@ async function consultar(lat: number, lon: number): Promise<Camadas | null> {
   return temAlgo ? saida : null;
 }
 
-function interpretar(bruto: Camadas, distanciaKm: number): Solo | null {
+function interpretar(bruto: Camadas, distanciaKm: number, regime: Regime): Solo | null {
   const areia = mediaPonderada(bruto.sand);
   const argila = mediaPonderada(bruto.clay);
   const carbono = mediaPonderada(bruto.soc);
@@ -179,7 +195,7 @@ function interpretar(bruto: Camadas, distanciaKm: number): Solo | null {
 
   // SOC em g/kg -> % de massa -> materia organica pelo fator de Van Bemmelen.
   const materiaOrganica = (carbono / 10) * 1.724;
-  const capacidade = aguaDisponivel(areia, argila, materiaOrganica) * RAIZ_MM;
+  const capacidade = aguaDisponivel(areia, argila, materiaOrganica) * raizMm(regime);
 
   if (!Number.isFinite(capacidade) || capacidade <= 0) return null;
 
@@ -189,6 +205,7 @@ function interpretar(bruto: Camadas, distanciaKm: number): Solo | null {
     fonte: "soilgrids",
     distanciaKm,
     nitrogenioGkg: nitrogenio,
+    regime,
   };
 }
 
@@ -200,7 +217,7 @@ function arredondar(v: number): number {
 }
 
 const doPonto = unstable_cache(
-  async (lat: number, lon: number): Promise<Solo> => {
+  async (lat: number, lon: number, regime: Regime): Promise<Solo> => {
     const comecou = Date.now();
 
     for (const { dlat, dlon, km } of VIZINHANCA) {
@@ -208,7 +225,7 @@ const doPonto = unstable_cache(
       try {
         const bruto = await consultar(lat + dlat, lon + dlon);
         if (bruto) {
-          const s = interpretar(bruto, km);
+          const s = interpretar(bruto, km, regime);
           if (s) return s;
         }
       } catch {
@@ -218,13 +235,20 @@ const doPonto = unstable_cache(
       }
     }
 
-    return PREMISSA;
+    return premissa(regime);
   },
   ["soilgrids-ponto"],
   // Trinta dias. Solo nao muda; o que muda e o mapa, uma vez por ano.
   { revalidate: 2_592_000, tags: ["solo"] },
 );
 
-export function soloDoPonto(latitude: number, longitude: number): Promise<Solo> {
-  return doPonto(arredondar(latitude), arredondar(longitude));
+/** O `regime` entra na chave do cache junto com as coordenadas: os dois regimes
+ *  leem a MESMA textura e a multiplicam por profundidades diferentes, e um cache
+ *  cego para ele devolveria o balde do regime que perguntou primeiro. */
+export function soloDoPonto(
+  latitude: number,
+  longitude: number,
+  regime: Regime = REGIME_PADRAO,
+): Promise<Solo> {
+  return doPonto(arredondar(latitude), arredondar(longitude), regime);
 }

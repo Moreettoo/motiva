@@ -1,10 +1,41 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-GERADOR v3.1 - Crescimento de gramineas em faixa de dominio rodoviaria.
+GERADOR v3.3 - Crescimento de gramineas em faixa de dominio rodoviaria e,
+experimentalmente, em pastagem.
+
+v3.3 (o ponto de campo que ancorou a v3.1 e a v3.2 e PASTO, nao faixa de
+dominio, e a medicao dele nao e altura de dossel):
+  1. DESFEITO O ITEM 4 DA v3.1. `A` da braquiaria volta de 1,90 a 1,60 cm/dia e
+     o sigma do micrositio de 0,30 a 0,22. Os dois subiram para alcancar
+     +7 cm/4 dias medidos em Juiz de Fora, e essa medicao nao serve de ancora
+     por duas razoes independentes:
+       - Ela e de PASTO. A v3.1 e a v3.2 ajustaram a fisica de um modelo de
+         faixa de dominio contra um sistema diferente.
+       - Ela quase certamente nao mede altura de dossel. Foi uma touceira, o
+         tecido mais alto dela, com regua e trena diferentes entre as duas
+         visitas e o zero de nenhuma das duas verificavel na foto. Os
+         1,75 cm/dia caem exatamente no teto da TAlF (taxa de alongamento
+         FOLIAR) do marandu, 12,4-17,5 mm/dia, que e o que se espera de quem
+         acompanha a folha mais alta de uma touceira recem-cortada.
+     E a conta nao fechava mesmo com A=1,90: rodando a fisica desta versao com
+     o clima observado da janela, seriam necessarios +5,8 sigma de micrositio
+     para chegar aos 7 cm com o solo do ponto, ou +3,9 sigma com a fertilidade
+     no maximo que o modelo viu. Nem a rampa de fertilidade do solo.py nem a
+     capacidade do balde fecham (testadas: a varredura inteira de fertilidade
+     vale 2,2 cm na janela, e balde mais fundo PIORA, porque ks e fracao da
+     capacidade). O que sobra e a grandeza medida, e grandeza nao se calibra.
+     Os itens 1, 2 e 3 da v3.1 FICAM: rebrota por reservas, Teff da tarde e
+     dormencia a 11 C se sustentam na literatura de C4 sem esse ponto.
+  2. REGIME DE MANEJO. `REGIMES` separa `faixa` (o padrao, o que o painel
+     serve) de `pasto` (experimental). O regime muda os EVENTOS de desfolha e
+     o sorteio de sitio -- nao a fisica do crescimento e nao o vetor de
+     features. Ver a nota em REGIMES para o porque de pasto nao precisar de
+     feature nova, e o porque de ele ficar FORA do dataset por padrao.
 
 v3.1 (calibracao com o ponto de campo de 12-16/ago/2026, MG, braquiaria
-cortada a 10 cm -> 17 cm em 4 dias = 1,75 cm/dia, o teto da TAlF do marandu):
+cortada a 10 cm -> 17 cm em 4 dias = 1,75 cm/dia, o teto da TAlF do marandu;
+o item 4 foi DESFEITO na v3.3, ver acima):
   1. REBROTA POR RESERVAS: o lag de Brougham vale para AREA FOLIAR/biomassa,
      nao para ALTURA. Com meristema intacto e residuo folhoso, o alongamento
      recomeca no dia seguinte puxado por reservas de raiz/estolao. Agora
@@ -20,13 +51,16 @@ cortada a 10 cm -> 17 cm em 4 dias = 1,75 cm/dia, o teto da TAlF do marandu):
   3. Dormencia binaria da braquiaria: tmed<15 -> tmed<11 (a rampa de Teff
      ja zera o crescimento em frio de verdade; o corte seco em 15 matava
      dias de inverno que na pratica crescem a tarde).
-  4. A braquiaria 1.60 -> 1.90 cm/dia e sigma do sitio 0.22 -> 0.30
-     (micrositios de valeta umida/fertil existem na faixa e geram as
-     leituras extremas reais).
+  4. [DESFEITO NA v3.3] A braquiaria 1.60 -> 1.90 cm/dia e sigma do sitio
+     0.22 -> 0.30 (micrositios de valeta umida/fertil existem na faixa e geram
+     as leituras extremas reais). O argumento do micrositio continua valendo;
+     o que nao vale e o numero que foi usado para dimensiona-lo.
 v3.2 (cobertura das bordas, depois do caso de 12-16/ago/2026 em Juiz de
 Fora): o modelo previu +3,9 cm onde o campo deu +7. Nao foi a fisica - o teto
 A=1,90 ja estava aqui desde a v3.1 e o dataset o respeita (p99 diario da
-braquiaria = 1,92 cm/dia). Foi AMOSTRAGEM. Sorteando janelas uniformemente de
+braquiaria = 1,92 cm/dia). Foi AMOSTRAGEM. (A v3.3 mostrou que tambem nao era
+amostragem: era a grandeza medida. As duas mudancas da v3.2 ficam de pe por
+conta propria -- celula rasa e celula rasa, com ou sem aquele ponto.) Sorteando janelas uniformemente de
 dentro das trajetorias, a celula "braquiaria x recem-rocada x inverno x 4-6
 dias" ficou com 1.047 linhas em 1.000.000 (0,1%); em Juiz de Fora, em agosto,
 com SETE. Com sete exemplos o q90 daquela folha vale o que vale: o modelo
@@ -136,7 +170,12 @@ LOCAIS_PADRAO = [
 # ---------------------------------------------------------------------------
 ESPECIES = {
     "braquiaria": dict(
-        A=1.90,                # v3.1: TAlF max marandu ~1.75 cm/dia; dossel chega perto
+        # v3.3: de volta a 1,60. A v3.1 subiu para 1,90 igualando A (altura de
+        # DOSSEL) a TAlF maxima do marandu (~1,75 cm/dia, alongamento de UMA
+        # folha). Sao grandezas diferentes: o dossel sobe menos que a folha
+        # estendida porque a folha se abre e tomba. 1,60 e o teto de dossel de
+        # braquiaria bem manejada em verao, que e o que esta coluna significa.
+        A=1.60,
         t_base=15.,            # base da FEATURE graus_dia (nao mexer: compat.)
         t_fisio_base=12.,      # v3.1: base fisiologica p/ f_T (C4: 12-17)
         t_ot1=26., t_ot2=35., t_max=44.,
@@ -173,6 +212,109 @@ NOMES = list(ESPECIES.keys())
 CENARIOS_POR_LOCAL = 6          # sorteios de fertilidade/solo/manejo
 CENARIOS_BORDA = 2              # v3.2: 1 sitio-teto + 1 sitio-chao por local x especie
 D_MIN, D_MAX = 1, 120           # janelas de medicao, em dias
+
+#: Dispersao do micrositio nao observado, em log. v3.3: de volta a 0,22 (ver a
+#: nota no sorteio de `qual`, em `simular`).
+SIGMA_MICROSITIO = 0.22
+
+# ---------------------------------------------------------------------------
+# v3.3 - REGIME DE MANEJO
+# ---------------------------------------------------------------------------
+# O QUE O REGIME MUDA, E O QUE ELE NAO MUDA
+# -----------------------------------------
+# Muda: os EVENTOS de desfolha (quando, quanto sobra, se o meristema vai junto)
+# e o sorteio de sitio. Nao muda: nenhum fator de crescimento, nenhuma constante
+# de especie, e nenhuma coluna de feature.
+#
+# Isso nao e economia de esforco, e o resultado de olhar o que de fato difere.
+# Pasto e faixa de dominio diferem em tres coisas, e todas as tres JA chegam ao
+# modelo pelas features que existem:
+#   quanto sobra depois da desfolha   -> altura_inicial_cm
+#   quando foi a desfolha             -> dias_desde_rocada_inicio
+#   quanta agua a raiz alcanca        -> capacidade_agua_solo_mm (via solo.py)
+# `K` (o teto do sitio) NAO muda por regime de proposito: K e propriedade do
+# sitio -- fertilidade e agua --, nao do manejo. Pasto fica baixo porque o
+# animal RETIRA tecido, e retirada e evento, nao teto. Um piquete abandonado
+# vai a florescimento igual a uma faixa nao rocada.
+#
+# Por isso pasto NAO precisa de feature nova: duas linhas com as mesmas features
+# descrevem a mesma planta no mesmo estado, e a resposta e a mesma funcao. O que
+# muda e a DENSIDADE de estados visitados -- pasto vive entre 12 e 30 cm, faixa
+# passa correndo por essa faixa a caminho de 50.
+#
+# POR QUE PASTO FICA FORA DO DATASET POR PADRAO
+# ---------------------------------------------
+# Porque o objetivo declarado do experimento e saber se o motor de crescimento,
+# calibrado e treinado em faixa, acerta em pasto. Treinar com linhas de pasto
+# transformaria esse teste FORA DA AMOSTRA em ajuste dentro dela. Rode com
+# `--regimes faixa,pasto` quando quiser o contrario: adensar 12-30 cm.
+#
+# PASTO SO RENDE JANELA CURTA, E ISSO NAO E DEFEITO
+# -------------------------------------------------
+# `treinar_modelo.py` descarta janela com desfolha no meio -- altura resetada
+# nao e problema de "prever crescimento". Com ciclo de 45 dias, medido nesta
+# versao (40 mil janelas sorteadas, clima sintetico de 900 dias):
+#
+#   janela      1-3   4-7  8-15  16-30  31-60  61-120
+#   faixa      96%   91%   82%    62%    29%      6%   sobrevivem
+#   pasto      89%   71%   44%    11%     1%      0%
+#
+# Nao ha o que consertar: piquete nao passa 60 dias intocado, e uma janela de
+# 60 dias em pasto e uma janela COM pastejo dentro. A consequencia pratica e
+# para o campo, nao para o codigo -- medir acumulo de pasto em horizonte longo
+# exige GAIOLA DE EXCLUSAO, que e o metodo padrao da pesquisa de pastagem. Sem
+# gaiola, a validacao em pasto so alcanca janelas de ate ~30 dias.
+#
+# AS PREMISSAS DE PASTO
+# ---------------------
+# Manejo por altura, que e como a extensao brasileira recomenda para tropicais:
+# entra o animal quando o dossel chega ao ponto de interceptacao de ~95% de luz,
+# sai deixando cerca de metade ("regra da metade"). Em vez de tabelar altura de
+# entrada por especie -- numero que eu estaria inventando tres vezes --, as duas
+# premissas sao FRACOES da escala que a especie ja carrega: o gatilho de pasto e
+# uma fracao do gatilho de rocada, e o residuo e uma fracao do gatilho de pasto.
+# Para a braquiaria isso da entrada a 30 cm e saida entre 12 e 18, que e a
+# recomendacao classica do marandu (entra a 30, sai a 15).
+REGIMES = {
+    "faixa": dict(
+        rotulo="faixa de dominio",
+        #: Todas: e o dominio para o qual o painel existe.
+        especies=tuple(NOMES),
+        #: Gatilho e residuo saem da propria especie (`gatilho_rocada`,
+        #: `residual`), que e onde os numeros de rocada de concessionaria estao.
+        gatilho_frac=1.0, residuo_frac=None,
+        #: Intervalo maximo entre visitas: o programa da concessionaria.
+        intervalo_dias=None,
+        #: Irregularidade do programa, em dias, para os dois lados.
+        folga_dias=25,
+        #: Rocadeira baixa decapita meristema em 35% dos eventos (v3.1).
+        p_severo=0.35,
+        #: Balde: talude raso a plano fundo, na raiz de 500 mm do solo.py.
+        cap=(35., 120.), cap_teto=(105., 120.), cap_chao=(35., 45.),
+    ),
+    "pasto": dict(
+        rotulo="pastagem (experimental)",
+        #: Esmeralda fica fora: zoysia e grama de jardim, nao existe piquete de
+        #: esmeralda. Inventar trajetoria de pastejo para ela seria encher o
+        #: dataset de um sistema que nao existe.
+        especies=("braquiaria", "batatais"),
+        #: Entra o animal a 60% do gatilho de rocada (braquiaria: 30 de 50 cm);
+        #: sai deixando 40-60% disso (12-18 cm) -- a regra da metade.
+        gatilho_frac=0.60, residuo_frac=(0.40, 0.60),
+        #: Piquete e revisitado dentro de ~45 dias mesmo sem atingir o gatilho.
+        #: Na pratica o gatilho dispara primeiro no verao e este teto e que
+        #: manda no inverno, quando o capim nao chega a 30 cm.
+        intervalo_dias=45.,
+        folga_dias=10,
+        #: O animal arranca folha, nao raspa o solo. Sobrepastejo existe e e o
+        #: que sobra destes 10%.
+        p_severo=0.10,
+        #: Balde na raiz de 800 mm (ver solo.py): a pedotransferencia nao devolve
+        #: menos de ~55 mm nessa profundidade para as texturas desta malha.
+        cap=(55., 120.), cap_teto=(105., 120.), cap_chao=(55., 70.),
+    ),
+}
+REGIME_PADRAO = "faixa"
 
 # ---------------------------------------------------------------------------
 # v3.2 - AS CELULAS DA COTA
@@ -307,8 +449,15 @@ def f_temp(t, e):
 # ---------------------------------------------------------------------------
 # SIMULACAO DIARIA VETORIZADA (todas as trajetorias em paralelo)
 # ---------------------------------------------------------------------------
-def simular(diario, rng):
-    """Retorna dict de arrays (n_traj, n_dias) + metadados por trajetoria."""
+def simular(diario, rng, regimes=(REGIME_PADRAO,)):
+    """Retorna dict de arrays (n_traj, n_dias) + metadados por trajetoria.
+
+    `regimes` sao as chaves de REGIMES a simular. Cada regime rende o mesmo
+    conjunto de trajetorias (CENARIOS_POR_LOCAL sorteadas + CENARIOS_BORDA) por
+    local x especie, entao pedir dois regimes DOBRA a memoria dos arrays
+    diarios. Especie fora de `REGIMES[r]["especies"]` nao rende trajetoria
+    naquele regime.
+    """
     locais = sorted(diario.local.unique())
     grades = {}
     for lc in locais:
@@ -325,32 +474,51 @@ def simular(diario, rng):
         meta_loc = dict(local=lc, uf=g.uf.iloc[0], lat=float(g.latitude.iloc[0]),
                         lon=float(g.longitude.iloc[0]))
         for esp in NOMES:
-            for _ in range(CENARIOS_POR_LOCAL):
-                trajs.append(dict(**meta_loc, especie=esp, regime_sitio="sorteado"))
-            # v3.2: as bordas nao podem depender da sorte. Um sitio-teto e um
-            # sitio-chao por local x especie garantem que o extremo de sitio
-            # exista em TODO clima - antes ele so aparecia onde a cauda da
-            # Beta calhou de cair, que por acaso foi mais no calor.
-            for i in range(CENARIOS_BORDA):
-                trajs.append(dict(**meta_loc, especie=esp,
-                                  regime_sitio=("teto", "chao")[i % 2]))
+            for reg in regimes:
+                if esp not in REGIMES[reg]["especies"]:
+                    continue
+                for _ in range(CENARIOS_POR_LOCAL):
+                    trajs.append(dict(**meta_loc, especie=esp,
+                                      regime_sitio="sorteado", regime_manejo=reg))
+                # v3.2: as bordas nao podem depender da sorte. Um sitio-teto e um
+                # sitio-chao por local x especie garantem que o extremo de sitio
+                # exista em TODO clima - antes ele so aparecia onde a cauda da
+                # Beta calhou de cair, que por acaso foi mais no calor.
+                for i in range(CENARIOS_BORDA):
+                    trajs.append(dict(**meta_loc, especie=esp,
+                                      regime_sitio=("teto", "chao")[i % 2],
+                                      regime_manejo=reg))
     T = len(trajs)
     esp_idx = np.array([NOMES.index(t["especie"]) for t in trajs])
     par = lambda k: np.array([ESPECIES[NOMES[i]][k] for i in esp_idx])
+    #: Premissa de regime por trajetoria. `rpar("cap")[:,0]` e o piso do balde.
+    rpar = lambda k: np.array([REGIMES[t["regime_manejo"]][k] for t in trajs])
 
     # --- cenario por trajetoria -----------------------------------------
-    # fertilidade de beira de estrada: maioria pobre, cauda rara rica
+    # fertilidade de beira de estrada: maioria pobre, cauda rara rica.
+    # v3.3: a MESMA Beta nos dois regimes, de proposito. Nao existe distribuicao
+    # medida de fertilidade de pastagem nesta malha, e trocar uma Beta por outra
+    # inventada mudaria a densidade de treino sem nenhum dado atras. O que muda
+    # em pasto e so o balde, que tem pedotransferencia e profundidade de raiz
+    # publicadas para justificar.
     regime = np.array([t["regime_sitio"] for t in trajs])
     teto, chao = regime == "teto", regime == "chao"
     fert = np.clip(rng.beta(2.0, 3.2, T) * 1.15, 0.05, 1.0)
-    cap_solo = rng.uniform(35., 120., T)        # mm (talude raso -> plano fundo)
+    cap_faixa = rpar("cap")                     # (T, 2): piso e teto do sorteio
+    cap_solo = cap_faixa[:,0] + rng.random(T) * (cap_faixa[:,1] - cap_faixa[:,0])
     # v3.2: as duas bordas, com uma folga estreita para nao virar um pico
     # degenerado numa unica altura de fertilidade. 0,82-0,98 e a valeta com
     # materia organica e escoamento da pista; 0,05-0,12 e o talude raspado.
     fert = np.where(teto, rng.uniform(.82, .98, T),
            np.where(chao, rng.uniform(.05, .12, T), fert))
-    cap_solo = np.where(teto, rng.uniform(105., 120., T),
-               np.where(chao, rng.uniform(35., 45., T), cap_solo))
+    # v3.3: as bordas do balde tambem saem do regime. O sitio-chao de faixa e
+    # talude raspado (35-45 mm); em pasto nao existe talude raspado, e o piso e
+    # o menor balde que 800 mm de raiz produzem (55-70 mm).
+    cap_bteto, cap_bchao = rpar("cap_teto"), rpar("cap_chao")
+    sorteio = rng.random(T)
+    cap_solo = np.where(teto, cap_bteto[:,0] + sorteio*(cap_bteto[:,1]-cap_bteto[:,0]),
+               np.where(chao, cap_bchao[:,0] + sorteio*(cap_bchao[:,1]-cap_bchao[:,0]),
+                        cap_solo))
     f_N = 0.25 + 0.75 * fert                    # Gastal: 3-4x entre extremos
     Klo = par("K_range")[:,0] if par("K_range").ndim>1 else None
     Kr = np.array([ESPECIES[NOMES[i]]["K_range"] for i in esp_idx])
@@ -362,8 +530,33 @@ def simular(diario, rng):
     # fertilidade, fertilidade (que o modelo ve) ficaria correlacionada com
     # qualidade de sitio (que ele nao ve), e o modelo creditaria a primeira o
     # efeito da segunda. As bordas mexem so no que aparece nas features.
-    qual = np.exp(rng.normal(0., 0.30, T))
-    res_r = np.array([ESPECIES[NOMES[i]]["residual"] for i in esp_idx])
+    #
+    # v3.3: sigma de volta a 0,22. Subiu para 0,30 na v3.1 para alargar a cauda
+    # ate o ponto de Juiz de Fora, e nem 0,30 chegou perto (seriam +5,8 sigma).
+    # Alargar a cauda de um fator NAO OBSERVADO alarga o q10-q90 de todo trecho
+    # do painel: paga incerteza em toda a malha para acomodar uma medicao que
+    # nao era da grandeza prevista. Mancha de urina e de esterco em pasto sao
+    # exatamente o tipo de micrositio que justificaria uma cauda direita mais
+    # gorda -- e quando `validar_campo.py` tiver leituras de 5 touceiras no
+    # mesmo piquete, a dispersao ENTRE elas mede esse sigma. Ate lá, 0,22.
+    qual = np.exp(rng.normal(0., SIGMA_MICROSITIO, T))
+
+    # --- desfolha: o que o regime muda ----------------------------------
+    # v3.3: gatilho, residuo, intervalo maximo e severidade saem do REGIME, e
+    # nao mais so da especie. Em `faixa` os quatro valem o que sempre valeram.
+    gat_frac = rpar("gatilho_frac")
+    gat = np.array([ESPECIES[NOMES[i]]["gatilho_rocada"] for i in esp_idx]) * gat_frac
+    res_r = np.array([ESPECIES[NOMES[i]]["residual"] for i in esp_idx], dtype=float)
+    res_frac = np.array([REGIMES[t["regime_manejo"]]["residuo_frac"] or (0., 0.)
+                         for t in trajs], dtype=float)
+    usa_frac = np.array([REGIMES[t["regime_manejo"]]["residuo_frac"] is not None
+                         for t in trajs])
+    # Residuo de pasto e fracao do gatilho DE PASTO (a regra da metade), nao da
+    # altura de rocadeira: 40-60% de 30 cm = 12-18 cm no marandu.
+    res_r = np.where(usa_frac[:,None],
+                     np.column_stack([gat*res_frac[:,0], gat*res_frac[:,1]]), res_r)
+    p_severo = rpar("p_severo")
+    folga_dias = rpar("folga_dias").astype(np.int64)
 
     # --- clima empilhado (loc -> traj) ----------------------------------
     def clima(col):
@@ -395,7 +588,7 @@ def simular(diario, rng):
 
     gq = par("geada_queda"); gtk = par("geada_topkill")
     tol = par("tol_seca"); A = par("A"); sen = par("sen_dorm")
-    dormT = par("dorm_T"); gat = par("gatilho_rocada")
+    dormT = par("dorm_T")          # `gat` ja saiu do regime, acima
     # v3.2: o ciclo de rocada vira CENARIO, nao constante da especie.
     # A faixa de dominio e rocada por PROGRAMA - a concessionaria passa a
     # rocadeira de tantos em tantos meses - e nao so quando o capim chega ao
@@ -404,7 +597,12 @@ def simular(diario, rng):
     # para agendar) ficava em 0,1% do dataset por falta de eventos de reset, nao
     # por falta de sorteio. A cota nao resolve isso: ela so pode escolher entre
     # as janelas que existem. Aqui elas passam a existir.
-    rmax = par("rocada_max_dias") * rng.choice([.35, .50, .70, 1.0, 1.3], T)
+    # v3.3: em pasto o intervalo base e do regime (45 dias), nao da especie: 200
+    # dias e o programa da concessionaria, e nenhum piquete espera isso.
+    base_ciclo = np.array([REGIMES[t["regime_manejo"]]["intervalo_dias"]
+                           or ESPECIES[t["especie"]]["rocada_max_dias"]
+                           for t in trajs], dtype=float)
+    rmax = base_ciclo * rng.choice([.35, .50, .70, 1.0, 1.3], T)
     fb = par("floracao_boost"); fh = par("floracao_hmin")
     fmeses = [ESPECIES[NOMES[i]]["floracao_meses"] for i in esp_idx]
     Q = 2.5                                    # expoente da saturacao (premissa)
@@ -451,11 +649,14 @@ def simular(diario, rng):
         tau = np.where(fogo, 20., tau)
         cres = np.where(fogo, 0.05, cres)            # v3.1
 
-        # rocada: braquiaria por gatilho de 50 cm; todas por prazo maximo
-        mow = (H >= gat) | (ult_rocada >= rmax + rng.integers(-25, 25, T))
+        # desfolha: por gatilho de altura (rocada a 50 cm na faixa, entrada do
+        # animal a 30 em pasto) e por prazo maximo. A folga em cima do prazo sai
+        # do regime: +-25 dias e a irregularidade de um programa de rocada, e num
+        # ciclo de pasto de 45 dias ela seria mais da metade do ciclo.
+        mow = (H >= gat) | (ult_rocada >= rmax + rng.integers(-folga_dias, folga_dias))
         oMow[:,d] = mow
         novo_res = res_r[:,0] + rng.random(T)*(res_r[:,1]-res_r[:,0])
-        severo = rng.random(T) < 0.35            # corte baixo decapita meristema
+        severo = rng.random(T) < p_severo        # corte baixo decapita meristema
         H = np.where(mow, novo_res, H)
         t_reset = np.where(mow, 0., t_reset)
         tau = np.where(mow, np.where(severo, rng.uniform(13,18,T),
@@ -640,7 +841,11 @@ def amostrar(sim, especie, n, rng, id0, escolha=None, origem="natural"):
         # v3.2: duas colunas de auditoria. O treinar_modelo.py le por
         # `usecols=lambda c: c in usar`, entao coluna a mais nao o incomoda -
         # e sem elas nao da para saber, depois, de onde veio cada linha.
+        # v3.3: tres. `regime_manejo` e a unica que o treino tambem LE, para
+        # poder filtrar -- e por isso ela esta em BLOQUEADAS lá: e rotulo do
+        # gerador, nao grandeza de campo, e nunca pode virar feature.
         "regime_sitio": m.regime_sitio, "origem": origem,
+        "regime_manejo": m.regime_manejo,
         "local": m.local, "uf": m.uf,
         "latitude": np.round(m.lat,4), "longitude": np.round(m.lon,4),
         "fertilidade_solo": m.fertilidade,
@@ -701,6 +906,13 @@ def main():
     ap.add_argument("--alvo-celula", type=int, default=ALVO_POR_CELULA,
                     help=f"linhas por celula que a cota persegue (default "
                          f"{ALVO_POR_CELULA}: erro relativo de 10%% no q10)")
+    ap.add_argument("--regimes", default=REGIME_PADRAO,
+                    help="v3.3: regimes de manejo a simular, separados por "
+                         f"virgula ({', '.join(REGIMES)}). Default "
+                         f"'{REGIME_PADRAO}', que e o dominio do painel. "
+                         "Incluir 'pasto' DOBRA a memoria dos arrays diarios e "
+                         "tira a validacao de pasto de fora da amostra - leia a "
+                         "nota em REGIMES antes.")
     ap.add_argument("--saida", default="dataset_gramas_v3.csv")
     ap.add_argument("--uf", default=None); ap.add_argument("--listar", action="store_true")
     ap.add_argument("--seed", type=int, default=42)
@@ -738,11 +950,22 @@ def main():
         pd.set_option("display.max_rows",None,"display.width",160)
         print(inv.to_string(index=False)); return
 
+    regimes = [r.strip() for r in a.regimes.split(",") if r.strip()]
+    desconhecidos = [r for r in regimes if r not in REGIMES]
+    if desconhecidos:
+        sys.exit(f"Regime desconhecido: {desconhecidos}. Use {list(REGIMES)}.")
+
     rng = np.random.default_rng(a.seed)
     print(f"Simulando trajetorias diarias ({diario.local.nunique()} locais x "
-          f"{len(NOMES)} especies x {CENARIOS_POR_LOCAL} cenarios)...")
+          f"{len(NOMES)} especies x {CENARIOS_POR_LOCAL} cenarios x "
+          f"{len(regimes)} regime(s): {', '.join(regimes)})...")
+    for r in regimes:
+        if r != REGIME_PADRAO:
+            print(f"  [experimental] regime '{r}' "
+                  f"({REGIMES[r]['rotulo']}): as linhas dele entram no dataset e "
+                  f"o teste de campo em {r} deixa de ser fora da amostra.")
     t0 = time.time()
-    sim = simular(diario, rng)
+    sim = simular(diario, rng, regimes)
     print(f"  {len(sim['meta'])} trajetorias x {sim['n_dias']} dias "
           f"em {time.time()-t0:.1f}s")
 
@@ -758,6 +981,12 @@ def main():
     escrever.cabecalho = True
 
     for esp in NOMES:
+        # v3.3: `--regimes pasto` sozinho nao rende trajetoria de esmeralda (nao
+        # existe piquete de zoysia). Sem esta guarda `amostrar` sortearia de um
+        # `tsel` vazio e morreria com um IndexError sem explicacao.
+        if not (sim["esp_idx"] == NOMES.index(esp)).any():
+            print(f"  {esp}: nenhum regime pedido a inclui, pulando.")
+            continue
         # --- lote natural: o esqueleto, com a distribuicao real de condicoes
         feitas = 0
         conta = np.zeros(N_CELULAS, np.int64)

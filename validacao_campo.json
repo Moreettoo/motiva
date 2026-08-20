@@ -1,0 +1,41 @@
+{
+  "_leia": "Registro de medicoes de campo. Cada observacao e confrontada com o modelo por `validar_campo.py`. NAO edite `comparavel`: quem decide isso e o codigo, a partir do protocolo declarado aqui.",
+
+  "protocolo_exigido": {
+    "grandeza": "dossel",
+    "pontos_minimos": 5,
+    "base_aceita": ["solo"],
+    "por_que": "O alvo do modelo e `crescimento_total_cm` = diferenca de ALTURA DE DOSSEL medida, a mesma grandeza que o bastao graduado le no campo. Folha estendida de uma touceira e outra grandeza: ela sobe na taxa de alongamento foliar, que no marandu chega a 17,5 mm/dia, varias vezes o que o dossel sobe. Confrontar as duas nao mede erro do modelo, mede a troca de grandeza. Cinco pontos porque uma touceira e micrositio: mancha de urina, sombra de arvore e pe de talude crescem multiplos da media do piquete, e e a dispersao ENTRE pontos que separa micrositio de erro do modelo. Base no solo, com a manta de folha seca afastada, porque uma serapilheira de 2 a 3 cm entra inteira na diferenca entre duas visitas."
+  },
+
+  "observacoes": [
+    {
+      "id": "jf-2026-08-12",
+      "regime": "pasto",
+      "especie": "braquiaria",
+      "latitude": -21.277917,
+      "longitude": -43.177872,
+      "de": "2026-08-12",
+      "ate": "2026-08-16",
+      "altura_inicial_cm": 10.0,
+      "altura_final_cm": 17.0,
+      "dias_desde_rocada_inicio": 0,
+      "protocolo": {
+        "pontos": 1,
+        "grandeza": "indefinido",
+        "base": "nao_verificavel",
+        "zero_visivel_na_foto": false,
+        "mesmo_instrumento": false,
+        "instrumentos": "regua de madeira na primeira visita, trena de aco na segunda",
+        "chuva_24h_antes_da_ultima_leitura": true
+      },
+      "notas": [
+        "Esta e a medicao que ancorou a calibracao da v3.1 e da v3.2 do gerador, e e o motivo de o item 4 da v3.1 ter sido desfeito na v3.3.",
+        "1,75 cm/dia cai exatamente no teto da TAlF do marandu (12,4-17,5 mm/dia). A fisica do gerador nao alcanca isso em nenhuma combinacao das features: seriam +5,8 sigma de micrositio com o solo do ponto, ou +3,9 sigma com a fertilidade no maximo do treino.",
+        "Nas duas fotos o que aparece e o tecido mais alto de UMA touceira, e o zero de nenhum dos dois instrumentos aparece no quadro. A inferencia de que a leitura e de folha estendida e minha, a partir das fotos; quem mediu nao declarou a grandeza, e por isso ela esta registrada como `indefinido` e nao como `folha_estendida`.",
+        "Clima da janela: 10,2 mm de chuva no dia 14 depois de 30 dias com 24,6 mm. O turgor do proprio gerador vai de -5,2% no dia 12 a +0,1% no dia 16, ~0,5 cm da leitura.",
+        "Pasto, nao faixa de dominio: o ponto esta fora do dominio para o qual o painel existe."
+      ]
+    }
+  ]
+}

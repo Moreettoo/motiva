@@ -5,7 +5,7 @@ import { Cartao, CartaoCabecalho, CartaoCorpo } from "@/components/ui/cartao";
 import { Indicador } from "@/components/ui/indicador";
 import { Leitura } from "@/components/ui/leitura";
 import { resumir } from "@/lib/clima";
-import { ESPECIE } from "@/lib/dominio";
+import { ESPECIE, REGIME } from "@/lib/dominio";
 import { fmt, isoHoje } from "@/lib/format";
 import { janelaDoPeriodo } from "@/lib/open-meteo";
 import { trechoMaisProximo } from "@/lib/queries";
@@ -28,8 +28,9 @@ export async function Resultado({ pedido }: { pedido: Pedido }) {
   const [janela, vizinho, soloDoMapa] = await Promise.all([
     janelaDoPeriodo(pedido.latitude, pedido.longitude, pedido.periodo.inicio, pedido.periodo.fim),
     trechoMaisProximo(pedido.latitude, pedido.longitude),
-    soloDoPonto(pedido.latitude, pedido.longitude),
+    soloDoPonto(pedido.latitude, pedido.longitude, pedido.regime),
   ]);
+  const regime = REGIME[pedido.regime];
 
   // O formulário só sobrepõe o mapa quando alguém digitou. Vazio quer dizer
   // "pergunte ao SoilGrids", que é o que o lote diário faz.
@@ -161,7 +162,11 @@ export async function Resultado({ pedido }: { pedido: Pedido }) {
         <Cartao>
           <CartaoCabecalho
             titulo="De onde veio o solo"
-            descricao="Duas entradas do modelo que nenhum sensor de estrada mede. O painel estima as duas do mapa de solo SoilGrids no ponto."
+            descricao={
+              `Duas entradas do modelo que nenhum sensor de estrada mede. O painel estima as duas ` +
+              `do mapa de solo SoilGrids no ponto, na profundidade de raiz de ${regime.rotulo.toLowerCase()}: ` +
+              `${fmt.n(regime.raizMm)} mm.`
+            }
             icone={<Shovel />}
           />
           <CartaoCorpo>
@@ -184,8 +189,8 @@ export async function Resultado({ pedido }: { pedido: Pedido }) {
                   pedido.capacidadeMm != null
                     ? "digitada no formulário"
                     : soloDoMapa.fonte === "soilgrids"
-                      ? "SoilGrids + Saxton & Rawls"
-                      : "premissa de 60 mm"
+                      ? `SoilGrids + Saxton & Rawls · ${fmt.n(regime.raizMm)} mm de raiz`
+                      : `premissa de ${fmt.n(Math.round(capacidadeMm))} mm`
                 }
               />
             </dl>
@@ -207,14 +212,33 @@ export async function Resultado({ pedido }: { pedido: Pedido }) {
                         soloDoMapa.distanciaKm,
                       )} dali.`
                     : "O mapa cobre o ponto exato."}{" "}
-                  O SoilGrids descreve o solo da paisagem, e faixa de domínio é terraplenada e
-                  compactada: o número tende a ser generoso.
+                  {/* A mesma leitura significa coisas diferentes nos dois
+                      regimes, e é por isso que o regime não é só um número de
+                      profundidade: numa faixa terraplenada o mapa da paisagem é
+                      generoso; num pasto ele é a paisagem. */}
+                  {pedido.regime === "pasto" ? (
+                    <>
+                      O SoilGrids descreve o solo da paisagem, e um pasto é essa paisagem: aqui o
+                      número não tem o viés de generosidade que ele tem na estrada. O que ele
+                      continua não vendo é o microsítio — mancha de urina, sombra de árvore, pé de
+                      talude —, onde uma touceira sozinha cresce muito mais que o piquete.
+                    </>
+                  ) : (
+                    <>
+                      O SoilGrids descreve o solo da paisagem, e faixa de domínio é terraplenada e
+                      compactada: o número tende a ser generoso.
+                    </>
+                  )}
                 </>
               ) : (
                 <>
                   O SoilGrids não cobre este ponto nem a vizinhança de 2 km — costuma ser mancha
                   urbana ou água. Os dois valores acima são a premissa de beira de estrada, a mesma
-                  do caderno de calibração. Não são medição deste lugar.
+                  do caderno de calibração{" "}
+                  {pedido.regime === "pasto"
+                    ? "— inclusive a fertilidade, porque não existe mediana medida de pastagem para pôr no lugar. Só a água foi reescalada para a raiz mais funda."
+                    : "."}{" "}
+                  Não são medição deste lugar.
                 </>
               )}
             </p>
@@ -233,7 +257,7 @@ export async function Resultado({ pedido }: { pedido: Pedido }) {
               fronteira entre simulações e o texto da anterior fica na tela
               enquanto a nova carrega. */}
           <Suspense
-            key={`${pedido.especie}|${pedido.latitude}|${pedido.longitude}|${pedido.alturaCm}|${pedido.periodo.inicio}|${pedido.periodo.fim}|${pedido.diasDesdeRocada}|${fertilidade}|${capacidadeMm}`}
+            key={`${pedido.especie}|${pedido.regime}|${pedido.latitude}|${pedido.longitude}|${pedido.alturaCm}|${pedido.periodo.inicio}|${pedido.periodo.fim}|${pedido.diasDesdeRocada}|${fertilidade}|${capacidadeMm}`}
             fallback={<LeituraCarregando />}
           >
             <LeituraGestor
@@ -275,6 +299,16 @@ export async function Resultado({ pedido }: { pedido: Pedido }) {
                     : soloDoMapa.fonte === "soilgrids"
                       ? "estimado do mapa SoilGrids"
                       : "premissa, o SoilGrids não cobre este ponto",
+                  profundidade_de_raiz_mm: regime.raizMm,
+                },
+                // A LLM decide quando roçar. Ela precisa saber que num regime
+                // experimental o número que ela recebeu vem de um modelo
+                // treinado noutro sistema -- senão ela escreve a mesma
+                // justificativa confiante nos dois casos.
+                sistema: {
+                  regime: pedido.regime,
+                  rotulo: regime.rotulo,
+                  o_modelo_foi_treinado_neste_sistema: !regime.experimental,
                 },
                 dias_de_previsao_real: janela.diasPrevistos,
                 origem_do_resto_do_clima:

@@ -6,10 +6,10 @@ import { FlaskConical, RotateCcw } from "lucide-react";
 
 import { Botao } from "@/components/ui/botao";
 import { Campo, Entrada, Selecao } from "@/components/ui/campo";
-import { ESPECIE } from "@/lib/dominio";
+import { ESPECIE, REGIME } from "@/lib/dominio";
 import { fmt } from "@/lib/format";
 import { diferencaEmDias } from "@/lib/periodo";
-import { ESPECIES } from "@/lib/types";
+import { ESPECIES, REGIMES } from "@/lib/types";
 
 import {
   ALTURA_MAX,
@@ -69,6 +69,7 @@ export function Formulario({
   const [, setUrl] = useQueryStates(
     {
       especie: parseAsString,
+      regime: parseAsString,
       lat: parseAsString,
       lon: parseAsString,
       altura: parseAsString,
@@ -101,6 +102,7 @@ export function Formulario({
     evento.preventDefault();
     void setUrl({
       especie: campos.especie,
+      regime: campos.regime,
       lat: campos.latitude,
       lon: campos.longitude,
       altura: campos.altura,
@@ -117,7 +119,7 @@ export function Formulario({
   function limpar() {
     setCampos(PADRAO);
     void setUrl({
-      especie: null, lat: null, lon: null, altura: null,
+      especie: null, regime: null, lat: null, lon: null, altura: null,
       de: null, ate: null, rocada: null, fert: null, solo: null,
     });
   }
@@ -219,19 +221,51 @@ export function Formulario({
         </Campo>
       </div>
 
+      {/* O regime mora aqui, e não junto da espécie, porque nesta tela é isto
+          que ele faz: escolher a profundidade de raiz com que a textura do mapa
+          vira milímetros de água. No gerador ele faz mais (os eventos de
+          desfolha), e lá está documentado. Três campos numa grade de três
+          colunas no `lg`, a mesma solução que a grade de tempo usa para não
+          deixar meia linha vazia. */}
       <fieldset className="border-t border-border pt-5">
         <legend className="sr-only">Solo</legend>
         <p className="text-sm font-medium text-ink">Solo</p>
         <p className="mt-1 max-w-prose text-xs text-ink-2">
-          Deixe vazio para o painel estimar os dois do mapa de solo SoilGrids no ponto, que é o que
-          o lote diário faz. Preencha para forçar um valor e ver o quanto ele move a curva — a
-          fertilidade é a entrada mais sensível do modelo inteiro.
+          Deixe os dois últimos campos vazios para o painel estimar do mapa de solo SoilGrids no
+          ponto, que é o que o lote diário faz. Preencha para forçar um valor e ver o quanto ele
+          move a curva — a fertilidade é a entrada mais sensível do modelo inteiro.
         </p>
 
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <Campo
+            rotulo="Sistema"
+            dica={
+              REGIME[campos.regime].experimental
+                ? `Raiz de ${REGIME[campos.regime].raizMm} mm. Experimental: o modelo não viu este sistema no treino.`
+                : `Raiz de ${REGIME[campos.regime].raizMm} mm, o solo raso e compactado da estrada.`
+            }
+            erro={erros.regime}
+          >
+            <Selecao
+              value={campos.regime}
+              onChange={(e) => mudar("regime", e.target.value as ValoresFormulario["regime"])}
+            >
+              {REGIMES.map((r) => (
+                <option key={r} value={r}>
+                  {REGIME[r].rotulo}
+                  {REGIME[r].experimental ? " (experimental)" : ""}
+                </option>
+              ))}
+            </Selecao>
+          </Campo>
+
           <Campo
             rotulo="Fertilidade do solo"
-            dica={`De ${FERTILIDADE_MIN} a ${FERTILIDADE_MAX}. Beira de estrada típica fica perto de 0,35.`}
+            dica={
+              REGIME[campos.regime].experimental
+                ? `De ${FERTILIDADE_MIN} a ${FERTILIDADE_MAX}. Não há mediana medida de pastagem: a premissa continua sendo a de beira de estrada, 0,35.`
+                : `De ${FERTILIDADE_MIN} a ${FERTILIDADE_MAX}. Beira de estrada típica fica perto de 0,35.`
+            }
             erro={erros.fertilidade}
           >
             <Entrada
