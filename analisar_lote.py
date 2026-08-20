@@ -1,17 +1,42 @@
 """
 Reanalise em lote - roda SEM servidor.
 
-Faz o mesmo que POST /analisar-todos, mas como script solto:
-busca os trechos, o clima, preve, decide e grava no Supabase.
+Busca os trechos, o clima, o solo, preve, decide e grava no Supabase.
 
 Serve para:
   - rodar na mao:            python analisar_lote.py
-  - rodar todo dia sozinho:  GitHub Actions (.github/workflows/reanalise.yml)
+  - rodar todo dia sozinho:  GitHub Actions (.github/workflows/main.yml)
 
 Precisa das variaveis de ambiente:
   SUPABASE_URL, SUPABASE_SERVICE_KEY, OPENAI_API_KEY
   DB_SCHEMA (opcional, padrao "ia")
   OPENAI_MODEL (opcional, padrao "gpt-5.4-mini")
+
+--------------------------------------------------------------------------
+O QUE O MODELO NOVO MUDOU AQUI
+--------------------------------------------------------------------------
+Antes: uma janela de 16 dias virava sete medias, o modelo devolvia um cm/dia, e
+tudo depois disso era multiplicacao. A altura de hoje era `medicao + cm/dia x
+dias decorridos`; os dias ate o limite eram `(limite - altura) / cm/dia`.
+
+O `modelo_gramas.pkl` responde `crescimento_total_cm` do PERIODO, em intervalo
+(q10/q50/q90), e a resposta nao e linear no tamanho do periodo. Entao:
+
+  altura de hoje    sai de uma previsao com o clima OBSERVADO da janela
+                    [ultima medicao, hoje). O modelo ve os dias que de fato
+                    passaram, e nao uma taxa de hoje aplicada para tras.
+
+  dias ate o limite saem de varrer horizontes de 1 a 120 dias e achar o
+                    primeiro que cruza (`modelo.curva` + `modelo.cruzamento`).
+
+  crescimento_cm_dia continua na tabela e continua significando ritmo, mas
+                    agora e o ritmo MEDIO ate o cruzamento -- escolhido assim
+                    de proposito, para valer `altura + ritmo x dias = limite`
+                    nas duas pontas. Ver `modelo.cruzamento`.
+
+Duas features novas nao existem no banco (`fertilidade_solo` e
+`capacidade_agua_solo_mm`) e saem do SoilGrids, por zona. Ver `solo.py`.
+Uma terceira, `dias_desde_rocada_inicio`, existe: e `ia.execucoes`.
 """
 
 import os
@@ -25,8 +50,6 @@ try:
 except ImportError:
     pass
 
-import joblib
-import httpx
 from openai import OpenAI
 from supabase import create_client
 
@@ -34,6 +57,11 @@ try:
     from supabase import ClientOptions
 except ImportError:
     from supabase.lib.client_options import ClientOptions
+
+import analise
+import clima
+import modelo
+import solo
 
 DB_SCHEMA = os.getenv("DB_SCHEMA", "ia")
 MODELO_LLM = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
@@ -79,7 +107,6 @@ _trecho = (os.getenv("TRECHO_ID") or "").strip()
 TRECHO_ID = int(_trecho) if _trecho.isdigit() else None
 
 
-
 def _checar_ambiente():
     """Valida as variaveis antes de tentar conectar, com mensagem clara."""
     problemas = []
@@ -117,29 +144,15 @@ sb = create_client(os.environ["SUPABASE_URL"].strip(),
                    options=ClientOptions(schema=DB_SCHEMA))
 openai = OpenAI()
 
-try:
-    _p = joblib.load("modelo_vegetacao.pkl")
-except Exception as _e:
-    import sklearn, re as _re
-    _versao_pkl = None
-    _m = _re.search(r"from version ([\d.]+)", str(_e))
-    if _m:
-        _versao_pkl = _m.group(1)
-    print("\nERRO AO CARREGAR modelo_vegetacao.pkl")
-    print(f"  scikit-learn instalado : {sklearn.__version__}")
-    if _versao_pkl:
-        print(f"  scikit-learn do modelo : {_versao_pkl}")
-    print("\nAs duas versoes precisam ser IGUAIS. Escolha um caminho:")
-    print("  A) editar requirements.txt para a versao do modelo, ou")
-    print("  B) rodar 'python treinar_modelo.py dataset.csv' com a versao")
-    print("     instalada e subir o .pkl novo.")
-    print(f"\nDetalhe tecnico: {type(_e).__name__}: {_e}")
-    sys.exit(1)
-
-MODELO, FEATURES, MAPAS = _p["modelo"], _p["features"], _p["mapas"]
+print(f"Modelo: {os.path.basename(modelo.CAMINHO)} | treinado em "
+      f"{modelo.TREINADO_EM} | {modelo.N_LINHAS:,} linhas".replace(",", ".")
+      + f" | alvo {modelo.ALVO}")
+print(f"  R2 em locais nunca vistos {modelo.METRICAS['r2_locais_novos']:.3f} | "
+      f"MAE {modelo.METRICAS['mae_locais_novos']:.2f} cm | "
+      f"cobertura q10-q90 {modelo.METRICAS['cobertura_q10_q90']*100:.0f}%")
+print(f"  {modelo.AVISO}\n")
 
 
-# ----------------------------------------------------------------------
 # ----------------------------------------------------------------------
 # ZONAS CLIMATICAS DECLARADAS POR FAIXA DE KM
 #
@@ -148,7 +161,10 @@ MODELO, FEATURES, MAPAS = _p["modelo"], _p["features"], _p["mapas"]
 # cada uma pode ter tamanho proprio: longa no planalto, curta na serra.
 #
 # Todos os trechos cujo ponto medio cai na mesma faixa compartilham UMA
-# consulta ao Open-Meteo.
+# consulta ao Open-Meteo -- e, desde o modelo novo, tambem UMA consulta ao
+# SoilGrids. O solo varia dentro de uma faixa de 25 km, mas o clima tambem
+# varia e o projeto ja aceita esse agrupamento; manter os dois na mesma
+# fronteira e o que evita duas nocoes de "regiao" no mesmo script.
 #
 # Se um trecho nao estiver coberto por nenhuma zona, o script cria uma
 # faixa automatica de KM_FALLBACK quilometros, para nunca travar.
@@ -187,20 +203,20 @@ def zona_do_trecho(t, zonas):
             float(t["latitude"]), float(t["longitude"]), rotulo)
 
 
-def montar_zonas(trechos):
-    """Resolve a zona de cada trecho e busca o clima uma vez por zona."""
+def montar_zonas(trechos, hoje):
+    """Resolve a zona de cada trecho e busca clima e solo uma vez por zona."""
     zonas = carregar_zonas()
 
     grupos = {}
     for t in trechos:
         chave, lat, lon, rotulo = zona_do_trecho(t, zonas)
         g = grupos.setdefault(chave, {"lats": [], "lons": [], "n": 0,
-                                      "rotulo": rotulo, "declarada": lat})
+                                      "rotulo": rotulo})
         g["n"] += 1
         g["lats"].append(lat)
         g["lons"].append(lon)
 
-    clima_por_zona = {}
+    ambiente = {}
     declaradas = sum(1 for k in grupos if k[0] == "zona")
     print(f"Zonas climaticas: {len(grupos)} para {len(trechos)} trechos "
           f"({declaradas} declarada(s), {len(grupos)-declaradas} automatica(s))")
@@ -214,81 +230,49 @@ def montar_zonas(trechos):
             lat = sum(g["lats"]) / len(g["lats"])
             lon = sum(g["lons"]) / len(g["lons"])
         try:
-            c = buscar_clima(lat, lon)
-            clima_por_zona[chave] = c
-            print(f'  {g["rotulo"]:52s} {g["n"]:>3} trecho(s)  '
-                  f'{c["temperatura_media_c"]:5.1f} C  '
-                  f'{c["precipitacao_total_mm"]:5.0f} mm')
+            serie, terra = analise.resolver_ambiente(lat, lon, hoje)
+            ambiente[chave] = (serie, terra)
+            cauda = {"historico": f"ERA5 {serie.ano_historico}",
+                     "repeticao": "repeticao"}.get(serie.complemento, "so previsao")
+            print(f'  {g["rotulo"][:46]:46s} {g["n"]:>2} trecho(s)  '
+                  f'{len(serie.dias):>3}d ({serie.aquecimento}d aq + {cauda})  '
+                  f'solo: fert {terra.fertilidade:.2f}, '
+                  f'{terra.capacidade_mm:.0f} mm ({terra.fonte})')
+            if serie.aviso:
+                print(f'  {"":46s} {"":>2}            aviso: {serie.aviso}')
         except Exception as e:
-            print(f'  {g["rotulo"]:52s} ERRO no clima: {e}')
+            print(f'  {g["rotulo"]:50s} ERRO no ambiente: {type(e).__name__}: {e}')
     print()
-    return zonas, clima_por_zona
+    return zonas, ambiente
 
 
-def buscar_clima(lat, lon, dias=16):
-    r = httpx.get(
-        "https://api.open-meteo.com/v1/forecast",
-        params={
-            "latitude": lat, "longitude": lon,
-            "daily": ("temperature_2m_mean,relative_humidity_2m_mean,"
-                      "precipitation_sum,shortwave_radiation_sum,"
-                      "et0_fao_evapotranspiration"),
-            "forecast_days": min(dias, 16),
-            "timezone": "America/Sao_Paulo",
-        },
-        timeout=30,
-    )
-    r.raise_for_status()
-    d = r.json()["daily"]
-
-    def media(k):
-        v = [x for x in d[k] if x is not None]
-        return sum(v) / len(v) if v else 0.0
-
-    n = len(d["time"])
-    chuva = sum(x for x in d["precipitation_sum"] if x is not None)
-    et0 = media("et0_fao_evapotranspiration") or 0.1
-    return {
-        "dias_periodo": n,
-        "temperatura_media_c": media("temperature_2m_mean"),
-        "umidade_media_pct": media("relative_humidity_2m_mean"),
-        "precipitacao_total_mm": chuva,
-        "precipitacao_media_diaria_mm": chuva / n,
-        "radiacao_media_mj_m2": media("shortwave_radiation_sum"),
-        "et0_medio_mm_dia": et0,
-        "balanco_hidrico_chuva_sobre_et0": chuva / (et0 * n),
-    }
-
-
-def prever(clima, especie, uf, lat, altura):
-    v = {**clima, "latitude": lat, "altura_inicial_cm": altura,
-         # Brasilia, pelo mesmo motivo do resto do script: na virada de mes, das
-         # 21h a meia-noite, o runner em UTC ja esta no mes seguinte e o modelo
-         # receberia a sazonalidade errada.
-         "mes": hoje_brasilia().month,
-         "especie_cod": MAPAS["especie"].get(especie, 0),
-         "uf_cod": MAPAS["uf"].get(uf, 0)}
-    return float(MODELO.predict([[float(v[f]) for f in FEATURES]])[0])
-
-
+# ----------------------------------------------------------------------
 INSTRUCOES = """Voce e o assistente de planejamento de roçada da Motiva, \
 concessionaria de rodovias.
 
 Voce recebe a previsao numerica de crescimento da vegetacao, ja calculada por
-um modelo estatistico. NAO recalcule: confie no numero. Sua funcao e decidir
-QUANDO roçar e explicar POR QUE.
+um modelo estatistico treinado em simulacao diaria de clima real. NAO recalcule
+e NAO discuta o numero: confie nele. Sua funcao e decidir QUANDO roçar e
+explicar POR QUE.
 
-Considere alem do numero:
+O modelo responde em INTERVALO, nao em ponto: `crescimento_ate_o_limite` traz
+q10, q50 e q90 em centimetros. O q50 e a mediana e e o numero de trabalho; a
+distancia entre q10 e q90 e a incerteza real daquele cenario. Intervalo largo
+pede margem maior na data.
+
+Considere alem dos numeros:
 - Curvas e acessos exigem margem maior: antecipe em relacao a retas.
 - Historico de reclamacao ou acidente aumenta a prioridade.
 - Seca prolongada com vegetacao alta = risco de incendio, antecipe.
 - Chuva intensa prevista impede roçada: evite agendar nesses dias.
+- Trecho recem-roçado rebrota devagar no comeco; trecho ha muito sem roçada ja
+  esta na fase rapida da curva.
 
-Prioridades:
-  critica - ja passou do limite, ou passa em menos de 7 dias
-  alta    - passa do limite em 8 a 20 dias
-  media   - passa em 21 a 45 dias
-  baixa   - acima de 45 dias
+Prioridade e funcao PURA de `dias_ate_atingir_limite`, sem excecao:
+  dias <= 7             -> critica   (inclui ja estar acima do limite)
+  8 <= dias <= 20       -> alta
+  21 <= dias <= 45      -> media
+  dias > 45 ou nulo     -> baixa
 
 Justificativa em portugues do Brasil, ate 3 frases, citando o numero previsto."""
 
@@ -372,64 +356,40 @@ def main():
     hoje = hoje_brasilia()
 
     print(f"Analisando {len(trechos)} trechos  |  schema={DB_SCHEMA}  "
-          f"modelo={MODELO_LLM}  |  hoje={hoje.isoformat()}  "
+          f"llm={MODELO_LLM}  |  hoje={hoje.isoformat()}  "
           f"cria<={LIMIAR_DIAS}d fecha>{LIMIAR_FECHAR_DIAS}d\n")
 
-    zonas, clima_por_zona = montar_zonas(trechos)
+    zonas, ambiente = montar_zonas(trechos, hoje)
 
     gravados, pulados, descartados, erros = 0, 0, 0, []
 
     for t in trechos:
         nome = f'{t["rodovia"]} km {t["km_inicio"]}-{t["km_fim"]}'
         try:
-            m = (sb.table("medicoes").select("*").eq("trecho_id", t["id"])
-                 .order("data", desc=True).limit(1).execute().data)
-            if not m:
-                print(f"  [sem medicao] {nome}")
+            amb = ambiente.get(zona_do_trecho(t, zonas)[0])
+            if amb is None:
+                print(f"  [sem ambiente] {nome}")
                 pulados += 1
                 continue
 
-            altura_med = float(m[0]["altura_cm"])
-            # `hoje` (Brasilia), nao `date.today()` (relogio do runner, que e
-            # UTC no GitHub Actions): a extrapolacao da altura, a data que a LLM
-            # recebe e a comparacao de vencimento em `fechar_obsoletos` precisam
-            # ser o MESMO dia, ou a rodada da noite se contradiz sozinha.
-            desde = (hoje - date.fromisoformat(m[0]["data"])).days
-
-            clima = clima_por_zona.get(zona_do_trecho(t, zonas)[0])
-            if clima is None:
-                print(f"  [sem clima]   {nome}")
+            try:
+                r = analise.analisar_trecho(sb, t, amb[0], amb[1], hoje)
+            except LookupError as e:
+                print(f"  [{e}]  {nome}")
                 pulados += 1
                 continue
-            cm_dia = prever(clima, t["especie"], t["uf"],
-                            float(t["latitude"]), altura_med)
 
-            altura_hoje = altura_med + cm_dia * desde
-            limite = float(t["altura_limite_cm"])
-            dias = (0 if altura_hoje >= limite
-                    else (None if cm_dia <= 0.001
-                          else int((limite - altura_hoje) / cm_dia)))
+            dias, taxa, limite = r["dias"], r["taxa"], r["limite"]
 
-            prev = sb.table("previsoes").insert({
-                "trecho_id": t["id"],
-                "crescimento_cm_dia": round(cm_dia, 4),
-                "altura_atual_cm": round(altura_hoje, 2),
-                "altura_prevista_cm": round(altura_hoje + cm_dia * 30, 2),
-                "dias_ate_limite": dias,
-                "temperatura_media_c": round(clima["temperatura_media_c"], 2),
-                "chuva_total_mm": round(clima["precipitacao_total_mm"], 2),
-            }).execute()
+            prev = (sb.table("previsoes")
+                    .insert(analise.linha_de_previsao(t["id"], r)).execute())
 
             # Duas perguntas, nesta ordem: o trecho PRECISA de roçada agendada?
             # E, se nao precisa, ha agendamento aberto para fechar?
             #
-            # `folgado` cobre os DOIS jeitos de nao precisar, e o segundo era um
-            # cano de ruido aberto. `dias > LIMIAR_FECHAR_DIAS` e o caso obvio.
-            # `dias is None` e o trecho que NAO CRESCE (`cm_dia <= 0.001`, ver o
-            # calculo acima): a condicao antiga exigia `dias is not None`, entao
-            # ele escapava por baixo e ganhava chamada de LLM e agendamento novo
-            # todo dia — e com `dias_ate_limite` nulo a view o carimba `baixa`,
-            # que e exatamente o cartao que nao deveria existir.
+            # `folgado` cobre os DOIS jeitos de nao precisar. `dias is None` e o
+            # trecho que NAO CRESCE: com `dias_ate_limite` nulo a view o carimba
+            # `baixa`, que e exatamente o cartao que nao deveria existir.
             folgado = dias is None or dias > LIMIAR_FECHAR_DIAS
             precisa = dias is not None and dias <= LIMIAR_DIAS
 
@@ -447,7 +407,7 @@ def main():
                 descartados += fechados
                 prazo = "sem crescimento" if dias is None else f"{dias}d ate o limite"
                 extra = f"  ->  {fechados} agendamento(s) fechado(s)" if fechados else ""
-                print(f"  [ok, sem LLM]  {nome:44s} {cm_dia:.3f} cm/dia  "
+                print(f"  [ok, sem LLM]  {nome:44s} {taxa:.3f} cm/dia  "
                       f"{prazo}{extra}")
                 pulados += 1
                 continue
@@ -456,7 +416,7 @@ def main():
             # esta perto o bastante para o agendamento que ja existe continuar
             # fazendo sentido, e longe o bastante para nao merecer um novo.
             if not precisa:
-                print(f"  [ok, na banda] {nome:44s} {cm_dia:.3f} cm/dia  "
+                print(f"  [ok, na banda] {nome:44s} {taxa:.3f} cm/dia  "
                       f"{dias}d ate o limite")
                 pulados += 1
                 continue
@@ -466,9 +426,7 @@ def main():
             # trecho que fica critico por duas semanas acumulava catorze
             # agendamentos, e a agenda desenhava TODOS — catorze cartoes
             # identicos lado a lado, que na tela se leem como defeito de
-            # renderizacao, nao como dado. A migracao
-            # `um_agendamento_aberto_por_trecho` limpou 42 linhas de excesso em
-            # 62; e este bloco que impede a pilha de voltar.
+            # renderizacao, nao como dado.
             #
             # A fronteira e a mesma de `fechar_obsoletos`: o lote manda no que o
             # lote criou. `sugerido` e dele, entao ATUALIZA em vez de duplicar —
@@ -485,32 +443,28 @@ def main():
                       .limit(1).execute().data)
 
             if aberto and aberto[0]["status"] == "aprovado":
-                print(f"  [aprovado]     {nome:44s} {cm_dia:.3f} cm/dia  "
+                print(f"  [aprovado]     {nome:44s} {taxa:.3f} cm/dia  "
                       f"{dias}d ate o limite  ->  data mantida")
                 pulados += 1
                 continue
 
-            dec = decidir({
-                "rodovia": t["rodovia"],
-                "km": f'{t["km_inicio"]} a {t["km_fim"]}',
-                "tipo_pista": t.get("tipo_pista"),
-                "especie": t["especie"],
-                "altura_atual_cm": round(altura_hoje, 1),
-                "altura_limite_cm": limite,
-                "crescimento_previsto_cm_por_dia": round(cm_dia, 3),
-                "dias_ate_atingir_limite": dias,
-                "temperatura_media_prevista_c": round(clima["temperatura_media_c"], 1),
-                "chuva_total_prevista_mm": round(clima["precipitacao_total_mm"], 1),
-                "observacoes_do_trecho": t.get("observacoes") or "sem observacoes",
-                "data_de_hoje": hoje.isoformat(),
-            })
+            dec = decidir(analise.contexto_para_llm(t, r, hoje))
+
+            # O intervalo entra nos `fatores` pela mao da maquina, e nao da LLM:
+            # e numero do modelo, e nao deve depender de a LLM ter lembrado de
+            # cita-lo. Fica em primeiro para o cartao da agenda abrir pela
+            # incerteza, que e a novidade do modelo novo.
+            #
+            # Em DIAS, e nao em centimetros. "+5,6 a +9,7 cm" nao ajuda a marcar
+            # equipe; "entre 28 e 61 dias" ajuda. Ver `banda_de_cruzamento`.
+            fatores = [analise.frase_da_banda(r)] + [f for f in dec["fatores"] if f]
 
             campos = {
                 "previsao_id": prev.data[0]["id"],
                 "data_sugerida": dec["data_sugerida"],
                 "prioridade": dec["prioridade"],
                 "justificativa": dec["justificativa"],
-                "fatores": dec["fatores"],
+                "fatores": fatores,
                 "modelo_usado": MODELO_LLM,
             }
 
@@ -530,7 +484,7 @@ def main():
 
             gravados += 1
             print(f"  [{dec['prioridade'].upper():8}] {nome:44s} "
-                  f"{cm_dia:.3f} cm/dia  ->  {acao} {dec['data_sugerida']}")
+                  f"{taxa:.3f} cm/dia  {dias}d  ->  {acao} {dec['data_sugerida']}")
 
         except Exception as e:
             erros.append((nome, f"{type(e).__name__}: {e}"))
@@ -538,8 +492,8 @@ def main():
 
     print(f"\nAgendamentos gravados: {gravados} | sem necessidade: {pulados} "
           f"| fechados por folga: {descartados} | erros: {len(erros)}")
-    print(f"Consultas ao Open-Meteo: {len(clima_por_zona)} "
-          f"(uma por zona, para {len(trechos)} trechos)")
+    print(f"Consultas externas: {len(ambiente)} ao Open-Meteo e {len(ambiente)} ao "
+          f"SoilGrids (uma de cada por zona, para {len(trechos)} trechos)")
     if erros:
         sys.exit(1)
 

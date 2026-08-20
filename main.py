@@ -16,7 +16,6 @@ import json
 from datetime import date, timedelta
 from typing import Optional
 
-import joblib
 import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -46,108 +45,28 @@ sb = create_client(SUPABASE_URL, SUPABASE_KEY,
                    options=ClientOptions(schema=DB_SCHEMA))
 openai = OpenAI()  # le OPENAI_API_KEY do ambiente sozinho
 
-# Aviso claro se a versao do scikit-learn nao bater com a do treino.
-# Modelo salvo numa versao e carregado em outra pode falhar ou dar
-# resultado errado sem avisar.
-import warnings
-warnings.filterwarnings("error", category=UserWarning, module="sklearn")
-try:
-    _pacote = joblib.load("modelo_vegetacao.pkl")
-    warnings.resetwarnings()
-except Exception as _e:
-    import sklearn
-    raise RuntimeError(
-        f"Falha ao carregar modelo_vegetacao.pkl: {_e}\n"
-        f"scikit-learn instalado aqui: {sklearn.__version__}\n"
-        f"Provavel causa: o modelo foi treinado em outra versao.\n"
-        f"Solucao: ajuste scikit-learn e numpy no requirements.txt para as "
-        f"versoes usadas no treino, ou retreine com estas versoes."
-    ) from _e
-MODELO = _pacote["modelo"]
-FEATURES = _pacote["features"]
-MAPAS = _pacote["mapas"]
-METRICAS = _pacote["metricas"]
+# O modelo, o clima e o solo vem dos modulos compartilhados com o lote diario.
+# Ate o modelo v3.1 esta API tinha copia propria de `buscar_clima` e
+# `prever_crescimento`, o que era sustentavel enquanto a conta era "media de
+# sete variaveis, multiplica por dias". Nao e mais: agora ha balanco de agua no
+# solo com aquecimento, busca de solo no SoilGrids e varredura de 120
+# horizontes. Duas copias disso divergem, e divergir aqui significa a API de
+# desenvolvimento responder diferente do lote que grava em producao.
+#
+# `modelo.py` promove o InconsistentVersionWarning do sklearn a ERRO na carga,
+# pelo mesmo motivo de sempre: o modo de falha que importa nao e o pkl que nao
+# carrega, e o que carrega e preve torto em silencio.
+import analise
+import clima as clima_mod
+import modelo as modelo_mod
+
+METRICAS = modelo_mod.METRICAS
 
 app = FastAPI(title="Motiva - Gestao de Vegetacao", version="1.0")
 app.add_middleware(
     CORSMiddleware, allow_origins=["*"],
     allow_methods=["*"], allow_headers=["*"],
 )
-
-
-# ----------------------------------------------------------------------
-# 1. CLIMA - Open-Meteo (gratis, sem chave)
-# ----------------------------------------------------------------------
-async def buscar_clima(lat: float, lon: float, dias: int = 16) -> dict:
-    """Previsao diaria agregada no formato que o modelo espera."""
-    url = "https://api.open-meteo.com/v1/forecast"
-    params = {
-        "latitude": lat,
-        "longitude": lon,
-        "daily": ",".join([
-            "temperature_2m_mean",
-            "relative_humidity_2m_mean",
-            "precipitation_sum",
-            "shortwave_radiation_sum",
-            "et0_fao_evapotranspiration",
-        ]),
-        "forecast_days": min(dias, 16),
-        "timezone": "America/Sao_Paulo",
-    }
-    async with httpx.AsyncClient(timeout=20) as cli:
-        r = await cli.get(url, params=params)
-        r.raise_for_status()
-        d = r.json()["daily"]
-
-    def media(chave):
-        vals = [v for v in d[chave] if v is not None]
-        return sum(vals) / len(vals) if vals else 0.0
-
-    n = len(d["time"])
-    chuva_total = sum(v for v in d["precipitation_sum"] if v is not None)
-    et0 = media("et0_fao_evapotranspiration") or 0.1
-
-    return {
-        "dias_periodo": n,
-        "temperatura_media_c": media("temperature_2m_mean"),
-        "umidade_media_pct": media("relative_humidity_2m_mean"),
-        "precipitacao_total_mm": chuva_total,
-        "precipitacao_media_diaria_mm": chuva_total / n,
-        "radiacao_media_mj_m2": media("shortwave_radiation_sum"),
-        "et0_medio_mm_dia": et0,
-        # mesma formula usada no treino:
-        "balanco_hidrico_chuva_sobre_et0": chuva_total / (et0 * n),
-    }
-
-
-# ----------------------------------------------------------------------
-# 2. IA DE PREVISAO - o modelo .pkl
-# ----------------------------------------------------------------------
-def prever_crescimento(clima: dict, especie: str, uf: str,
-                       latitude: float, altura_atual: float) -> float:
-    """Devolve o crescimento estimado em cm/dia."""
-    valores = {
-        **clima,
-        "latitude": latitude,
-        "altura_inicial_cm": altura_atual,
-        "mes": date.today().month,
-        "especie_cod": MAPAS["especie"].get(especie, 0),
-        "uf_cod": MAPAS["uf"].get(uf, 0),
-    }
-    faltando = [f for f in FEATURES if f not in valores]
-    if faltando:
-        raise HTTPException(500, f"Feature ausente: {faltando}")
-
-    linha = [[float(valores[f]) for f in FEATURES]]
-    return float(MODELO.predict(linha)[0])
-
-
-def dias_ate_limite(altura_atual: float, limite: float, cm_dia: float) -> Optional[int]:
-    if altura_atual >= limite:
-        return 0
-    if cm_dia <= 0.001:
-        return None
-    return int((limite - altura_atual) / cm_dia)
 
 
 # ----------------------------------------------------------------------
@@ -212,24 +131,8 @@ ESQUEMA = {
 }
 
 
-def decidir(trecho: dict, cm_dia: float, altura: float,
-            dias: Optional[int], clima: dict) -> dict:
-    contexto = {
-        "rodovia": trecho["rodovia"],
-        "km": f'{trecho["km_inicio"]} a {trecho["km_fim"]}',
-        "sentido": trecho.get("sentido"),
-        "tipo_pista": trecho.get("tipo_pista"),
-        "especie": trecho["especie"],
-        "altura_atual_cm": round(altura, 1),
-        "altura_limite_cm": float(trecho["altura_limite_cm"]),
-        "crescimento_previsto_cm_por_dia": round(cm_dia, 3),
-        "dias_ate_atingir_limite": dias,
-        "temperatura_media_prevista_c": round(clima["temperatura_media_c"], 1),
-        "chuva_total_prevista_mm": round(clima["precipitacao_total_mm"], 1),
-        "observacoes_do_trecho": trecho.get("observacoes") or "sem observacoes",
-        "data_de_hoje": date.today().isoformat(),
-    }
-
+def decidir(contexto: dict) -> dict:
+    """O contexto vem de `analise.contexto_para_llm`, o mesmo do lote diario."""
     resp = openai.chat.completions.create(
         model=MODELO_LLM,
         messages=[
@@ -253,7 +156,16 @@ class PedidoAnalise(BaseModel):
 def raiz():
     return {
         "servico": "Motiva - Gestao de Vegetacao",
-        "modelo_previsao": {"r2": METRICAS["r2"], "mae_cm_dia": METRICAS["mae"]},
+        "modelo_previsao": {
+            "arquivo": modelo_mod.CAMINHO,
+            "treinado_em": modelo_mod.TREINADO_EM,
+            "alvo": modelo_mod.ALVO,
+            "quantis": modelo_mod.QUANTIS,
+            "r2_locais_novos": METRICAS["r2_locais_novos"],
+            "mae_cm_locais_novos": METRICAS["mae_locais_novos"],
+            "cobertura_q10_q90": METRICAS["cobertura_q10_q90"],
+            "aviso": modelo_mod.AVISO,
+        },
         "modelo_llm": MODELO_LLM,
         "schema_do_banco": DB_SCHEMA,
     }
@@ -261,43 +173,50 @@ def raiz():
 
 @app.post("/analisar")
 async def analisar(p: PedidoAnalise):
-    # --- busca o trecho ---
+    """Analisa um trecho pelo MESMO caminho do lote diario.
+
+    O que era feito aqui a mao -- buscar clima, montar features, multiplicar
+    cm/dia por dias -- virou `analise.analisar_trecho`. A diferenca em relacao
+    ao lote e so o que fica de fora: esta rota nao tem limiar de LLM, nao fecha
+    agendamento obsoleto e nao respeita "um agendamento aberto por trecho".
+    Ela existe para desenvolvimento; quem manda em producao e `analisar_lote.py`.
+    """
     r = sb.table("trechos").select("*").eq("id", p.trecho_id).execute()
     if not r.data:
         raise HTTPException(404, "Trecho nao encontrado")
     trecho = r.data[0]
 
-    # --- ultima medicao de altura ---
-    m = (sb.table("medicoes").select("*")
-         .eq("trecho_id", p.trecho_id)
-         .order("data", desc=True).limit(1).execute())
-    if not m.data:
+    hoje = date.today()
+    serie, terra = analise.resolver_ambiente(
+        float(trecho["latitude"]), float(trecho["longitude"]), hoje)
+
+    try:
+        a = analise.analisar_trecho(sb, trecho, serie, terra, hoje)
+    except LookupError:
         raise HTTPException(400, "Trecho sem medicao de altura")
-    altura_medida = float(m.data[0]["altura_cm"])
-    dias_desde = (date.today() - date.fromisoformat(m.data[0]["data"])).days
 
-    # --- clima ---
-    clima = await buscar_clima(float(trecho["latitude"]), float(trecho["longitude"]))
-
-    # --- IA 1: previsao numerica ---
-    cm_dia = prever_crescimento(
-        clima, trecho["especie"], trecho["uf"],
-        float(trecho["latitude"]), altura_medida,
-    )
-    altura_hoje = altura_medida + cm_dia * dias_desde
-    limite = float(trecho["altura_limite_cm"])
-    dias = dias_ate_limite(altura_hoje, limite, cm_dia)
-
-    # --- IA 2: decisao em linguagem ---
-    decisao = decidir(trecho, cm_dia, altura_hoje, dias, clima)
+    decisao = decidir(analise.contexto_para_llm(trecho, a, hoje))
 
     resultado = {
         "trecho": f'{trecho["rodovia"]} km {trecho["km_inicio"]}-{trecho["km_fim"]}',
         "previsao": {
-            "crescimento_cm_dia": round(cm_dia, 3),
-            "altura_atual_cm": round(altura_hoje, 1),
-            "altura_limite_cm": limite,
-            "dias_ate_limite": dias,
+            "crescimento_cm_dia": round(a["taxa"], 3),
+            "altura_atual_cm": round(a["altura_hoje"], 1),
+            "altura_limite_cm": a["limite"],
+            "dias_ate_limite": a["dias"],
+            # O modelo v3.1 responde em INTERVALO. Um numero sozinho aqui
+            # esconderia a metade mais nova da resposta.
+            "intervalo_80": {
+                "horizonte_dias": a["horizonte_intervalo"],
+                "q10_cm": round(a["q10"], 2),
+                "q50_cm": round(a["q50"], 2),
+                "q90_cm": round(a["q90"], 2),
+                "cruza_entre_dias": [a["cedo"], a["tarde"]],
+            },
+            "dias_desde_a_rocada": int(a["dias_rocada"]),
+            "solo": {"fertilidade": round(terra.fertilidade, 2),
+                     "capacidade_mm": round(terra.capacidade_mm, 1),
+                     "fonte": terra.fonte},
         },
         "decisao": decisao,
     }
@@ -305,16 +224,7 @@ async def analisar(p: PedidoAnalise):
     if not p.gravar:
         return resultado
 
-    # --- grava no Supabase ---
-    prev = sb.table("previsoes").insert({
-        "trecho_id": p.trecho_id,
-        "crescimento_cm_dia": round(cm_dia, 4),
-        "altura_atual_cm": round(altura_hoje, 2),
-        "altura_prevista_cm": round(altura_hoje + cm_dia * 30, 2),
-        "dias_ate_limite": dias,
-        "temperatura_media_c": round(clima["temperatura_media_c"], 2),
-        "chuva_total_mm": round(clima["precipitacao_total_mm"], 2),
-    }).execute()
+    prev = sb.table("previsoes").insert(analise.linha_de_previsao(p.trecho_id, a)).execute()
 
     sb.table("agendamentos").insert({
         "trecho_id": p.trecho_id,
@@ -322,7 +232,7 @@ async def analisar(p: PedidoAnalise):
         "data_sugerida": decisao["data_sugerida"],
         "prioridade": decisao["prioridade"],
         "justificativa": decisao["justificativa"],
-        "fatores": decisao["fatores"],
+        "fatores": [analise.frase_da_banda(a)] + [f for f in decisao["fatores"] if f],
         "modelo_usado": MODELO_LLM,
     }).execute()
 
@@ -418,7 +328,8 @@ def painel():
         "rocadas_proximos_7_dias": proximos7,
         "crescimento_medio_cm_dia": round(sum(cres) / len(cres), 3),
         "crescimento_maximo_cm_dia": round(max(cres), 3),
-        "precisao_do_modelo": {"r2": METRICAS["r2"], "mae": METRICAS["mae"]},
+        "precisao_do_modelo": {"r2_locais_novos": METRICAS["r2_locais_novos"],
+                               "mae_cm": METRICAS["mae_locais_novos"]},
     }
 
 
@@ -476,15 +387,29 @@ async def diagnostico():
     r = {}
 
     # 1. Modelo .pkl
+    #
+    # O cenario e o do ponto de campo de agosto de 2026 (MG, braquiaria cortada
+    # a 10 cm), o mesmo do caderno de calibracao: se um dia esta rota comecar a
+    # responder outro numero, da para comparar com o notebook e saber se o que
+    # mudou foi o modelo ou o caminho ate ele.
     try:
-        teste = {
-            "dias_periodo": 16, "temperatura_media_c": 24.0,
-            "umidade_media_pct": 70.0, "precipitacao_total_mm": 100.0,
-            "precipitacao_media_diaria_mm": 6.25, "radiacao_media_mj_m2": 18.0,
-            "et0_medio_mm_dia": 3.5, "balanco_hidrico_chuva_sobre_et0": 1.79,
+        linha = {
+            "especie": "braquiaria", "dias_periodo": 4, "altura_inicial_cm": 10.0,
+            "dias_desde_rocada_inicio": 0.0, "temperatura_media_c": 22.1,
+            "temperatura_min_c": 13.0, "temperatura_max_c": 32.0,
+            "graus_dia_acumulados": 28.4, "umidade_media_pct": 62.0,
+            "precipitacao_total_mm": 9.0, "dias_com_chuva": 1,
+            "et0_medio_mm_dia": 3.2, "radiacao_media_mj_m2": 18.0,
+            "agua_solo_media_pct": 55.0, "capacidade_agua_solo_mm": 70.0,
+            "fertilidade_solo": 0.35, "latitude": -21.28,
+            "geadas_no_periodo": 0, "dias_encharcado": 0, "dias_floracao": 0,
         }
-        v = prever_crescimento(teste, "braquiaria", "SP", -23.4, 24.0)
-        r["1_modelo_pkl"] = {"ok": True, "previsao_cm_dia": round(v, 3)}
+        q10, q50, q90 = (float(x) for x in modelo_mod.prever([linha])[0])
+        r["1_modelo_pkl"] = {"ok": True, "arquivo": modelo_mod.CAMINHO,
+                             "treinado_em": modelo_mod.TREINADO_EM,
+                             "crescimento_4_dias_cm": {"q10": round(q10, 2),
+                                                       "q50": round(q50, 2),
+                                                       "q90": round(q90, 2)}}
     except Exception as e:
         r["1_modelo_pkl"] = {"ok": False, "erro": f"{type(e).__name__}: {e}"}
 
@@ -497,12 +422,30 @@ async def diagnostico():
 
     # 3. Open-Meteo
     try:
-        c = await buscar_clima(-23.4180, -47.4820)
-        r["3_open_meteo"] = {"ok": True,
-                             "temp_media": round(c["temperatura_media_c"], 1),
-                             "chuva_mm": round(c["precipitacao_total_mm"], 1)}
+        serie = clima_mod.buscar_serie(-23.4180, -47.4820, date.today())
+        r["3_open_meteo"] = {"ok": True, "dias": len(serie.dias),
+                             "aquecimento": serie.aquecimento,
+                             "complemento": serie.complemento,
+                             "ano_historico": serie.ano_historico,
+                             "aviso": serie.aviso}
     except Exception as e:
         r["3_open_meteo"] = {"ok": False, "erro": f"{type(e).__name__}: {e}"}
+
+    # 3b. SoilGrids
+    #
+    # Peca separada porque ela falha SOZINHA e a falha e silenciosa por
+    # desenho: `solo.buscar` nunca levanta, cai na premissa. Sem esta linha
+    # ninguem descobriria que a malha inteira esta rodando com 0,35 fixo.
+    try:
+        import solo as solo_mod
+        terra = solo_mod.buscar(-23.4180, -47.4820)
+        r["3b_soilgrids"] = {"ok": terra.fonte == "soilgrids",
+                             "fonte": terra.fonte,
+                             "fertilidade": round(terra.fertilidade, 2),
+                             "capacidade_mm": round(terra.capacidade_mm, 1),
+                             "distancia_km": terra.distancia_km}
+    except Exception as e:
+        r["3b_soilgrids"] = {"ok": False, "erro": f"{type(e).__name__}: {e}"}
 
     # 4. OpenAI
     try:

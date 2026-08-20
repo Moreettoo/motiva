@@ -26,16 +26,25 @@ import { cn } from "@/lib/utils";
 export function FaixasDoModelo({
   alturaCm,
   dias,
+  diasDesdeRocada,
   latitude,
+  fertilidade,
+  capacidadeMm,
 }: {
   alturaCm: number;
   dias: number;
+  diasDesdeRocada: number;
   latitude: number;
+  fertilidade: number;
+  capacidadeMm: number;
 }) {
   const linhas = [
     { limite: LIMITES.altura, valor: alturaCm, casas: 1 },
     { limite: LIMITES.dias, valor: dias, casas: 0 },
+    { limite: LIMITES.rocada, valor: diasDesdeRocada, casas: 0 },
     { limite: LIMITES.latitude, valor: latitude, casas: 2 },
+    { limite: LIMITES.fertilidade, valor: fertilidade, casas: 2 },
+    { limite: LIMITES.capacidade, valor: capacidadeMm, casas: 0 },
   ];
 
   const aproximadas = linhas.filter(({ limite }) => !limite.exata);

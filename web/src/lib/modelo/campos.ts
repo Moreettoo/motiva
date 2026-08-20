@@ -1,87 +1,190 @@
 /**
- * A ponte entre o vocabulario do dominio e o vetor de 13 numeros que o modelo
+ * A ponte entre o vocabulario do dominio e o vetor de 20 numeros que o modelo
  * espera.
  *
  * `arvores.ts` nao sabe o que e capim: ele percorre arvores. Este arquivo e que
- * sabe que "braquiaria" vira 1, que a janela de clima vira sete agregados, e
- * ate onde o modelo foi treinado.
+ * sabe que "braquiaria" vira 1, que graus-dia da braquiaria contam a partir de
+ * 15 °C e param em 35, que geada para ela e Tmin <= 2 °C, e ate onde o modelo
+ * foi treinado.
+ *
+ * As contas aqui sao porte fiel de `clima.montar_features`, no Python -- e as
+ * duas sao porte do preenchedor do notebook de calibracao. Se divergirem, a
+ * mesma pergunta recebe respostas diferentes no lote e no simulador, que e o
+ * jeito mais discreto de o painel mentir.
  */
 
-import type { Especie, UF } from "../types";
-import { CAMPOS_ENTRADA, FAIXAS_TREINO, MAPAS, preverBruto } from "./arvores";
+import { resumir, type Balanco, type DiaClima } from "../clima";
+import type { Especie } from "../types";
+import {
+  CAMPOS_ENTRADA,
+  CATEGORIAS,
+  FAIXAS_TREINO,
+  preverBruto,
+  type Intervalo,
+} from "./arvores";
+
+/* ------------------------------------------------------------------ *
+ * Parametros por especie
+ * ------------------------------------------------------------------ */
 
 /**
- * Clima agregado sobre uma janela de N dias.
+ * Constantes que entram nas CONTAS das features, nao no modelo.
  *
- * Os nomes e as contas espelham `buscar_clima` do `analisar_lote.py`, e a
- * distincao entre TOTAL e MEDIA nao e detalhe: `precipitacaoTotalMm` cresce com
- * o tamanho da janela e as medias nao. Passar o total de 16 dias declarando
- * `dias = 90` faz o modelo enxergar uma seca que nao existe.
+ * Copiadas de `ESPECIES` em `gerador_v3_1_rebrota.py`, via `clima.py`. Elas
+ * definem o que "graus-dia acumulados" e "geada" significam para cada capim, e
+ * precisam bater com o gerador: mudar `tBase` aqui nao muda o modelo, muda o
+ * SIGNIFICADO da feature que ele recebe, que e pior.
+ *
+ * `tBase` da braquiaria e 15 °C e nao 12 de proposito. O gerador v3.1 baixou a
+ * base FISIOLOGICA para 12, mas manteve 15 na feature de graus-dia justamente
+ * para nao invalidar o preenchedor. Os dois numeros convivem la, e aqui so o de
+ * feature interessa.
  */
-export type AgregadoClima = {
-  dias: number;
-  temperaturaMediaC: number;
-  umidadeMediaPct: number;
-  precipitacaoTotalMm: number;
-  precipitacaoMediaDiariaMm: number;
-  radiacaoMediaMjM2: number;
-  et0MedioMmDia: number;
-  /** chuva do periodo dividida por (et0 medio x dias). */
-  balancoHidrico: number;
+export type ParametrosEspecie = {
+  /** Base dos graus-dia, em °C. */
+  tBase: number;
+  /** Teto dos graus-dia: temperatura acima disto nao acumula mais. */
+  tOt2: number;
+  /** Tmin em que o dia conta como geada para esta especie. */
+  geadaC: number;
+  /** Meses de floracao, 1 a 12. Vazio quando a especie nao floresce em altura. */
+  floracaoMeses: readonly number[];
+  /** Altura minima para a floracao empurrar o dossel, em cm. */
+  floracaoHMinCm: number;
 };
+
+export const PARAMETROS_ESPECIE: Record<Especie, ParametrosEspecie> = {
+  braquiaria: { tBase: 15, tOt2: 35, geadaC: 2, floracaoMeses: [2, 3, 4], floracaoHMinCm: 30 },
+  esmeralda: { tBase: 12, tOt2: 32, geadaC: -2, floracaoMeses: [], floracaoHMinCm: 99 },
+  batatais: { tBase: 13, tOt2: 33, geadaC: 0, floracaoMeses: [11, 12, 1, 2, 3], floracaoHMinCm: 10 },
+};
+
+/* ------------------------------------------------------------------ *
+ * Codificacao da categorica
+ * ------------------------------------------------------------------ */
+
+/**
+ * A especie vira o INDICE dela em `CATEGORIAS.especie`, e nada mais: e o que o
+ * `OrdinalEncoder` do sklearn produz.
+ *
+ * Especie desconhecida devolve `NaN`, e nao zero. O encoder foi ajustado com
+ * `unknown_value=nan`, entao o percurso a trata como valor FALTANTE. Cair em
+ * `?? 0` -- o que o codigo do modelo antigo fazia com a UF -- transformaria um
+ * capim que o modelo nunca viu em batatais, silenciosamente.
+ */
+export function codificarEspecie(especie: string): number {
+  const i = CATEGORIAS.especie.indexOf(especie);
+  return i < 0 ? Number.NaN : i;
+}
+
+export const ESPECIES_DO_MODELO = CATEGORIAS.especie;
+
+/* ------------------------------------------------------------------ *
+ * Montagem do vetor
+ * ------------------------------------------------------------------ */
 
 export type ContextoModelo = {
   especie: Especie;
-  uf: UF;
   latitude: number;
-  /** Mes do inicio do periodo, 1 a 12. */
-  mes: number;
+  /** Altura no PRIMEIRO dia da janela. */
   alturaInicialCm: number;
-  clima: AgregadoClima;
+  /** Dias desde a ultima roçada, no primeiro dia da janela. */
+  diasDesdeRocada: number;
+  /** Indice de fertilidade do solo, 0 a 1. Ver `lib/solo.ts`. */
+  fertilidade: number;
+  /** Agua disponivel na zona de raiz, em mm. Ver `lib/solo.ts`. */
+  capacidadeMm: number;
+  /** Serie diaria COMPLETA: aquecimento na frente, janela depois. */
+  serie: readonly DiaClima[];
+  /** Onde a janela comeca dentro de `serie`. */
+  inicio: number;
+  /** Quantos dias da janela entram nesta pergunta. */
+  diasPeriodo: number;
+  /** Balanco de agua rodado sobre `serie` inteira, com esta altura inicial. */
+  balanco: Balanco;
 };
 
-/**
- * Especie e UF viram numero pelo mapa gravado no treino.
- *
- * O `?? 0` copia o `MAPAS["uf"].get(uf, 0)` do `analisar_lote.py` e importa em
- * um caso real: o modelo viu cinco UFs (MG, MS, PR, RJ, SP) e o schema aceita
- * sete. Um ponto em RS ou SC cai em MG. Nao e acidente nem bug, e o mesmo
- * comportamento que a producao ja tem, e a tela avisa quando acontece.
- */
-export function codificarEspecie(especie: Especie): number {
-  return MAPAS.especie[especie as keyof typeof MAPAS.especie] ?? 0;
-}
+/** Os 20 valores, na ordem de `CAMPOS_ENTRADA`. */
+export function montarFeatures(ctx: ContextoModelo): number[] {
+  const p = PARAMETROS_ESPECIE[ctx.especie];
+  const fim = Math.min(ctx.inicio + ctx.diasPeriodo, ctx.serie.length);
+  const dias = ctx.serie.slice(ctx.inicio, fim);
+  const n = dias.length;
 
-export function codificarUf(uf: UF): number {
-  return MAPAS.uf[uf as keyof typeof MAPAS.uf] ?? 0;
-}
+  if (n === 0) {
+    throw new Error("A série de clima não cobre o período pedido.");
+  }
 
-/** A UF esta entre as que o modelo viu, ou vai cair no `?? 0`? */
-export function ufConhecidaPeloModelo(uf: UF): boolean {
-  return uf in MAPAS.uf;
-}
+  let grausDia = 0;
+  let floracao = 0;
+  let aguaSolo = 0;
+  let encharcado = 0;
 
-export const UFS_DO_MODELO = Object.keys(MAPAS.uf) as UF[];
+  for (let i = 0; i < n; i += 1) {
+    const d = dias[i];
+    grausDia += Math.max(Math.min(d.temperaturaC, p.tOt2) - p.tBase, 0);
+    // O mes sai da data do dia, nao de "hoje": uma janela de 90 dias atravessa
+    // a virada da estacao, e a floracao da braquiaria e de fevereiro a abril.
+    const mes = Number(d.data.slice(5, 7));
+    if (p.floracaoMeses.includes(mes) && ctx.alturaInicialCm > p.floracaoHMinCm) floracao += 1;
+    aguaSolo += ctx.balanco.fracoes[ctx.inicio + i] ?? 0;
+    if (ctx.balanco.encharcado[ctx.inicio + i]) encharcado += 1;
+  }
 
-/** Crescimento medio em cm/dia para o periodo descrito pelo contexto. */
-export function preverCrescimento(ctx: ContextoModelo): number {
+  const r = resumir(dias);
+
   const valores: Record<string, number> = {
-    latitude: ctx.latitude,
-    dias_periodo: ctx.clima.dias,
+    especie: codificarEspecie(ctx.especie),
+    dias_periodo: n,
     altura_inicial_cm: ctx.alturaInicialCm,
-    temperatura_media_c: ctx.clima.temperaturaMediaC,
-    umidade_media_pct: ctx.clima.umidadeMediaPct,
-    precipitacao_total_mm: ctx.clima.precipitacaoTotalMm,
-    precipitacao_media_diaria_mm: ctx.clima.precipitacaoMediaDiariaMm,
-    radiacao_media_mj_m2: ctx.clima.radiacaoMediaMjM2,
-    et0_medio_mm_dia: ctx.clima.et0MedioMmDia,
-    balanco_hidrico_chuva_sobre_et0: ctx.clima.balancoHidrico,
-    mes: ctx.mes,
-    especie_cod: codificarEspecie(ctx.especie),
-    uf_cod: codificarUf(ctx.uf),
+    dias_desde_rocada_inicio: ctx.diasDesdeRocada,
+    temperatura_media_c: arredondar(r.temperaturaMediaC, 1),
+    temperatura_min_c: arredondar(r.temperaturaMinC, 1),
+    temperatura_max_c: arredondar(r.temperaturaMaxC, 1),
+    graus_dia_acumulados: arredondar(grausDia, 1),
+    umidade_media_pct: arredondar(r.umidadeMediaPct, 1),
+    precipitacao_total_mm: arredondar(r.precipitacaoTotalMm, 1),
+    dias_com_chuva: r.diasComChuva,
+    et0_medio_mm_dia: arredondar(r.et0MedioMmDia, 2),
+    radiacao_media_mj_m2: arredondar(r.radiacaoMediaMjM2, 1),
+    agua_solo_media_pct: arredondar((aguaSolo / n) * 100, 1),
+    capacidade_agua_solo_mm: ctx.capacidadeMm,
+    fertilidade_solo: ctx.fertilidade,
+    latitude: arredondar(ctx.latitude, 4),
+    geadas_no_periodo: dias.filter((d) => d.temperaturaMinC <= p.geadaC).length,
+    dias_encharcado: encharcado,
+    dias_floracao: floracao,
   };
 
-  return preverBruto(CAMPOS_ENTRADA.map((campo) => valores[campo]));
+  return CAMPOS_ENTRADA.map((campo) => {
+    const v = valores[campo];
+    if (v === undefined) {
+      throw new Error(
+        `O modelo pede a feature "${campo}" e este arquivo não sabe montá-la. ` +
+          `Rode 'python exportar_modelo.py' e acerte 'montarFeatures'.`,
+      );
+    }
+    return v;
+  });
+}
+
+/**
+ * Arredonda como o preenchedor do Python arredonda.
+ *
+ * Nao e cosmetico: o lote grava features arredondadas e o modelo tem limiares
+ * de bin muito juntos em algumas colunas. Duas casas de diferenca em
+ * `et0_medio_mm_dia` podem cair em bins diferentes, e a mesma pergunta receber
+ * respostas diferentes no lote e no simulador -- exatamente o que o teste de
+ * paridade nao pega, porque ele compara o percurso e nao a montagem.
+ */
+function arredondar(v: number, casas: number): number {
+  const f = 10 ** casas;
+  return Math.round(v * f) / f;
+}
+
+/** Crescimento total em cm, em intervalo, para o periodo descrito no contexto. */
+export function preverCrescimento(ctx: ContextoModelo): Intervalo {
+  return preverBruto(montarFeatures(ctx));
 }
 
 /* ------------------------------------------------------------------ *
@@ -90,7 +193,7 @@ export function preverCrescimento(ctx: ContextoModelo): number {
 
 /**
  * Fora da faixa de treino o modelo nao erra com barulho: ele SATURA. Altura
- * inicial de 50, 60 ou 80 cm devolve exatamente o mesmo numero, porque todas
+ * inicial de 60, 80 ou 130 cm devolve praticamente o mesmo numero, porque todas
  * caem no ultimo bin. A resposta continua saindo com a mesma cara de certeza.
  *
  * Por isso as faixas sao dado de tela, e nao comentario: a pagina existe para
@@ -122,11 +225,11 @@ function limite(
   /** Só afeta como o número é escrito na tela — a faixa já vem pronta.
    *
    *  Houve aqui um `Math.ceil`/`Math.floor` sobre os limiares, e ele ESTREITAVA
-   *  a verdade: os limiares de `dias_periodo` iam de 7,5 a 119,5, o
-   *  arredondamento devolvia 8 e 119, e a tela passou a afirmar que o modelo
-   *  nunca viu período de 7 dias. Viu. Limiar de bin é ponto médio entre
-   *  valores observados, então 7,5 significa que 7 e 8 estão AMBOS no treino.
-   *  A recuperação da faixa exata mudou para `exportar_modelo.py`, que tem os
+   *  a verdade: os limiares de `dias_periodo` iam de 1,5 a 119,5, o
+   *  arredondamento devolvia 2 e 119, e a tela passou a afirmar que o modelo
+   *  nunca viu período de 1 dia. Viu. Limiar de bin é ponto médio entre valores
+   *  observados, então 1,5 significa que 1 e 2 estão AMBOS no treino. A
+   *  recuperação da faixa exata mudou para `exportar_modelo.py`, que tem os
    *  espaçamentos para provar quando ela é possível. */
   inteiro = false,
   unidadeSingular?: string,
@@ -151,17 +254,24 @@ function limite(
 }
 
 /**
- * Os tres limites que o formulario deixa a pessoa cruzar. Os outros dez campos
- * vem do Open-Meteo, e nao ha o que a pessoa faça a respeito deles.
+ * Os limites que o formulario deixa a pessoa cruzar.
  *
  * Isto e a faixa DE TREINO, nao a faixa que o formulario aceita. O formulario e
  * mais largo de proposito (ver `parametros.ts`): passar do treino e uma coisa
  * que a pagina deixa fazer e avisa, nao uma que ela impede.
+ *
+ * `dias` deixou de ser um deles na pratica. O modelo antigo viu periodos de 7 a
+ * 120 dias e o campo aceitava de 1; o novo viu de 1 a 120, faixa EXATA, e a
+ * ponta de baixo deixou de extrapolar. O limite continua declarado porque a
+ * regua o desenha e porque um retreino pode estreitar a faixa de novo.
  */
 export const LIMITES = {
   altura: limite("altura_inicial_cm", "Altura inicial", "cm"),
   dias: limite("dias_periodo", "Período", "dias", true, "dia"),
+  rocada: limite("dias_desde_rocada_inicio", "Dias desde a roçada", "dias", true, "dia"),
   latitude: limite("latitude", "Latitude", "°"),
+  fertilidade: limite("fertilidade_solo", "Fertilidade do solo", ""),
+  capacidade: limite("capacidade_agua_solo_mm", "Água disponível no solo", "mm"),
 } as const;
 
 export type Extrapolacao = Limite & { valor: number; lado: "abaixo" | "acima" };
@@ -176,12 +286,18 @@ function fora(l: Limite, valor: number): Extrapolacao | null {
 export function extrapolacoes(entrada: {
   alturaInicialCm: number;
   dias: number;
+  diasDesdeRocada: number;
   latitude: number;
+  fertilidade: number;
+  capacidadeMm: number;
 }): Extrapolacao[] {
   return [
     fora(LIMITES.altura, entrada.alturaInicialCm),
     fora(LIMITES.dias, entrada.dias),
+    fora(LIMITES.rocada, entrada.diasDesdeRocada),
     fora(LIMITES.latitude, entrada.latitude),
+    fora(LIMITES.fertilidade, entrada.fertilidade),
+    fora(LIMITES.capacidade, entrada.capacidadeMm),
   ].filter((e): e is Extrapolacao => e !== null);
 }
 

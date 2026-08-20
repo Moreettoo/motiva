@@ -46,12 +46,30 @@ export type ContextoLeitura = {
   altura_inicial_cm: number;
   altura_prevista_cm: number;
   dias_simulados: number;
+  dias_desde_a_ultima_rocada: number;
   crescimento_previsto_cm_por_dia: number;
+  /**
+   * O crescimento do periodo, em intervalo. E a saida direta do modelo v3.1:
+   * ele nao responde um numero, responde uma faixa, e a largura dela e a
+   * incerteza REAL daquele cenario.
+   */
+  crescimento_no_periodo_cm: { q10: number; q50: number; q90: number };
   /** O numero que manda na prioridade. `null` = nao chega ao limite no periodo. */
   dias_ate_cruzar_o_limite: number | null;
+  /** Quando cruza no cenario otimista e no pessimista de crescimento. */
+  quando_cruza_o_limite: { mais_cedo_dias: number | null; mais_tarde_dias: number | null };
   altura_limite_de_referencia_cm: number | null;
   temperatura_media_prevista_c: number;
+  temperatura_minima_prevista_c: number;
   chuva_total_prevista_mm: number;
+  dias_com_chuva_previstos: number;
+  agua_no_solo_media_pct: number;
+  /** Fertilidade e agua disponivel, e de onde os dois numeros vieram. */
+  solo: {
+    fertilidade_0_a_1: number;
+    capacidade_de_agua_mm: number;
+    origem: string;
+  };
   dias_de_previsao_real: number;
   origem_do_resto_do_clima: string;
   /** Trecho vizinho que empresta o limite de altura. */
@@ -71,8 +89,13 @@ export type ResultadoLeitura = { ok: true; dados: LeituraIA } | { ok: false; err
 const INSTRUCOES = `Você é o assistente de planejamento de roçada da Motiva, concessionária de rodovias.
 
 Você recebe a previsão numérica de crescimento da vegetação, já calculada por um modelo
-estatístico treinado em histórico de campo. NÃO recalcule: confie no número. Sua função é
-decidir QUANDO roçar e explicar POR QUÊ.
+estatístico treinado em simulação diária de clima real. NÃO recalcule: confie no número. Sua
+função é decidir QUANDO roçar e explicar POR QUÊ.
+
+O modelo responde em INTERVALO, não em ponto. "crescimento_no_periodo_cm" traz q10, q50 e q90
+em centímetros: o q50 é a mediana e é o número de trabalho, e a distância entre q10 e q90 é a
+incerteza real daquele cenário. "quando_cruza_o_limite" diz o mesmo em dias. Intervalo largo
+pede margem maior na data, e vale dizer isso ao gestor.
 
 O contexto vem de um simulador: a pessoa escolheu uma espécie, um ponto no mapa, uma altura
 inicial e um número de dias. Não existe trecho cadastrado nesse ponto. O campo
@@ -104,6 +127,10 @@ Considere, além disso:
 - Parte do clima pode não vir de previsão, e sim de média histórica
   ("origem_do_resto_do_clima"). Quanto mais longe o horizonte, menos firme é a data, diga
   isso quando for o caso.
+- "dias_desde_a_ultima_rocada" é a fase da rebrota: trecho recém-cortado ainda cresce de
+  reservas e acelera depois; trecho maduro já está na fase rápida ou saturando.
+- O campo "solo" pode ter vindo de um mapa (SoilGrids) ou de premissa, e "origem" diz qual.
+  Quando for premissa, não afirme nada sobre o solo daquele ponto como se fosse medição.
 
 data_sugerida em AAAA-MM-DD. Justificativa em português do Brasil, até 3 frases, citando o
 número previsto.
@@ -223,7 +250,12 @@ export async function lerSimulacao(ctx: ContextoLeitura): Promise<ResultadoLeitu
     ctx.altura_inicial_cm.toFixed(1),
     ctx.dias_simulados,
     ctx.altura_prevista_cm.toFixed(1),
+    ctx.dias_desde_a_ultima_rocada,
     ctx.dias_ate_cruzar_o_limite ?? "nao-cruza",
+    // O solo entra na chave porque ele entra no prompt: sem isto, mexer nos
+    // dois campos de solo devolveria o texto da simulacao anterior.
+    ctx.solo.fertilidade_0_a_1.toFixed(2),
+    Math.round(ctx.solo.capacidade_de_agua_mm),
     ctx.referencia_operacional?.rodovia ?? "sem-referencia",
   ].join("|");
 

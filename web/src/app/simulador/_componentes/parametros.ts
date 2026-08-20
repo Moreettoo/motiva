@@ -18,6 +18,12 @@ export type Pedido = {
   longitude: number;
   alturaCm: number;
   dias: number;
+  /** Fase da curva de rebrota. Feature do modelo, nao enfeite. */
+  diasDesdeRocada: number;
+  /** `null` = deixa o SoilGrids responder pelo ponto. */
+  fertilidade: number | null;
+  /** `null` = deixa o SoilGrids responder pelo ponto. */
+  capacidadeMm: number | null;
 };
 
 /** O que os campos mostram: sempre preenchido, mesmo sem parametro na URL. */
@@ -27,6 +33,11 @@ export type ValoresFormulario = {
   longitude: string;
   altura: string;
   dias: string;
+  rocada: string;
+  /** Vazio significa "automatico". Nao ha valor padrao para mostrar aqui: ele
+   *  so existe depois que o SoilGrids responde, no servidor. */
+  fertilidade: string;
+  capacidade: string;
 };
 
 export type Erros = Partial<Record<keyof ValoresFormulario, string>>;
@@ -34,14 +45,11 @@ export type Erros = Partial<Record<keyof ValoresFormulario, string>>;
 /**
  * Faixa que o CAMPO aceita, de propósito mais larga que a faixa de treino.
  *
- * O modelo viu períodos de `LIMITES.dias.min` a `LIMITES.dias.max` — 7 a 120
- * dias, recuperados EXATAMENTE dos limiares de bin (ver `exportar_modelo.py`).
- * O teto do campo coincide com o teto do treino; quem extrapola é só a ponta de
- * baixo, de 1 a 6 dias, onde a resposta gruda no bin da ponta: um pedido de 3
- * dias recebe o comportamento de uma janela de 7. Isso não é motivo para travar
- * o campo: é motivo para AVISAR, que é o que a régua de `FaixasDoModelo` faz.
- * Numa página que existe para mostrar a IA funcionando, deixar ver onde ela para
- * de funcionar é parte do produto.
+ * O modelo viu períodos de `LIMITES.dias.min` a `LIMITES.dias.max` — agora 1 a
+ * 120 dias, recuperados EXATAMENTE dos limiares de bin (ver
+ * `exportar_modelo.py`). O modelo anterior via de 7 a 120, e a ponta de baixo
+ * do campo extrapolava; a v3.1 do gerador passou a sortear janelas de 1 dia e
+ * essa extrapolação acabou. O teto continua coincidindo com o do treino.
  */
 export const DIAS_MIN = 1;
 export const DIAS_MAX = 120;
@@ -54,6 +62,16 @@ export const DIAS_TREINO_MAX = LIMITES.dias.max;
  *  modelo fica visível, e a tela avisa em vez de impedir. */
 export const ALTURA_MIN = 0.5;
 export const ALTURA_MAX = 200;
+
+/** O modelo viu de 0 a ~203 dias desde a roçada. O campo aceita até 365, para
+ *  caber o trecho que passou um ano inteiro sem visita. */
+export const ROCADA_MIN = 0;
+export const ROCADA_MAX = 365;
+
+export const FERTILIDADE_MIN = 0.02;
+export const FERTILIDADE_MAX = 1;
+export const CAPACIDADE_MIN = 15;
+export const CAPACIDADE_MAX = 200;
 
 /** Caixa do Brasil continental, so para pegar coordenada trocada ou digitada
  *  com sinal errado. O aviso de latitude fora do treino e outro, e vem do modelo. */
@@ -68,6 +86,9 @@ export const PADRAO: ValoresFormulario = {
   longitude: "-47.43",
   altura: "12",
   dias: "45",
+  rocada: "40",
+  fertilidade: "",
+  capacidade: "",
 };
 
 function texto(v: string | string[] | undefined): string | null {
@@ -106,6 +127,9 @@ export function interpretar(
     longitude: texto(params.lon),
     altura: texto(params.altura),
     dias: texto(params.dias),
+    rocada: texto(params.rocada),
+    fertilidade: texto(params.fert),
+    capacidade: texto(params.solo),
   };
 
   const tentou = Object.values(cru).some((v) => v !== null);
@@ -118,6 +142,9 @@ export function interpretar(
     longitude: cru.longitude ?? PADRAO.longitude,
     altura: cru.altura ?? PADRAO.altura,
     dias: cru.dias ?? PADRAO.dias,
+    rocada: cru.rocada ?? PADRAO.rocada,
+    fertilidade: cru.fertilidade ?? PADRAO.fertilidade,
+    capacidade: cru.capacidade ?? PADRAO.capacidade,
   };
 
   if (!tentou) return { pedido: null, valores, erros: {}, tentou };
@@ -152,6 +179,28 @@ export function interpretar(
     erros.dias = `O período precisa ficar entre ${DIAS_MIN} e ${DIAS_MAX} dias.`;
   }
 
+  const rocada = numero(valores.rocada);
+  if (rocada == null || !Number.isInteger(rocada)) {
+    erros.rocada = "Digite quantos dias inteiros se passaram desde a última roçada.";
+  } else if (!entre(rocada, ROCADA_MIN, ROCADA_MAX)) {
+    erros.rocada = `Use um valor entre ${ROCADA_MIN} e ${ROCADA_MAX} dias.`;
+  }
+
+  // Os dois campos de solo são opcionais: vazio quer dizer "pergunte ao mapa".
+  const fertilidade = valores.fertilidade === "" ? null : numero(valores.fertilidade);
+  if (valores.fertilidade !== "" && fertilidade == null) {
+    erros.fertilidade = "Digite um número de 0 a 1, ou deixe vazio para usar o mapa de solo.";
+  } else if (fertilidade != null && !entre(fertilidade, FERTILIDADE_MIN, FERTILIDADE_MAX)) {
+    erros.fertilidade = `A fertilidade vai de ${FERTILIDADE_MIN} a ${FERTILIDADE_MAX}.`;
+  }
+
+  const capacidade = valores.capacidade === "" ? null : numero(valores.capacidade);
+  if (valores.capacidade !== "" && capacidade == null) {
+    erros.capacidade = "Digite os milímetros, ou deixe vazio para usar o mapa de solo.";
+  } else if (capacidade != null && !entre(capacidade, CAPACIDADE_MIN, CAPACIDADE_MAX)) {
+    erros.capacidade = `A água disponível vai de ${CAPACIDADE_MIN} a ${CAPACIDADE_MAX} mm.`;
+  }
+
   if (Object.keys(erros).length > 0) return { pedido: null, valores, erros, tentou };
 
   return {
@@ -161,6 +210,9 @@ export function interpretar(
       longitude: lon as number,
       alturaCm: altura as number,
       dias: dias as number,
+      diasDesdeRocada: rocada as number,
+      fertilidade,
+      capacidadeMm: capacidade,
     },
     valores,
     erros,

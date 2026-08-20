@@ -1,31 +1,46 @@
 import { describe, expect, it } from "vitest";
 
 import type { DiaClima, Janela } from "./clima";
-import { diaQueCruza, simular, type PedidoSimulacao } from "./simulacao";
+import { bandaQueCruza, diaQueCruza, simular, type PedidoSimulacao } from "./simulacao";
 
 /** Clima de primavera paulista: quente, úmido, chuva moderada. */
 function janela(total: number, v: Partial<DiaClima> = {}): Janela {
-  const dias: DiaClima[] = Array.from({ length: total }, (_, i) => ({
-    data: new Date(Date.UTC(2026, 8, 1 + i)).toISOString().slice(0, 10),
-    temperaturaC: 24,
-    umidadePct: 72,
-    chuvaMm: 5,
-    radiacaoMjM2: 17,
-    et0MmDia: 3.6,
-    fonte: "previsao",
-    ...v,
-  }));
+  const monta = (n: number, mes: number, fonte: DiaClima["fonte"]): DiaClima[] =>
+    Array.from({ length: n }, (_, i) => ({
+      data: new Date(Date.UTC(2026, mes, 1 + i)).toISOString().slice(0, 10),
+      temperaturaC: 24,
+      temperaturaMinC: 17,
+      temperaturaMaxC: 31,
+      umidadePct: 72,
+      chuvaMm: 5,
+      radiacaoMjM2: 17,
+      et0MmDia: 3.6,
+      fonte,
+      ...v,
+    }));
 
-  return { dias, diasPrevistos: Math.min(16, total), complemento: null, anos: [], avisoDoComplemento: null };
+  return {
+    // Sessenta e três dias de aquecimento é o que a API entrega na prática.
+    // Sem eles o balde de água no solo começaria no chute e
+    // `agua_solo_media_pct` — que move o crescimento em mais de 100% — sairia
+    // do valor inicial em vez do estado real do solo.
+    aquecimento: monta(63, 6, "observado"),
+    dias: monta(total, 8, "previsao"),
+    diasPrevistos: Math.min(16, total),
+    complemento: null,
+    anos: [],
+    avisoDoComplemento: null,
+  };
 }
 
 const base: PedidoSimulacao = {
   especie: "braquiaria",
-  uf: "SP",
   latitude: -22.5,
   alturaInicialCm: 12,
   dias: 30,
-  mes: 9,
+  diasDesdeRocada: 40,
+  fertilidade: 0.35,
+  capacidadeMm: 60,
 };
 
 describe("simular", () => {
@@ -38,19 +53,30 @@ describe("simular", () => {
     expect(s.alturaFinalCm).toBe(s.pontos[30].alturaCm);
   });
 
-  it("cresce de forma monótona com clima favorável", () => {
-    const s = simular(base, janela(60));
+  it("devolve o crescimento em intervalo, sempre ordenado", () => {
+    // É o que o modelo novo trouxe e o antigo não tinha: q10 <= q50 <= q90.
+    // Os três modelos de quantil são independentes e podem se cruzar; se a
+    // ordenação sumir de `preverBruto`, a faixa da curva sai invertida.
+    const s = simular(base, janela(45));
 
-    for (let i = 1; i < s.pontos.length; i += 1) {
-      expect(s.pontos[i].alturaCm).toBeGreaterThanOrEqual(s.pontos[i - 1].alturaCm);
+    expect(s.crescimento.q10).toBeLessThanOrEqual(s.crescimento.q50);
+    expect(s.crescimento.q50).toBeLessThanOrEqual(s.crescimento.q90);
+    for (const p of s.pontos) {
+      expect(p.alturaMinCm).toBeLessThanOrEqual(p.alturaCm);
+      expect(p.alturaCm).toBeLessThanOrEqual(p.alturaMaxCm);
     }
+  });
+
+  it("cresce com clima favorável", () => {
+    const s = simular(base, janela(60));
     expect(s.alturaFinalCm).toBeGreaterThan(12);
+    expect(s.crescimentoCmDia).toBeGreaterThan(0);
   });
 
   it("separa as três espécies na ordem que o domínio afirma", () => {
     // A nota de `dominio.ts` diz que a braquiária "é a espécie que mais puxa a
     // fila de roçada" e a esmeralda é "de porte baixo". Se o modelo portado
-    // inverter isso, quebrou a permutação de colunas, e nenhum tipo pegaria.
+    // inverter isso, quebrou a codificação da categórica, e nenhum tipo pegaria.
     const alturas = (["braquiaria", "batatais", "esmeralda"] as const).map(
       (especie) => simular({ ...base, especie }, janela(30)).alturaFinalCm,
     );
@@ -60,8 +86,8 @@ describe("simular", () => {
   });
 
   it("responde à temperatura: frio quase não cresce", () => {
-    const quente = simular(base, janela(30, { temperaturaC: 28 })).alturaFinalCm;
-    const frio = simular(base, janela(30, { temperaturaC: 14 })).alturaFinalCm;
+    const quente = simular(base, janela(30, { temperaturaC: 28, temperaturaMaxC: 34 })).alturaFinalCm;
+    const frio = simular(base, janela(30, { temperaturaC: 14, temperaturaMaxC: 20 })).alturaFinalCm;
 
     expect(frio).toBeLessThan(quente);
   });
@@ -74,13 +100,29 @@ describe("simular", () => {
   });
 
   it("desacelera com a altura, em vez de crescer em linha reta", () => {
-    // O modelo satura: braquiária vai de ~0,64 cm/dia a 10 cm para ~0,28 a
-    // 50 cm. Uma reta aqui significaria que a altura inicial parou de entrar
-    // na conta.
+    // O modelo satura perto do teto do sítio. Uma reta aqui significaria que a
+    // altura inicial parou de entrar na conta.
     const baixa = simular({ ...base, alturaInicialCm: 8 }, janela(30)).crescimentoCmDia;
-    const alta = simular({ ...base, alturaInicialCm: 40 }, janela(30)).crescimentoCmDia;
+    const alta = simular({ ...base, alturaInicialCm: 45 }, janela(30)).crescimentoCmDia;
 
     expect(alta).toBeLessThan(baixa);
+  });
+
+  it("enxerga a fase da rebrota: recém-roçado cresce diferente de maduro", () => {
+    // `dias_desde_rocada_inicio` é a feature nova que o modelo v3.1 trouxe, e
+    // ela existe porque a rebrota tem três fases. Se a curva não distinguir
+    // dia 2 de dia 120, o campo do formulário está sendo ignorado no caminho.
+    const recem = simular({ ...base, diasDesdeRocada: 2 }, janela(30)).crescimento.q50;
+    const maduro = simular({ ...base, diasDesdeRocada: 120 }, janela(30)).crescimento.q50;
+
+    expect(recem).not.toBeCloseTo(maduro, 2);
+  });
+
+  it("responde à fertilidade do solo, que é o que mais move o resultado", () => {
+    const pobre = simular({ ...base, fertilidade: 0.15 }, janela(30)).crescimento.q50;
+    const rico = simular({ ...base, fertilidade: 0.85 }, janela(30)).crescimento.q50;
+
+    expect(rico).toBeGreaterThan(pobre);
   });
 
   it("usa a janela inteira do período, não só os dias previstos", () => {
@@ -89,6 +131,12 @@ describe("simular", () => {
     const s = simular({ ...base, dias: 60 }, janela(60));
     expect(s.pontos).toHaveLength(61);
     expect(s.pontos[60].fonteClima).toBe("previsao");
+  });
+
+  it("mede a água no solo no período, e não no aquecimento", () => {
+    const s = simular(base, janela(30));
+    expect(s.aguaSoloMediaPct).toBeGreaterThan(0);
+    expect(s.aguaSoloMediaPct).toBeLessThanOrEqual(100);
   });
 
   it("marca a extrapolação quando a altura inicial passa do que o modelo viu", () => {
@@ -119,5 +167,19 @@ describe("diaQueCruza", () => {
   it("devolve null quando a curva não chega lá no período, que é resposta, não falha", () => {
     const s = simular({ ...base, dias: 30 }, janela(30));
     expect(diaQueCruza(s, 500)).toBeNull();
+  });
+});
+
+describe("bandaQueCruza", () => {
+  it("cruza mais cedo no cenário otimista de crescimento", () => {
+    // As pontas trocam de papel de propósito: mais crescimento (q90) cruza o
+    // limite ANTES. Inverter isso na tela diria ao gestor que o pior caso é o
+    // mais folgado.
+    const s = simular({ ...base, alturaInicialCm: 12, dias: 90 }, janela(90));
+    const { cedo, mediana, tarde } = bandaQueCruza(s, 30);
+
+    expect(cedo).not.toBeNull();
+    expect(cedo as number).toBeLessThanOrEqual(mediana as number);
+    if (tarde != null) expect(mediana as number).toBeLessThanOrEqual(tarde);
   });
 });

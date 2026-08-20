@@ -3,6 +3,7 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 
 import {
+  DIAS_DE_AQUECIMENTO,
   DIAS_DE_PREVISAO,
   lerDiario,
   mediaEntreAnos,
@@ -17,15 +18,21 @@ import { isoHoje, somarDias } from "./format";
  * Busca de clima no Open-Meteo: gratuito e sem chave, mas com etiqueta.
  *
  * Duas APIs, os mesmos nomes de variavel:
- *   forecast  ate 16 dias a frente
+ *   forecast  ate 16 dias a frente, e ate ~63 dias para tras
  *   archive   ERA5 observado, com atraso de ~5 dias
  *
- * O arquivo LIMITA CONCORRENCIA de verdade: uma rajada de cinco requisicoes
+ * O ARQUIVO LIMITA CONCORRENCIA de verdade: uma rajada de cinco requisicoes
  * paralelas durante o desenvolvimento derrubou o IP em 429 por varios minutos,
  * e o bloqueio nao passa rapido. Por isso aqui nao existe `Promise.all`: os
  * anos sao buscados em serie, o primeiro fracasso interrompe o resto, e ha
  * orcamento de tempo total. Uma tela de demonstracao nao pode ficar refem de
  * uma cota que ela mesma estourou.
+ *
+ * O AQUECIMENTO VEM DE GRACA. O balde de agua no solo do modelo novo precisa de
+ * passado, e `past_days` na API de PREVISAO entrega isso na mesma requisicao
+ * que ja se fazia. A alternativa -- uma chamada ao arquivo para os 120 dias
+ * anteriores, como faz o notebook de calibracao -- seria uma requisicao a mais
+ * justamente na API que responde 429.
  *
  * `unstable_cache` e nao `fetch(..., { cache })`: o `layout.tsx` declara
  * `dynamic = "force-dynamic"`, que no Next 16 equivale a
@@ -38,6 +45,8 @@ const API_ARQUIVO = "https://archive-api.open-meteo.com/v1/archive";
 
 const VARIAVEIS = [
   "temperature_2m_mean",
+  "temperature_2m_min",
+  "temperature_2m_max",
   "relative_humidity_2m_mean",
   "precipitation_sum",
   "shortwave_radiation_sum",
@@ -47,8 +56,8 @@ const VARIAVEIS = [
 /** Quantos anos do ERA5 entram na media do complemento. Dois, e nao cinco,
  *  porque cada ano e uma requisicao em serie e a pagina inteira espera. */
 const ANOS_DE_HISTORICO = 2;
-const TIMEOUT_MS = 8_000;
-const ORCAMENTO_MS = 12_000;
+const TIMEOUT_MS = 10_000;
+const ORCAMENTO_MS = 14_000;
 
 /** ~1,1 km. Arredondar da acerto de cache entre simulacoes vizinhas sem mudar
  *  o resultado: a grade do proprio Open-Meteo e mais grossa que isso. */
@@ -86,14 +95,26 @@ async function pedir(url: string): Promise<RespostaDiaria> {
   return corpo;
 }
 
-const previsaoDoPonto = unstable_cache(
-  async (lat: number, lon: number): Promise<DiaClima[]> => {
+/**
+ * Uma requisicao, dois pedacos: o passado que aquece o balde e a previsao.
+ *
+ * O corte e por DATA e nao por posicao, porque a API decide sozinha quantos dos
+ * `past_days` pedidos ela consegue entregar -- pedimos 92 e vem ~63.
+ */
+const janelaDaApi = unstable_cache(
+  async (lat: number, lon: number, hoje: string): Promise<{ aquecimento: DiaClima[]; previsao: DiaClima[] }> => {
     const url =
       `${API_PREVISAO}?latitude=${lat}&longitude=${lon}&daily=${VARIAVEIS}` +
-      `&forecast_days=${DIAS_DE_PREVISAO}&timezone=America%2FSao_Paulo`;
-    return lerDiario(await pedir(url), "previsao");
+      `&past_days=${DIAS_DE_AQUECIMENTO}&forecast_days=${DIAS_DE_PREVISAO}` +
+      `&timezone=America%2FSao_Paulo`;
+
+    const dias = lerDiario(await pedir(url), "previsao");
+    return {
+      aquecimento: dias.filter((d) => d.data < hoje).map((d) => ({ ...d, fonte: "observado" as const })),
+      previsao: dias.filter((d) => d.data >= hoje),
+    };
   },
-  ["open-meteo-previsao"],
+  ["open-meteo-janela"],
   { revalidate: 3_600, tags: ["clima"] },
 );
 
@@ -152,7 +173,8 @@ const historicoDoPonto = unstable_cache(
 );
 
 /**
- * A janela de clima completa para `total` dias a partir de hoje.
+ * A janela de clima completa para `total` dias a partir de hoje, mais o
+ * aquecimento que o balanco de agua no solo precisa.
  *
  * Previsao de verdade nos primeiros 16 dias; do 17 em diante, a media do ERA5
  * observado nos mesmos dias do calendario. Se o arquivo recusar, o padrao dos
@@ -170,10 +192,10 @@ export async function janelaDoPonto(
   const hoje = isoHoje();
   const datas = Array.from({ length: total }, (_, i) => iso(hoje, i));
 
-  const previsao = await previsaoDoPonto(lat, lon);
+  const { aquecimento, previsao } = await janelaDaApi(lat, lon, hoje);
 
   if (total <= previsao.length) {
-    return montarJanela({ previsao, historico: [], anos: [], total, datas });
+    return montarJanela({ aquecimento, previsao, historico: [], anos: [], total, datas });
   }
 
   const { dias, anos, aviso } = await historicoDoPonto(
@@ -184,6 +206,7 @@ export async function janelaDoPonto(
   );
 
   return montarJanela({
+    aquecimento,
     previsao,
     historico: dias,
     anos,

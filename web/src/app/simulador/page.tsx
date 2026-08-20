@@ -84,9 +84,9 @@ function ComoFunciona({ tentou }: { tentou: boolean }) {
     {
       icone: <Brain aria-hidden="true" className="size-4" />,
       titulo: "IA 1 · modelo de crescimento",
-      texto: `Regressão treinada em histórico de campo, R² de ${fmt.d3(
-        METRICAS.r2,
-      )} e erro médio de ${fmt.d3(METRICAS.mae)} cm/dia no conjunto de teste. Recebe clima, espécie, UF, latitude, mês, altura inicial e tamanho do período, e responde quantos centímetros por dia. Determinística e barata: roda aqui mesmo, sem chamar ninguém.`,
+      texto: `Três regressões de quantil (q10, q50, q90) treinadas em 1,2 milhão de janelas simuladas com clima real, R² de ${fmt.d3(
+        METRICAS.r2_locais_novos,
+      )} e erro médio de ${fmt.d2(METRICAS.mae_locais_novos)} cm em cidades que o modelo nunca viu. Recebem clima diário, espécie, latitude, altura inicial, dias desde a roçada, água no solo e o tamanho do período, e respondem quantos centímetros o trecho cresce — em intervalo, não em ponto. Determinísticas e baratas: rodam aqui mesmo, sem chamar ninguém.`,
     },
     {
       icone: <Sparkles aria-hidden="true" className="size-4" />,
