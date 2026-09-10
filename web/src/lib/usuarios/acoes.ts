@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { EmailConvite } from "@/emails/convite";
 
 import { urlDoApp } from "../auth/links";
-import { podeConvidar } from "../auth/permissoes";
+import { motivoParaNaoAlterar, podeConvidar } from "../auth/permissoes";
 import { permitir } from "../auth/sessao";
 import { gerarToken, hashToken, prazo } from "../auth/tokens";
 import { CARGO } from "../dominio";
@@ -15,6 +15,7 @@ import { fmt } from "../format";
 import type { Resultado } from "../resultado";
 import { db } from "../supabase";
 import { CARGOS, type Cargo } from "../types";
+import { contarSuperAdminsAtivos } from "./queries";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const VALIDADE_HORAS = Number(process.env.CONVITE_VALIDADE_DIAS ?? "7") * 24;
@@ -175,4 +176,139 @@ export async function revogarConvite(id: string): Promise<Resultado> {
 
   revalidarUsuarios();
   return { ok: true, dados: undefined };
+}
+
+async function alvoDe(usuarioId: string) {
+  const { data } = await db
+    .from("perfis")
+    .select("usuario_id, cargo, ativo")
+    .eq("usuario_id", usuarioId)
+    .maybeSingle();
+  return data as { usuario_id: string; cargo: Cargo; ativo: boolean } | null;
+}
+
+export async function alterarCargo(usuarioId: string, cargo: Cargo): Promise<Resultado> {
+  const sessao = await permitir("super_admin", "admin");
+  if (!sessao.ok) return sessao;
+  if (!CARGOS.includes(cargo)) return { ok: false, erro: "Cargo inválido." };
+
+  const alvo = await alvoDe(usuarioId);
+  if (!alvo) return { ok: false, erro: "Usuário não encontrado. Recarregue a página." };
+
+  const motivo = motivoParaNaoAlterar({
+    autorId: sessao.dados.usuarioId,
+    autorCargo: sessao.dados.cargo,
+    alvoId: alvo.usuario_id,
+    alvoCargo: alvo.cargo,
+    alvoAtivo: alvo.ativo,
+    novoCargo: cargo,
+    desativar: false,
+    superAdminsAtivos: await contarSuperAdminsAtivos(),
+  });
+  if (motivo) return { ok: false, erro: motivo };
+
+  // Quem deixa de ser Rocador deixa a equipe sem lider: um Admin nao lidera turma.
+  if (alvo.cargo === "rocador" && cargo !== "rocador") {
+    await db.from("equipes").update({ lider_id: null }).eq("lider_id", usuarioId);
+  }
+
+  const { error } = await db.from("perfis").update({ cargo }).eq("usuario_id", usuarioId);
+  if (error) return { ok: false, erro: `Não foi possível alterar o cargo: ${error.message}` };
+  const { error: erroAuth } = await db.auth.admin.updateUserById(usuarioId, { app_metadata: { cargo } });
+  if (erroAuth) return { ok: false, erro: `O perfil mudou, mas o token não: ${erroAuth.message}. Tente de novo.` };
+
+  revalidarUsuarios();
+  return { ok: true, dados: undefined };
+}
+
+export async function alterarEquipeLiderada(
+  usuarioId: string,
+  equipeId: number | null,
+  substituirLider: boolean,
+): Promise<Resultado> {
+  const sessao = await permitir("super_admin", "admin");
+  if (!sessao.ok) return sessao;
+
+  const alvo = await alvoDe(usuarioId);
+  if (!alvo) return { ok: false, erro: "Usuário não encontrado. Recarregue a página." };
+  if (alvo.cargo !== "rocador") return { ok: false, erro: "Só um Roçador lidera equipe." };
+
+  if (equipeId != null) {
+    const { data: equipe } = await db
+      .from("equipes")
+      .select("nome, ativo, lider_id")
+      .eq("id", equipeId)
+      .maybeSingle();
+    if (!equipe || !equipe.ativo) return { ok: false, erro: "Equipe não encontrada ou desativada." };
+    if (equipe.lider_id && equipe.lider_id !== usuarioId && !substituirLider) {
+      return {
+        ok: false,
+        erro: `A ${equipe.nome} já tem líder. Marque "substituir o líder atual" para continuar.`,
+      };
+    }
+  }
+
+  // Solta a equipe anterior e assume a nova. Duas escritas simples: o UNIQUE de
+  // `lider_id` garante que a pessoa nunca fica com duas.
+  await db.from("equipes").update({ lider_id: null }).eq("lider_id", usuarioId);
+  if (equipeId != null) {
+    const { error } = await db.from("equipes").update({ lider_id: usuarioId }).eq("id", equipeId);
+    if (error) return { ok: false, erro: `Não foi possível gravar a equipe: ${error.message}` };
+  }
+
+  revalidarUsuarios();
+  return { ok: true, dados: undefined };
+}
+
+async function mudarAtivo(usuarioId: string, ativo: boolean): Promise<Resultado> {
+  const sessao = await permitir("super_admin", "admin");
+  if (!sessao.ok) return sessao;
+
+  const alvo = await alvoDe(usuarioId);
+  if (!alvo) return { ok: false, erro: "Usuário não encontrado. Recarregue a página." };
+
+  const motivo = motivoParaNaoAlterar({
+    autorId: sessao.dados.usuarioId,
+    autorCargo: sessao.dados.cargo,
+    alvoId: alvo.usuario_id,
+    alvoCargo: alvo.cargo,
+    alvoAtivo: alvo.ativo,
+    novoCargo: null,
+    desativar: !ativo,
+    superAdminsAtivos: await contarSuperAdminsAtivos(),
+  });
+  if (motivo) return { ok: false, erro: motivo };
+
+  // `ban_duration` bloqueia login novo; a sessao viva morre na proxima requisicao
+  // porque `obterSessao` le `ativo`. "876000h" sao 100 anos; "none" desfaz.
+  const { error: erroAuth } = await db.auth.admin.updateUserById(usuarioId, {
+    ban_duration: ativo ? "none" : "876000h",
+  });
+  if (erroAuth) {
+    return { ok: false, erro: `Não foi possível ${ativo ? "reativar" : "desativar"} no Auth: ${erroAuth.message}` };
+  }
+
+  const agora = new Date().toISOString();
+  const { error } = await db
+    .from("perfis")
+    .update(
+      ativo
+        ? { ativo: true, desativado_em: null, desativado_por: null }
+        : { ativo: false, desativado_em: agora, desativado_por: sessao.dados.usuarioId },
+    )
+    .eq("usuario_id", usuarioId);
+  if (error) return { ok: false, erro: `Não foi possível gravar o perfil: ${error.message}` };
+
+  if (!ativo) await db.from("equipes").update({ lider_id: null }).eq("lider_id", usuarioId);
+
+  revalidarUsuarios();
+  return { ok: true, dados: undefined };
+}
+
+export async function desativarUsuario(usuarioId: string): Promise<Resultado> {
+  return mudarAtivo(usuarioId, false);
+}
+
+export async function reativarUsuario(usuarioId: string): Promise<Resultado> {
+  return mudarAtivo(usuarioId, true);
 }
