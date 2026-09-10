@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 
 import { CabecalhoPagina, MetricaCabecalho } from "@/components/shell/cabecalho-pagina";
 import { exigirCargo } from "@/lib/auth/sessao";
+import { AvisoSomenteLeitura } from "@/components/ui/aviso-somente-leitura";
+import { podeEscrever } from "@/lib/auth/permissoes";
 import { fmt, isoHoje } from "@/lib/format";
 import { listarTrechos, listarZonasClima, trechosPorRodovia } from "@/lib/queries";
 import { sum } from "@/lib/utils";
@@ -19,7 +21,7 @@ export const metadata: Metadata = { title: "Malha" };
  */
 export default async function PaginaMalha() {
   const sessao = await exigirCargo("super_admin", "admin", "analista");
-  void sessao;
+  const escreve = podeEscrever(sessao.cargo);
   const [trechos, porRodovia, zonas] = await Promise.all([
     listarTrechos(),
     trechosPorRodovia(),
@@ -44,10 +46,12 @@ export default async function PaginaMalha() {
         }
       />
 
+      <AvisoSomenteLeitura podeEscrever={escreve} />
+
       {/* "Hoje" sai do servidor: o agrupamento por semana é calculado no
           cliente, e um relógio de máquina adiantado jogaria o trecho para a
           semana seguinte só no primeiro quadro. */}
-      <MalhaCliente trechos={trechos} zonas={zonas} hoje={isoHoje()} />
+      <MalhaCliente trechos={trechos} zonas={zonas} hoje={isoHoje()} podeEscrever={escreve} />
     </div>
   );
 }

@@ -167,7 +167,16 @@ function PainelAprovar({
  * o item volta para a fila e a notificação diz o motivo, o gestor não pode
  * achar que aprovou algo que o banco recusou.
  */
-export function ExigemDecisao({ itens, equipes }: { itens: ItemDecisao[]; equipes: Equipe[] }) {
+export function ExigemDecisao({
+  itens,
+  equipes,
+  podeEscrever,
+}: {
+  itens: ItemDecisao[];
+  equipes: Equipe[];
+  /** Analista: o cartão continua listando a decisão pendente, sem decidi-la. */
+  podeEscrever: boolean;
+}) {
   const { mostrar } = useNotificacao();
   const [, iniciar] = useTransition();
   const [decididos, setDecididos] = useState<Record<number, Decisao>>({});
@@ -338,7 +347,7 @@ export function ExigemDecisao({ itens, equipes }: { itens: ItemDecisao[]; equipe
                 </div>
 
                 <div className="flex flex-wrap items-start justify-between gap-4 sm:col-span-2 xl:col-span-1 xl:flex-col xl:items-end xl:justify-start">
-                  {aprova ? (
+                  {podeEscrever && aprova ? (
                     <PainelAprovar
                       equipes={equipes}
                       data={dataRascunho}
@@ -366,7 +375,7 @@ export function ExigemDecisao({ itens, equipes }: { itens: ItemDecisao[]; equipe
                         </Chip>
                       </div>
 
-                      {confirma ? (
+                      {!podeEscrever ? null : confirma ? (
                         <div className="flex flex-wrap items-center gap-2 xl:justify-end">
                           <p className="w-full text-xs text-ink-2 xl:text-right">
                             Descartar a sugestão de {rotuloTrecho}?

@@ -15,6 +15,7 @@ import {
   erroFaltaEquipe,
   rotuloPrazo,
 } from "@/lib/dominio";
+import { AvisoSomenteLeitura } from "@/components/ui/aviso-somente-leitura";
 import { fmt } from "@/lib/format";
 import type { Equipe, StatusAgendamento } from "@/lib/types";
 
@@ -39,11 +40,14 @@ export function PainelAgendamento({
   agendamento,
   trecho,
   equipes,
+  podeEscrever,
   ...acoes
 }: AcoesPainel & {
   agendamento: ItemAgenda | null;
   trecho: TrechoResumo | undefined;
   equipes: Equipe[];
+  /** Analista: a gaveta abre e explica a decisão, mas não a altera. */
+  podeEscrever: boolean;
 }) {
   const [ultimo, setUltimo] = useState<ItemAgenda | null>(agendamento);
   if (agendamento && agendamento !== ultimo) setUltimo(agendamento);
@@ -58,6 +62,7 @@ export function PainelAgendamento({
       aberta={agendamento != null}
       trecho={trecho}
       equipes={equipes}
+      podeEscrever={podeEscrever}
       {...acoes}
     />
   );
@@ -73,11 +78,13 @@ function Gaveta({
   aoMudarStatus,
   aoAtribuir,
   aoRemarcar,
+  podeEscrever,
 }: AcoesPainel & {
   item: ItemAgenda;
   aberta: boolean;
   trecho: TrechoResumo | undefined;
   equipes: Equipe[];
+  podeEscrever: boolean;
 }) {
   const idEquipe = useId();
   const idData = useId();
@@ -99,78 +106,82 @@ function Gaveta({
       titulo={t.rodovia}
       descricao={`${fmt.faixaKm(Number(t.km_inicio), Number(t.km_fim))} · ${t.uf}${t.sentido ? ` · ${t.sentido}` : ""}`}
       rodape={
-        <div className="flex flex-wrap items-center gap-2">
-          {item.status === "sugerido" ? (
-            <Botao
-              variante="primario"
-              tamanho="sm"
-              disabled={pendente || bloqueioAprovacao != null}
-              title={bloqueioAprovacao ?? undefined}
-              iconeEsquerda={<Check />}
-              onClick={() => aoMudarStatus(item, "aprovado")}
-            >
-              Aprovar roçada
-            </Botao>
-          ) : null}
+        podeEscrever ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {item.status === "sugerido" ? (
+              <Botao
+                variante="primario"
+                tamanho="sm"
+                disabled={pendente || bloqueioAprovacao != null}
+                title={bloqueioAprovacao ?? undefined}
+                iconeEsquerda={<Check />}
+                onClick={() => aoMudarStatus(item, "aprovado")}
+              >
+                Aprovar roçada
+              </Botao>
+            ) : null}
 
-          {item.status === "aprovado" ? (
-            <Botao
-              variante="primario"
-              tamanho="sm"
-              disabled={pendente || bloqueioConclusao != null}
-              title={bloqueioConclusao ?? undefined}
-              iconeEsquerda={<Flag />}
-              onClick={() => aoMudarStatus(item, "executado")}
-            >
-              Marcar como executada
-            </Botao>
-          ) : null}
+            {item.status === "aprovado" ? (
+              <Botao
+                variante="primario"
+                tamanho="sm"
+                disabled={pendente || bloqueioConclusao != null}
+                title={bloqueioConclusao ?? undefined}
+                iconeEsquerda={<Flag />}
+                onClick={() => aoMudarStatus(item, "executado")}
+              >
+                Marcar como executada
+              </Botao>
+            ) : null}
 
-          {emAberto ? null : (
-            <Botao
-              variante="secundario"
-              tamanho="sm"
-              disabled={pendente}
-              iconeEsquerda={<Undo2 />}
-              onClick={() => aoMudarStatus(item, "sugerido")}
-            >
-              Reabrir sugestão
-            </Botao>
-          )}
+            {emAberto ? null : (
+              <Botao
+                variante="secundario"
+                tamanho="sm"
+                disabled={pendente}
+                iconeEsquerda={<Undo2 />}
+                onClick={() => aoMudarStatus(item, "sugerido")}
+              >
+                Reabrir sugestão
+              </Botao>
+            )}
 
-          {/* Descartar apaga a sugestão do plano: pede confirmação em vez de
-              obedecer no primeiro clique. */}
-          {emAberto ? (
-            confirmando ? (
-              <>
+            {/* Descartar apaga a sugestão do plano: pede confirmação em vez de
+                obedecer no primeiro clique. */}
+            {emAberto ? (
+              confirmando ? (
+                <>
+                  <Botao
+                    variante="perigo"
+                    tamanho="sm"
+                    disabled={pendente}
+                    onClick={() => {
+                      setConfirmando(false);
+                      aoMudarStatus(item, "descartado");
+                    }}
+                  >
+                    Confirmar descarte
+                  </Botao>
+                  <Botao variante="fantasma" tamanho="sm" onClick={() => setConfirmando(false)}>
+                    Manter roçada
+                  </Botao>
+                </>
+              ) : (
                 <Botao
                   variante="perigo"
                   tamanho="sm"
                   disabled={pendente}
-                  onClick={() => {
-                    setConfirmando(false);
-                    aoMudarStatus(item, "descartado");
-                  }}
+                  iconeEsquerda={<CircleSlash />}
+                  onClick={() => setConfirmando(true)}
                 >
-                  Confirmar descarte
+                  Descartar
                 </Botao>
-                <Botao variante="fantasma" tamanho="sm" onClick={() => setConfirmando(false)}>
-                  Manter roçada
-                </Botao>
-              </>
-            ) : (
-              <Botao
-                variante="perigo"
-                tamanho="sm"
-                disabled={pendente}
-                iconeEsquerda={<CircleSlash />}
-                onClick={() => setConfirmando(true)}
-              >
-                Descartar
-              </Botao>
-            )
-          ) : null}
-        </div>
+              )
+            ) : null}
+          </div>
+        ) : (
+          <AvisoSomenteLeitura podeEscrever={false} />
+        )
       }
     >
       <div className="flex flex-wrap items-center gap-2">
@@ -314,71 +325,73 @@ function Gaveta({
         ) : null}
       </section>
 
-      <section className="mt-6 border-t border-border pt-5">
-        <h3 className="text-2xs font-medium tracking-widest text-ink-3 uppercase">Ajustar plano</h3>
+      {podeEscrever ? (
+        <section className="mt-6 border-t border-border pt-5">
+          <h3 className="text-2xs font-medium tracking-widest text-ink-3 uppercase">Ajustar plano</h3>
 
-        <div className="mt-3 flex flex-col gap-4">
-          <Campo
-            rotulo="Equipe responsável"
-            id={idEquipe}
-            dica={
-              (item.status === "sugerido" ? bloqueioAprovacao : bloqueioConclusao) ?? undefined
-            }
-          >
-            <Selecao
-              value={item.equipeId == null ? "" : String(item.equipeId)}
-              disabled={pendente}
-              onChange={(evento) => {
-                const valor = evento.target.value;
-                aoAtribuir(
-                  item,
-                  valor ? (equipes.find((e) => String(e.id) === valor) ?? null) : null,
-                );
+          <div className="mt-3 flex flex-col gap-4">
+            <Campo
+              rotulo="Equipe responsável"
+              id={idEquipe}
+              dica={
+                (item.status === "sugerido" ? bloqueioAprovacao : bloqueioConclusao) ?? undefined
+              }
+            >
+              <Selecao
+                value={item.equipeId == null ? "" : String(item.equipeId)}
+                disabled={pendente}
+                onChange={(evento) => {
+                  const valor = evento.target.value;
+                  aoAtribuir(
+                    item,
+                    valor ? (equipes.find((e) => String(e.id) === valor) ?? null) : null,
+                  );
+                }}
+              >
+                <option value="">Sem equipe</option>
+                {equipes
+                  .filter((e) => e.ativo)
+                  .map((e) => (
+                    <option key={e.id} value={String(e.id)}>
+                      {e.nome} · {fmt.d1(Number(e.capacidade_km_dia))} km/dia
+                    </option>
+                  ))}
+              </Selecao>
+            </Campo>
+
+            <form
+              className="flex flex-wrap items-end gap-2"
+              onSubmit={(evento) => {
+                evento.preventDefault();
+                aoRemarcar(item, novaData);
               }}
             >
-              <option value="">Sem equipe</option>
-              {equipes
-                .filter((e) => e.ativo)
-                .map((e) => (
-                  <option key={e.id} value={String(e.id)}>
-                    {e.nome} · {fmt.d1(Number(e.capacidade_km_dia))} km/dia
-                  </option>
-                ))}
-            </Selecao>
-          </Campo>
+              <div className="min-w-40 flex-1">
+                <Campo
+                  rotulo="Data da roçada"
+                  id={idData}
+                  dica="Adiar demais deixa a vegetação passar do limite."
+                >
+                  <Entrada
+                    type="date"
+                    value={novaData}
+                    onChange={(evento) => setNovaData(evento.target.value)}
+                  />
+                </Campo>
+              </div>
 
-          <form
-            className="flex flex-wrap items-end gap-2"
-            onSubmit={(evento) => {
-              evento.preventDefault();
-              aoRemarcar(item, novaData);
-            }}
-          >
-            <div className="min-w-40 flex-1">
-              <Campo
-                rotulo="Data da roçada"
-                id={idData}
-                dica="Adiar demais deixa a vegetação passar do limite."
+              <Botao
+                type="submit"
+                tamanho="sm"
+                variante="secundario"
+                disabled={pendente || !novaData || novaData === item.data}
               >
-                <Entrada
-                  type="date"
-                  value={novaData}
-                  onChange={(evento) => setNovaData(evento.target.value)}
-                />
-              </Campo>
-            </div>
-
-            <Botao
-              type="submit"
-              tamanho="sm"
-              variante="secundario"
-              disabled={pendente || !novaData || novaData === item.data}
-            >
-              Remarcar
-            </Botao>
-          </form>
-        </div>
-      </section>
+                Remarcar
+              </Botao>
+            </form>
+          </div>
+        </section>
+      ) : null}
     </PainelLateral>
   );
 }

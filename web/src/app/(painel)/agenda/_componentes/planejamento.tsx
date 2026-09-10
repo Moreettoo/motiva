@@ -87,11 +87,14 @@ export function PlanejamentoAgenda({
   equipes,
   trechos,
   hoje,
+  podeEscrever,
 }: {
   agendamentos: AgendamentoDetalhado[];
   equipes: Equipe[];
   trechos: TrechoResumo[];
   hoje: string;
+  /** Analista: o quadro continua inteiro, as escritas somem. */
+  podeEscrever: boolean;
 }) {
   const [status, setStatus] = useQueryState(
     "status",
@@ -712,6 +715,7 @@ export function PlanejamentoAgenda({
   return (
     <div className="flex min-w-0 flex-col gap-6">
       <QuadroSemana
+        somenteLeitura={!podeEscrever}
         grade={grade}
         itens={itens}
         equipes={equipes}
@@ -739,14 +743,16 @@ export function PlanejamentoAgenda({
         /* Mesmo contrato dos controles, e por isso ao lado deles: o quadro
            reserva o canto e não sabe o que o botão faz. */
         acoes={
-          <Botao
-            tamanho="sm"
-            variante="secundario"
-            iconeEsquerda={<CalendarPlus />}
-            onClick={abrirNova}
-          >
-            Nova roçada
-          </Botao>
+          podeEscrever ? (
+            <Botao
+              tamanho="sm"
+              variante="secundario"
+              iconeEsquerda={<CalendarPlus />}
+              onClick={abrirNova}
+            >
+              Nova roçada
+            </Botao>
+          ) : null
         }
         totalAtrasados={totalAtrasados}
         semanaAtraso={semanaAtraso}
@@ -765,6 +771,7 @@ export function PlanejamentoAgenda({
       />
 
       <PainelAgendamento
+        podeEscrever={podeEscrever}
         agendamento={emFoco}
         trecho={emFoco ? trechos.find((t) => t.id === emFoco.ag.trecho.id) : undefined}
         equipes={equipes}
@@ -775,20 +782,24 @@ export function PlanejamentoAgenda({
         aoRemarcar={remarcar}
       />
 
-      <PainelNovaRocada
-        aberta={criandoRocada}
-        aoFechar={fecharNova}
-        trechos={trechos}
-        equipes={equipes}
-        /* `itens`, e não `visiveis`: a prévia de carga e a lista de trechos já
-           agendados são fatos da malha, e o filtro de status não pode decidir
-           se uma equipe está cheia nem se um trecho já tem roçada marcada. */
-        itens={itens}
-        hoje={hoje}
-        pendente={salvandoNova}
-        erroServidor={erroNova}
-        aoCriar={criarNova}
-      />
+      {/* O Analista não monta a gaveta: sem botão que a abra, ela seria só um
+          formulário de escrita esperando um `?nova=true` na URL. */}
+      {podeEscrever ? (
+        <PainelNovaRocada
+          aberta={criandoRocada}
+          aoFechar={fecharNova}
+          trechos={trechos}
+          equipes={equipes}
+          /* `itens`, e não `visiveis`: a prévia de carga e a lista de trechos já
+             agendados são fatos da malha, e o filtro de status não pode decidir
+             se uma equipe está cheia nem se um trecho já tem roçada marcada. */
+          itens={itens}
+          hoje={hoje}
+          pendente={salvandoNova}
+          erroServidor={erroNova}
+          aoCriar={criarNova}
+        />
+      ) : null}
     </div>
   );
 }

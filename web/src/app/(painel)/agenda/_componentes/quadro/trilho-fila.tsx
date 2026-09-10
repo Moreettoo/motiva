@@ -23,6 +23,7 @@ export function TrilhoFila({
   salvandoIds,
   anelErroPorId,
   aoPegar,
+  somenteLeitura,
   aoTeclar,
   aoAbrir,
   engolirClique,
@@ -54,6 +55,8 @@ export function TrilhoFila({
    *  coleção desce e o CARTÃO recebe o escalar. */
   anelErroPorId: ReadonlyMap<number, number>;
   aoPegar: (e: React.PointerEvent<HTMLElement>, carga: CargaArrasto) => void;
+  /** Analista: o trilho continua legivel, os cartoes nao arrastam. */
+  somenteLeitura: boolean;
   aoTeclar: (e: React.KeyboardEvent<HTMLElement>, carga: CargaArrasto) => void;
   aoAbrir: (id: number) => void;
   engolirClique: (e: React.MouseEvent) => void;
@@ -88,6 +91,7 @@ export function TrilhoFila({
       ativo={item.id === idAtivo}
       desfazer={null}
       aoPegar={aoPegar}
+      permiteArrasto={!somenteLeitura}
       aoTeclar={aoTeclar}
       aoAbrir={aoAbrir}
       engolirClique={engolirClique}
@@ -123,7 +127,9 @@ export function TrilhoFila({
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-medium text-ink">Fila de decisão</h3>
           <p className="mt-0.5 text-2xs text-ink-3">
-            Arraste para um dia e uma equipe. Soltar decide as duas coisas de uma vez.
+            {somenteLeitura
+              ? "Sugestões da IA ainda sem dia e sem equipe."
+              : "Arraste para um dia e uma equipe. Soltar decide as duas coisas de uma vez."}
           </p>
         </div>
         <span className="tnum shrink-0 rounded-md border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-2xs text-ink">

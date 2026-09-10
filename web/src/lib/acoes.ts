@@ -16,6 +16,7 @@ import type { ExecucaoAnalise, StatusAgendamento } from "./types";
  */
 
 import type { Resultado } from "./resultado";
+import { permitir } from "./auth/sessao";
 
 // Reexportado para os importadores existentes (`planejamento.tsx` e outros)
 // continuarem resolvendo `Resultado` por `@/lib/acoes`.
@@ -31,6 +32,9 @@ export async function mudarStatusAgendamento(
   agendamentoId: number,
   status: StatusAgendamento,
 ): Promise<Resultado<{ id: number; status: StatusAgendamento }>> {
+  const sessao = await permitir("super_admin", "admin");
+  if (!sessao.ok) return sessao;
+  void sessao;
   if (!STATUS_VALIDOS.includes(status)) {
     return { ok: false, erro: `Status inválido: ${status}` };
   }
@@ -66,6 +70,9 @@ export async function mudarStatusAgendamento(
 }
 
 export async function atribuirEquipe(agendamentoId: number, equipeId: number | null): Promise<Resultado> {
+  const sessao = await permitir("super_admin", "admin");
+  if (!sessao.ok) return sessao;
+  void sessao;
   const { data, error } = await db
     .from("agendamentos")
     .update({ equipe_id: equipeId, atualizado_em: new Date().toISOString() })
@@ -116,6 +123,9 @@ export async function aprovarAgendamento(
   agendamentoId: number,
   ajustes: { data: string; equipeId: number | null },
 ): Promise<Resultado> {
+  const sessao = await permitir("super_admin", "admin");
+  if (!sessao.ok) return sessao;
+  void sessao;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(ajustes.data)) {
     return { ok: false, erro: "Data inválida. Use o formato AAAA-MM-DD." };
   }
@@ -180,6 +190,9 @@ export async function criarRocadaManual(entrada: {
   equipeId: number | null;
   motivo: string;
 }): Promise<Resultado<{ id: number; data: string }>> {
+  const sessao = await permitir("super_admin", "admin");
+  if (!sessao.ok) return sessao;
+  void sessao;
   const { trechoId, data, equipeId } = entrada;
   const motivo = entrada.motivo.trim();
 
@@ -327,6 +340,9 @@ export async function alocarAgendamento(
   data: string,
   equipeId: number,
 ): Promise<Resultado> {
+  const sessao = await permitir("super_admin", "admin");
+  if (!sessao.ok) return sessao;
+  void sessao;
   return gravarAlocacao(agendamentoId, data, equipeId, { permitirPassado: false });
 }
 
@@ -340,11 +356,17 @@ export async function desfazerAlocacao(
   data: string,
   equipeId: number | null,
 ): Promise<Resultado> {
+  const sessao = await permitir("super_admin", "admin");
+  if (!sessao.ok) return sessao;
+  void sessao;
   return gravarAlocacao(agendamentoId, data, equipeId, { permitirPassado: true });
 }
 
 /** Soltar no trilho: tira a equipe e o serviço volta a ser proposta da IA. */
 export async function devolverParaFila(agendamentoId: number): Promise<Resultado> {
+  const sessao = await permitir("super_admin", "admin");
+  if (!sessao.ok) return sessao;
+  void sessao;
   const { data, error } = await db
     .from("agendamentos")
     .update({ equipe_id: null, atualizado_em: new Date().toISOString() })
@@ -361,6 +383,9 @@ export async function devolverParaFila(agendamentoId: number): Promise<Resultado
 }
 
 export async function remarcarAgendamento(agendamentoId: number, novaData: string): Promise<Resultado> {
+  const sessao = await permitir("super_admin", "admin");
+  if (!sessao.ok) return sessao;
+  void sessao;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(novaData)) {
     return { ok: false, erro: "Data inválida. Use o formato AAAA-MM-DD." };
   }
@@ -380,6 +405,9 @@ export async function remarcarAgendamento(agendamentoId: number, novaData: strin
 }
 
 export async function registrarMedicao(trechoId: number, alturaCm: number, data?: string): Promise<Resultado> {
+  const sessao = await permitir("super_admin", "admin");
+  if (!sessao.ok) return sessao;
+  void sessao;
   if (!Number.isFinite(alturaCm) || alturaCm < 0 || alturaCm > 300) {
     return { ok: false, erro: "Altura fora da faixa esperada (0 a 300 cm)." };
   }
@@ -406,12 +434,18 @@ export async function registrarMedicao(trechoId: number, alturaCm: number, data?
  * campo, que muda `altura_atual_cm` e portanto o prazo.
  */
 export async function enfileirarAnaliseDoTrecho(trechoId: number): Promise<Resultado<ExecucaoAnalise>> {
+  const sessao = await permitir("super_admin", "admin");
+  if (!sessao.ok) return sessao;
+  void sessao;
   const resultado = await enfileirarAnalise(trechoId);
   return resultado.ok ? { ok: true, dados: resultado.dados } : { ok: false, erro: resultado.erro };
 }
 
 /** Consulta o andamento. O cliente chama em intervalo enquanto a execucao vive. */
 export async function consultarAnalise(execucaoId: number): Promise<Resultado<ExecucaoAnalise>> {
+  const sessao = await permitir("super_admin", "admin", "analista");
+  if (!sessao.ok) return sessao;
+  void sessao;
   const resultado = await situacaoDaExecucao(execucaoId);
   if (!resultado.ok) return { ok: false, erro: resultado.erro };
 
@@ -419,6 +453,22 @@ export async function consultarAnalise(execucaoId: number): Promise<Resultado<Ex
   if (resultado.dados.situacao === "completed") revalidarTudo();
 
   return { ok: true, dados: resultado.dados };
+}
+
+/** 20 perguntas por hora por pessoa. Contador em memoria por instancia: na Vercel
+ *  cada instancia conta a sua, o que basta para conter um laco e nao um ataque. */
+const LIMITE_COPILOTO_POR_HORA = 20;
+const perguntasRecentes = new Map<string, number[]>();
+
+function dentroDoLimite(usuarioId: string, agora = Date.now()): boolean {
+  const janela = (perguntasRecentes.get(usuarioId) ?? []).filter((t) => agora - t < 3_600_000);
+  if (janela.length >= LIMITE_COPILOTO_POR_HORA) {
+    perguntasRecentes.set(usuarioId, janela);
+    return false;
+  }
+  janela.push(agora);
+  perguntasRecentes.set(usuarioId, janela);
+  return true;
 }
 
 /** Teto de contexto do copiloto: os agendamentos mais recentes cabem no prompt. */
@@ -437,6 +487,11 @@ const SISTEMA_COPILOTO =
  * aqui e o que permite o painel rodar sozinho na Vercel.
  */
 export async function perguntarAoCopiloto(texto: string): Promise<Resultado<{ resposta: string }>> {
+  const sessao = await permitir("super_admin", "admin", "analista");
+  if (!sessao.ok) return sessao;
+  if (!dentroDoLimite(sessao.dados.usuarioId)) {
+    return { ok: false, erro: `Você fez ${LIMITE_COPILOTO_POR_HORA} perguntas na última hora. Espere um pouco antes da próxima.` };
+  }
   const pergunta = texto.trim();
   if (pergunta.length < 3) return { ok: false, erro: "Escreva uma pergunta um pouco mais completa." };
 

@@ -58,6 +58,10 @@ type OpcoesArrasto = {
   /** `false` com o trilho colapsado numa doca fora da tela, ver o mesmo
    *  parâmetro em `proximoAlvo` (`navegacao.ts`). Default `true`. */
   filaDisponivel?: boolean;
+  /** Analista: o quadro continua legível, mas nenhum gesto move cartão.
+   *  Desligado aqui, e não só escondendo a alça, porque o movimento por
+   *  teclado não passa por alça nenhuma. Default `false`. */
+  desativado?: boolean;
 };
 
 /** Elementos roláveis que participam da auto-rolagem, do mais interno ao mais externo. */
@@ -403,6 +407,7 @@ export function useArrasto({
   anunciar,
   aoNavegarSemana,
   filaDisponivel = true,
+  desativado = false,
 }: OpcoesArrasto) {
   const [estado, setEstado] = useState<EstadoArrasto>({ fase: "ocioso" });
 
@@ -574,6 +579,7 @@ export function useArrasto({
 
   const iniciar = useCallback(
     (evento: React.PointerEvent<HTMLElement>, carga: CargaArrasto) => {
+      if (desativado) return;
       if (evento.button !== 0 && evento.pointerType === "mouse") return;
       evento.preventDefault();
 
@@ -639,7 +645,7 @@ export function useArrasto({
 
       definirEstado({ fase: "candidato", carga });
     },
-    [comprometer, definirEstado, anunciarAgora, fechar],
+    [comprometer, definirEstado, anunciarAgora, fechar, desativado],
   );
 
   // Os ouvintes ficam em `window` e não no quadro: entre o `pointerdown` e o
@@ -817,6 +823,7 @@ export function useArrasto({
 
   const aoTeclar = useCallback(
     (evento: React.KeyboardEvent<HTMLElement>, carga: CargaArrasto) => {
+      if (desativado) return;
       // Lido do espelho, não de `estado`: `estado` recriaria este callback a
       // cada quadro de um arrasto por ponteiro em andamento (ver `estadoRef`).
       const atual = estadoRef.current.fase === "carregando" ? estadoRef.current : null;
@@ -936,6 +943,7 @@ export function useArrasto({
       definirEstado,
       realinhar,
       filaDisponivel,
+      desativado,
     ],
   );
 

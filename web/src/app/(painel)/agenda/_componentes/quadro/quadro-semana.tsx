@@ -128,6 +128,7 @@ function textoDoDestaque(nome: string | null, visivelNaSemana: boolean): string 
 }
 
 export function QuadroSemana({
+  somenteLeitura,
   grade,
   itens,
   equipes,
@@ -154,6 +155,9 @@ export function QuadroSemana({
   aoDevolver,
   aoRestaurar,
 }: {
+  /** Analista: o quadro inteiro vira leitura. Desliga o arrasto no hook
+   *  (ponteiro E teclado) e tira a alca dos cartoes. */
+  somenteLeitura: boolean;
   grade: Grade;
   itens: ItemAgenda[];
   equipes: Equipe[];
@@ -378,6 +382,7 @@ export function QuadroSemana({
     anunciar: narrarPasso,
     aoNavegarSemana: navegarSemana,
     filaDisponivel,
+    desativado: somenteLeitura,
   });
 
   const emVoo =
@@ -526,6 +531,7 @@ export function QuadroSemana({
           salvandoIds={salvandoIds}
           anelErroPorId={anelErroPorId}
           aoPegar={iniciar}
+          somenteLeitura={somenteLeitura}
           aoTeclar={aoTeclar}
           aoAbrir={aoSelecionar}
           engolirClique={engolirClique}
@@ -580,6 +586,7 @@ export function QuadroSemana({
                 salvandoIds={salvandoIds}
                 anelErroPorId={anelErroPorId}
                 aoPegar={iniciar}
+                somenteLeitura={somenteLeitura}
                 aoTeclar={aoTeclar}
                 aoAbrir={aoSelecionar}
                 engolirClique={engolirClique}

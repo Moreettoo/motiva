@@ -46,10 +46,13 @@ export function MalhaCliente({
   trechos,
   zonas,
   hoje,
+  podeEscrever,
 }: {
   trechos: TrechoStatus[];
   zonas: ZonaClima[];
   hoje: string;
+  /** Analista: a gaveta abre com o diagnóstico, sem o par Aprovar/Descartar. */
+  podeEscrever: boolean;
 }) {
   const [busca, setBusca] = useQueryState("busca", paramBusca);
   const [riscos, setRiscos] = useQueryState("risco", paramRisco);
@@ -231,6 +234,7 @@ export function MalhaCliente({
       </section>
 
       <PainelTrecho
+        podeEscrever={podeEscrever}
         trecho={trechoDoPainel}
         zona={zonaDoPainel}
         aberto={selecionado != null}

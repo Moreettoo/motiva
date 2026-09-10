@@ -28,6 +28,7 @@ export function LinhaTurma({
   salvandoIds,
   anelErroPorId,
   aoPegar,
+  somenteLeitura,
   aoTeclar,
   aoAbrir,
   engolirClique,
@@ -58,6 +59,8 @@ export function LinhaTurma({
    *  não cair a cada `pointermove`. */
   anelErroPorId: ReadonlyMap<number, number>;
   aoPegar: (e: React.PointerEvent<HTMLElement>, carga: CargaArrasto) => void;
+  /** Analista: a linha continua legivel, os cartoes nao arrastam. */
+  somenteLeitura: boolean;
   aoTeclar: (e: React.KeyboardEvent<HTMLElement>, carga: CargaArrasto) => void;
   aoAbrir: (id: number) => void;
   engolirClique: (e: React.MouseEvent) => void;
@@ -150,6 +153,7 @@ export function LinhaTurma({
               ativo={item.id === idAtivo}
               desfazer={desfazerDe(item.id)}
               aoPegar={aoPegar}
+              permiteArrasto={!somenteLeitura}
               aoTeclar={aoTeclar}
               aoAbrir={aoAbrir}
               engolirClique={engolirClique}

@@ -3,10 +3,12 @@ import type { Metadata } from "next";
 import { ListChecks } from "lucide-react";
 
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
+import { AvisoSomenteLeitura } from "@/components/ui/aviso-somente-leitura";
 import { Cartao, CartaoCabecalho, CartaoRodape } from "@/components/ui/cartao";
 import type { DeltaIndicador } from "@/components/ui/indicador";
 import type { BarraDado } from "@/components/viz/barras";
 import type { SerieLinha } from "@/components/viz/linha";
+import { podeEscrever } from "@/lib/auth/permissoes";
 import { corSerie, ESPECIE, ordemRisco } from "@/lib/dominio";
 import { exigirCargo } from "@/lib/auth/sessao";
 import { diasEntre, fmt, isoHoje, proximaReanalise } from "@/lib/format";
@@ -98,7 +100,7 @@ function variacaoCrescimento(datas: string[], valores: number[]): DeltaIndicador
 
 export default async function PaginaPainel() {
   const sessao = await exigirCargo("super_admin", "admin", "analista");
-  void sessao;
+  const escreve = podeEscrever(sessao.cargo);
   const [painel, trechos, porRodovia, serie, carga, lacunas, agendamentos, equipes] = await Promise.all([
     montarPainel(),
     listarTrechos(),
@@ -230,6 +232,8 @@ export default async function PaginaPainel() {
         acoes={<CarimboDoLote proximaEm={proximaReanalise()} />}
       />
 
+      <AvisoSomenteLeitura podeEscrever={escreve} />
+
       <Indicadores
         painel={painel}
         rodovias={porRodovia.length}
@@ -254,7 +258,7 @@ export default async function PaginaPainel() {
             acoes={<LinkAcao href="/agenda">Ver agenda</LinkAcao>}
           />
 
-          <ExigemDecisao itens={decisoes} equipes={equipes} />
+          <ExigemDecisao itens={decisoes} equipes={equipes} podeEscrever={escreve} />
 
           {decisoesRestantes > 0 ? (
             <CartaoRodape>

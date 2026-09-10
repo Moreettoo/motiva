@@ -33,10 +33,15 @@ export function AcoesTrecho({
   trechoId,
   agendamentoId,
   statusAgendamento,
+  podeEscrever,
 }: {
   trechoId: number;
   agendamentoId: number | null;
   statusAgendamento: StatusAgendamento | null;
+  /** Analista: sem nenhuma ação, o componente some e o cabeçalho fecha sem
+   *  a área da direita. Um cabeçalho com um espaço reservado e vazio pareceria
+   *  um botão que não carregou. */
+  podeEscrever: boolean;
 }) {
   const { mostrar } = useNotificacao();
   const [pendente, iniciar] = useTransition();
@@ -135,6 +140,8 @@ export function AcoesTrecho({
     : execucao
       ? (ROTULO_SITUACAO[execucao.situacao] ?? execucao.situacao)
       : "";
+
+  if (!podeEscrever) return null;
 
   return (
     <>

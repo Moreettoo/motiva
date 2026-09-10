@@ -3,8 +3,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
+import { AvisoSomenteLeitura } from "@/components/ui/aviso-somente-leitura";
 import { CabecalhoPagina, MetricaCabecalho } from "@/components/shell/cabecalho-pagina";
 import { exigirCargo } from "@/lib/auth/sessao";
+import { podeEscrever } from "@/lib/auth/permissoes";
 import { rotuloPrazo } from "@/lib/dominio";
 import { fmt, isoHoje } from "@/lib/format";
 import {
@@ -61,7 +63,7 @@ export async function generateMetadata({
 
 export default async function PaginaTrecho({ params }: { params: Promise<{ id: string }> }) {
   const sessao = await exigirCargo("super_admin", "admin", "analista");
-  void sessao;
+  const escreve = podeEscrever(sessao.cargo);
   const { id } = await params;
   const trechoId = lerId(id);
   if (trechoId == null) notFound();
@@ -131,10 +133,13 @@ export default async function PaginaTrecho({ params }: { params: Promise<{ id: s
               trechoId={trecho.id}
               agendamentoId={agendamentoAtual?.id ?? null}
               statusAgendamento={agendamentoAtual?.status ?? null}
+              podeEscrever={escreve}
             />
           }
         />
       </div>
+
+      <AvisoSomenteLeitura podeEscrever={escreve} />
 
       <FaixaIdentidade trecho={trecho} />
 
@@ -151,13 +156,21 @@ export default async function PaginaTrecho({ params }: { params: Promise<{ id: s
 
       <DecisaoIa agendamento={agendamentoAtual} trecho={trecho} hojeIso={hojeIso} />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      {/* Sem "Registrar medição" o historico fica sozinho na linha: uma coluna
+          de 2fr com o vazio ao lado seria um buraco, nao uma escolha. */}
+      <div
+        className={
+          escreve
+            ? "grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]"
+            : "grid grid-cols-1 gap-6"
+        }
+      >
         <HistoricoTrecho
           execucoes={execucoes}
           anteriores={agendamentos.slice(1)}
           equipes={equipes}
         />
-        <RegistrarMedicao trechoId={trecho.id} hojeIso={hojeIso} />
+        {escreve ? <RegistrarMedicao trechoId={trecho.id} hojeIso={hojeIso} /> : null}
       </div>
 
       <TrechosVizinhos trecho={trecho} daRodovia={daRodovia} />

@@ -61,11 +61,14 @@ export function PainelTrecho({
   zona,
   aberto,
   aoFechar,
+  podeEscrever,
 }: {
   trecho: TrechoStatus | null;
   zona: ZonaClima | null;
   aberto: boolean;
   aoFechar: () => void;
+  /** Analista: a gaveta continua explicando o trecho, sem decidir por ele. */
+  podeEscrever: boolean;
 }) {
   const { mostrar } = useNotificacao();
   const [pendente, iniciar] = useTransition();
@@ -135,7 +138,7 @@ export function PainelTrecho({
       descricao={`${fmt.faixaKm(kmInicio, kmFim)} · ${trecho.uf}`}
       rodape={
         <div className="flex flex-wrap items-center gap-2">
-          {agendamentoId != null ? (
+          {podeEscrever && agendamentoId != null ? (
             <>
               <Botao
                 variante="primario"

@@ -73,6 +73,7 @@ export const CartaoServico = memo(function CartaoServico({
   ativo,
   desfazer,
   aoPegar,
+  permiteArrasto,
   aoTeclar,
   aoAbrir,
   engolirClique,
@@ -100,6 +101,9 @@ export const CartaoServico = memo(function CartaoServico({
   ativo: boolean;
   desfazer: (() => void) | null;
   aoPegar: (e: React.PointerEvent<HTMLElement>, carga: CargaArrasto) => void;
+  /** `false` para o Analista: sem alca, sem cursor de pega, sem `aria-grabbed`.
+   *  O hook ja recusa o gesto (`desativado`); isto tira a PROMESSA dele. */
+  permiteArrasto: boolean;
   aoTeclar: (e: React.KeyboardEvent<HTMLElement>, carga: CargaArrasto) => void;
   aoAbrir: (id: number) => void;
   engolirClique: (e: React.MouseEvent) => void;
@@ -183,7 +187,13 @@ export const CartaoServico = memo(function CartaoServico({
      cartão) perderia o gesto de rolagem no celular. Então no toque a pega
      continua sendo a alça, que é quem carrega `touch-none`; no ponteiro que não
      é dedo, o cartão todo. */
-  const arrastavel = !encerrado && !salvando;
+  const arrastavel = permiteArrasto && !encerrado && !salvando;
+
+  /* Sem alça, e o roving tabindex (`refCartao`) passa para o botão de detalhe:
+     é exatamente o caminho que o cartão ENCERRADO já percorre hoje. Reusar o
+     mesmo caminho, em vez de abrir um segundo, evita o estado em que a grade
+     tem um alvo de foco que não existe na tela. */
+  const semAlca = encerrado || !permiteArrasto;
 
   function pegarNoCartao(evento: React.PointerEvent<HTMLElement>) {
     const alvo = evento.target as Element;
@@ -276,7 +286,7 @@ export const CartaoServico = memo(function CartaoServico({
           style={{ backgroundColor: corDaTarja, opacity: encerrado ? 0.45 : 1 }}
         />
 
-        {encerrado ? null : (
+        {semAlca ? null : (
           <button
             ref={refCartao}
             type="button"
@@ -292,6 +302,9 @@ export const CartaoServico = memo(function CartaoServico({
                cartões da mesma rodovia coexistem na tela, e "Arrastar BR-101"
                repetido não desambigua nada na navegação por lista do leitor
                de tela. `carga.rotulo` já é essa frase, reaproveitada. */
+            /* Sem arrasto o no CONTINUA existindo: e ele que `refCartao`
+               entrega ao roving tabindex da grade. O que sai e a PROMESSA de
+               arrastar, que para o Analista seria uma alca morta. */
             aria-label={`Arrastar ${carga.rotulo}`}
             aria-roledescription="serviço arrastável"
             aria-disabled={salvando || undefined}
@@ -347,7 +360,7 @@ export const CartaoServico = memo(function CartaoServico({
         )}
 
         <button
-          ref={encerrado ? refCartao : undefined}
+          ref={semAlca ? refCartao : undefined}
           type="button"
           /* Onde `pegarNoCartao` repõe o foco quando o ponteiro desce sobre uma
              parte do cartão que não é botão (o filete de risco, o selo "2 d"). */
