@@ -5,7 +5,8 @@ import { CircleCheck, RefreshCw } from "lucide-react";
 
 import type { EventoCampo, FotoLocal } from "@/lib/campo/contratos";
 import { aplicarPendencias } from "@/lib/campo/fila";
-import { hojeNoFusoDoPainel } from "@/lib/format";
+import { SESSAO_EXPIRADA } from "@/lib/campo/sincronizar";
+import { fmt, hojeNoFusoDoPainel } from "@/lib/format";
 import type { MotivoAdiamento } from "@/lib/types";
 
 import { borda, BotaoCampo, ESCALA, Rotulo } from "./base";
@@ -209,7 +210,7 @@ export function AppCampo() {
       {casca}
 
       <main className="mx-auto max-w-lg px-4 py-4">
-        {ultimoRelatorio?.erro === "sessao_expirada" ? (
+        {ultimoRelatorio?.erro === SESSAO_EXPIRADA ? (
           <SessaoVencida pendentes={fila.length} />
         ) : equipesOferecidas != null && equipeId == null ? (
           <SeletorEquipe equipes={equipesOferecidas} aoEscolher={escolherEquipe} />
@@ -301,7 +302,10 @@ function SessaoVencida({ pendentes }: { pendentes: number }) {
         <h1 className={ESCALA.tela}>Sua sessão venceu</h1>
         <p className={`${ESCALA.corpo} mt-2 text-ink-2`}>
           Entre de novo para enviar o que está guardado.
-          {pendentes > 0 ? ` Os ${pendentes} registros no aparelho continuam aqui; nada foi perdido.` : ""}
+          {/* `fmt.contar` e nao interpolacao crua: com uma pendencia a frase saia
+              "Os 1 registros no aparelho continuam aqui", e essa e a tela que o
+              gestor vai olhar por cima do ombro do rocador. */}
+          {pendentes > 0 ? ` ${fmt.contar(pendentes, "registro")} no aparelho ${pendentes === 1 ? "continua" : "continuam"} aqui; nada foi perdido.` : ""}
         </p>
       </div>
       {/* Ancora de verdade, e nao `router.push`: a rota de destino esta fora do

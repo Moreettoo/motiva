@@ -94,7 +94,9 @@ export function CabecalhoCampo({ estado, fila }: { estado: EstadoCampo | null; f
         <div className="mx-auto max-w-lg space-y-3 border-t border-border px-4 py-4">
           {fila.length > 0 ? (
             <p role="alert" className={`${ESCALA.corpo} rounded-lg bg-critical-soft p-3 text-critical-ink`}>
-              Há {fmt.contar(fila.length, "registro")} ainda não enviados. Se sair agora eles serão apagados.
+              {fila.length === 1
+                ? "Há 1 registro ainda não enviado. Se sair agora ele será apagado."
+                : `Há ${fmt.contar(fila.length, "registro")} ainda não enviados. Se sair agora eles serão apagados.`}
             </p>
           ) : (
             <p className={`${ESCALA.corpo} text-ink-2`}>Sair apaga do aparelho os chamados e as fotos guardadas.</p>
