@@ -7,6 +7,7 @@ import { AvisoSomenteLeitura } from "@/components/ui/aviso-somente-leitura";
 import { CabecalhoPagina, MetricaCabecalho } from "@/components/shell/cabecalho-pagina";
 import { exigirCargo } from "@/lib/auth/sessao";
 import { podeEscrever } from "@/lib/auth/permissoes";
+import { obterChamado } from "@/lib/chamados/queries";
 import { rotuloPrazo } from "@/lib/dominio";
 import { fmt, isoHoje } from "@/lib/format";
 import {
@@ -21,6 +22,7 @@ import {
 import type { TrechoStatus } from "@/lib/types";
 
 import { AcoesTrecho } from "../_componentes/acoes-trecho";
+import { ChamadoDoTrecho } from "../_componentes/chamado-do-trecho";
 import { DecisaoIa } from "../_componentes/decisao-ia";
 import { EstadoAtual } from "../_componentes/estado-atual";
 import { FaixaIdentidade } from "../_componentes/faixa-identidade";
@@ -82,6 +84,13 @@ export default async function PaginaTrecho({ params }: { params: Promise<{ id: s
 
   const hojeIso = isoHoje();
   const agendamentoAtual = agendamentos[0] ?? null;
+
+  /* Depois do `Promise.all`, e não dentro dele: o id do chamado vem da VIEW
+     (`chamado_id`, coluna que a Fase 2 acrescentou), que só chega com o
+     `obterTrecho` acima. Uma consulta em série, e só quando há chamado — a
+     alternativa seria buscar por `agendamento_id` em paralelo e descartar o
+     resultado nos trechos sem ordem de serviço aberta, que é a maioria. */
+  const chamadoAtual = trecho.chamado_id == null ? null : await obterChamado(trecho.chamado_id);
   // A UF faz parte da identidade da faixa: a quilometragem reinicia na divisa, então a mesma
   // designação cobre faixas de km distintas em estados diferentes (a BR-381 vai do km 20 ao 66 em
   // SP e do km 550 ao 900 em MG). Sem a UF, a régua esticaria por centenas de km vazios e os
@@ -155,6 +164,11 @@ export default async function PaginaTrecho({ params }: { params: Promise<{ id: s
       />
 
       <DecisaoIa agendamento={agendamentoAtual} trecho={trecho} hojeIso={hojeIso} />
+
+      {/* Depois de `DecisaoIa`, e não antes: a ordem na página é a ordem dos
+          fatos — primeiro por que esta roçada foi marcada, depois em que pé
+          está a execução dela. */}
+      {chamadoAtual ? <ChamadoDoTrecho chamado={chamadoAtual} hojeIso={hojeIso} /> : null}
 
       {/* Sem "Registrar medição" o historico fica sozinho na linha: uma coluna
           de 2fr com o vazio ao lado seria um buraco, nao uma escolha. */}
