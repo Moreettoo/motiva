@@ -42,6 +42,9 @@ function trecho(overrides: Partial<TrechoStatus>): TrechoStatus {
     equipe_nome: "Equipe Alfa",
     ocupacao_pct: null,
     risco: "alta",
+    chamado_id: null,
+    chamado_numero: null,
+    chamado_status: null,
     ...overrides,
   };
 }

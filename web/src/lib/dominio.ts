@@ -10,7 +10,7 @@
  * `serious` ficam abaixo de 3:1 de proposito.
  */
 
-import type { Cargo, Especie, Regime, Risco, StatusAgendamento } from "./types";
+import type { Cargo, Especie, MotivoAdiamento, Regime, Risco, StatusAgendamento, StatusChamado, TipoEventoChamado } from "./types";
 
 /** Tom da `BarraProgresso` para cada risco. Fica aqui, e nao no componente,
  *  porque a tabela, o cartao e o painel da agenda pintavam a mesma barra a
@@ -123,6 +123,32 @@ export const CARGO: Record<Cargo, { rotulo: string; descricao: string; icone: st
   admin: { rotulo: "Admin", descricao: "Gestão da malha, chamados e usuários", icone: "UserCog" },
   analista: { rotulo: "Analista", descricao: "Painel, Malha e Agenda, somente leitura", icone: "Eye" },
   rocador: { rotulo: "Roçador", descricao: "Líder de equipe: só a tela de campo", icone: "Tractor" },
+};
+
+export const STATUS_CHAMADO_TOKEN: Record<StatusChamado, { rotulo: string; icone: string; tinta: string; fundo: string; descricao: string }> = {
+  aberto:               { rotulo: "Aberto",                icone: "Clock",         tinta: "var(--ink-2)",         fundo: "var(--surface-3)",   descricao: "Aguardando a equipe iniciar" },
+  em_andamento:         { rotulo: "Em andamento",          icone: "Play",          tinta: "var(--accent)",        fundo: "var(--accent-soft)", descricao: "Equipe em campo" },
+  aguardando_aprovacao: { rotulo: "Aguardando aprovação",  icone: "Hourglass",     tinta: "var(--warning-ink)",   fundo: "var(--warning-soft)", descricao: "Fechado pela equipe; falta o gestor conferir" },
+  devolvido:            { rotulo: "Devolvido",             icone: "Undo2",         tinta: "var(--serious-ink)",   fundo: "var(--serious-soft)", descricao: "Gestor recusou o fechamento; equipe refaz" },
+  adiamento_solicitado: { rotulo: "Adiamento pedido",      icone: "CalendarClock", tinta: "var(--warning-ink)",   fundo: "var(--warning-soft)", descricao: "Equipe pediu nova data; gestor decide" },
+  concluido:            { rotulo: "Concluído",             icone: "CircleCheck",   tinta: "var(--good-ink)",      fundo: "var(--good-soft)",    descricao: "Aprovado e registrado como execução" },
+  cancelado:            { rotulo: "Cancelado",             icone: "CircleSlash",   tinta: "var(--ink-3)",         fundo: "var(--surface-3)",   descricao: "Não vai acontecer" },
+};
+
+export const MOTIVO_ADIAMENTO: Record<MotivoAdiamento, string> = {
+  chuva: "Chuva", equipamento: "Equipamento quebrado", acesso_bloqueado: "Acesso bloqueado",
+  seguranca_trafego: "Segurança ou tráfego", falta_efetivo: "Falta de efetivo", outro: "Outro motivo",
+};
+
+export const TIPO_EVENTO: Record<TipoEventoChamado, { rotulo: string; icone: string }> = {
+  criado: { rotulo: "Chamado criado", icone: "Plus" }, iniciado: { rotulo: "Roçada iniciada", icone: "Play" },
+  finalizado: { rotulo: "Roçada finalizada", icone: "Flag" }, aprovado: { rotulo: "Aprovado pelo gestor", icone: "CircleCheck" },
+  devolvido: { rotulo: "Devolvido pelo gestor", icone: "Undo2" }, adiamento_solicitado: { rotulo: "Adiamento pedido", icone: "CalendarClock" },
+  adiamento_aceito: { rotulo: "Adiamento aceito", icone: "CalendarCheck" }, adiamento_recusado: { rotulo: "Adiamento recusado", icone: "CalendarX" },
+  remarcado: { rotulo: "Data alterada", icone: "CalendarRange" }, equipe_alterada: { rotulo: "Equipe alterada", icone: "Users" },
+  altura_inicial_alterada: { rotulo: "Altura inicial informada", icone: "Ruler" }, cancelado: { rotulo: "Cancelado", icone: "CircleSlash" },
+  encerrado_admin: { rotulo: "Encerrado administrativamente", icone: "ShieldCheck" }, fora_de_ordem: { rotulo: "Recebido fora de ordem", icone: "TriangleAlert" },
+  comentario: { rotulo: "Comentário", icone: "MessageSquare" },
 };
 
 export const ESPECIE: Record<Especie, { rotulo: string; nomeCientifico: string; nota: string }> = {

@@ -80,6 +80,40 @@ export type Convite = {
   revogado_em: string | null;
 };
 
+/** Estados do chamado (ordem de servico). A maquina de estados esta em `chamados/maquina.ts`. */
+export const STATUS_CHAMADO = ["aberto","em_andamento","aguardando_aprovacao","devolvido","adiamento_solicitado","concluido","cancelado"] as const;
+export type StatusChamado = (typeof STATUS_CHAMADO)[number];
+
+export const TIPOS_EVENTO_CHAMADO = ["criado","iniciado","finalizado","aprovado","devolvido","adiamento_solicitado","adiamento_aceito","adiamento_recusado","remarcado","equipe_alterada","altura_inicial_alterada","cancelado","encerrado_admin","fora_de_ordem","comentario"] as const;
+export type TipoEventoChamado = (typeof TIPOS_EVENTO_CHAMADO)[number];
+
+export const MOTIVOS_ADIAMENTO = ["chuva","equipamento","acesso_bloqueado","seguranca_trafego","falta_efetivo","outro"] as const;
+export type MotivoAdiamento = (typeof MOTIVOS_ADIAMENTO)[number];
+
+export type Chamado = { id: number; numero: string; agendamento_id: number; trecho_id: number; status: StatusChamado; status_anterior: StatusChamado | null;
+  altura_inicial_cm: number | null; altura_inicial_origem: "prevista" | "informada"; altura_final_cm: number | null; km_rocados: number | null;
+  custo_reais: number | null; observacao_conclusao: string | null; sem_evidencia: boolean; iniciado_em: string | null; finalizado_em: string | null;
+  concluido_em: string | null; cancelado_em: string | null; criado_em: string; atualizado_em: string };
+
+export type ChamadoEvento = { id: number; chamado_id: number; evento_id: string; tipo: TipoEventoChamado; autor_id: string | null; autor_nome: string;
+  origem: "painel" | "campo" | "lote" | "sistema"; payload: Record<string, unknown>; ocorrido_em: string; registrado_em: string };
+
+export type ChamadoFoto = { id: number; chamado_id: number; evento_id: string; etapa: "inicio" | "fim"; papel: "medida" | "extensao" | "resultado" | "extra";
+  caminho: string; largura_px: number; altura_px: number; bytes: number; latitude: number | null; longitude: number | null; precisao_m: number | null;
+  capturada_em: string; enviada_em: string; autor_id: string | null };
+
+export type ChamadoAdiamento = { id: number; chamado_id: number; evento_id: string; motivo: MotivoAdiamento; detalhe: string | null; data_sugerida: string | null;
+  solicitado_por: string | null; solicitado_em: string; decidido_por: string | null; decidido_em: string | null; decisao: "aceito" | "recusado" | null;
+  nova_data: string | null; resposta: string | null };
+
+export type Notificacao = { id: number; destinatario_id: string; tipo: string; titulo: string; texto: string | null; href: string | null; chamado_id: number | null; lida_em: string | null; criado_em: string };
+
+export type ChamadoDetalhado = Chamado & {
+  agendamento: { id: number; data_sugerida: string; prioridade: Prioridade; justificativa: string; origem: Origem; equipe_id: number | null;
+    equipe: { id: number; nome: string; lider_nome: string | null } | null };
+  trecho: Pick<Trecho, "id" | "rodovia" | "km_inicio" | "km_fim" | "uf" | "sentido" | "latitude" | "longitude" | "altura_limite_cm" | "observacoes">;
+};
+
 /** Risco derivado do prazo pela view, nao do texto da LLM. */
 export type Risco = Prioridade;
 
@@ -142,6 +176,11 @@ export type TrechoStatus = {
 
   ocupacao_pct: number | null;
   risco: Risco;
+
+  /** Chamado aberto do trecho, quando ha. A view ganha estas colunas na Fase 2. */
+  chamado_id: number | null;
+  chamado_numero: string | null;
+  chamado_status: StatusChamado | null;
 };
 
 export type Medicao = {
