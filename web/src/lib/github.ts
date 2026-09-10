@@ -5,8 +5,8 @@ import type { ExecucaoAnalise } from "./types";
 /**
  * Disparo da reanálise pelo GitHub Actions.
  *
- * O modelo de crescimento é um `HistGradientBoostingRegressor` serializado em
- * `modelo_vegetacao.pkl`. Rodá-lo exige scikit-learn, scipy e numpy, mais de
+ * O modelo de crescimento são três `HistGradientBoostingRegressor` de quantil
+ * serializados em `modelo_gramas.pkl`. Rodá-los exige scikit-learn, scipy e numpy, mais de
  * 250 MB descompactados, acima do teto de bundle de uma função serverless. Em
  * vez de hospedar um segundo serviço só para isso, o painel aciona o workflow
  * que já existe, já tem os segredos e já roda todo dia às 06:00.

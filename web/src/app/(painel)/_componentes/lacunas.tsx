@@ -52,8 +52,9 @@ export function Lacunas({ lacunas }: { lacunas: LacunasDeDados }) {
       </ul>
 
       <p className="mt-2 text-xs text-ink-3">
-        A altura atual é extrapolada da última medição. Quanto mais velha a medição, maior o erro
-        acumulado no prazo. Registre a altura em campo para o painel voltar a acertar.
+        A altura atual não é medida: é o modelo prevendo o crescimento sobre o clima observado
+        desde a última medição. Quanto mais longa essa janela, mais a previsão anda sozinha, sem
+        nada de campo para corrigi-la. Registre a altura em campo para o painel voltar a acertar.
       </p>
     </Aviso>
   );

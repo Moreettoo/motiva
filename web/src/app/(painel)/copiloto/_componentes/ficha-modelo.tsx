@@ -18,24 +18,36 @@ import type { Risco } from "@/lib/types";
  * saber de onde ela veio.
  */
 
-/** Entradas do modelo, com o nome tecnico que aparece no `.pkl` e no log. */
+/** As 20 entradas do modelo, com o nome que aparece no `.pkl` e no log.
+ *  Espelha `CAMPOS_ENTRADA` em `lib/modelo/campos.ts`, que e a ordem em que o
+ *  vetor e montado. `uf` e `mes` sumiram na v3.1: a geografia e a estacao ja
+ *  entram por latitude e pelo clima diario. */
 const FEATURES = [
-  { rotulo: "Temperatura média", campo: "temperatura_media_c" },
-  { rotulo: "Umidade média", campo: "umidade_media_pct" },
-  { rotulo: "Precipitação", campo: "precipitacao_total_mm" },
-  { rotulo: "Radiação solar", campo: "radiacao_media_mj_m2" },
-  { rotulo: "Evapotranspiração", campo: "et0_medio_mm_dia" },
-  { rotulo: "Balanço hídrico", campo: "balanco_hidrico_chuva_sobre_et0" },
-  { rotulo: "Latitude", campo: "latitude" },
+  { rotulo: "Espécie", campo: "especie" },
+  { rotulo: "Tamanho do período", campo: "dias_periodo" },
   { rotulo: "Altura inicial", campo: "altura_inicial_cm" },
-  { rotulo: "Mês", campo: "mes" },
-  { rotulo: "Espécie", campo: "especie_cod" },
-  { rotulo: "UF", campo: "uf_cod" },
+  { rotulo: "Fase da rebrota", campo: "dias_desde_rocada_inicio" },
+  { rotulo: "Temperatura média", campo: "temperatura_media_c" },
+  { rotulo: "Temperatura mínima", campo: "temperatura_min_c" },
+  { rotulo: "Temperatura máxima", campo: "temperatura_max_c" },
+  { rotulo: "Graus-dia acumulados", campo: "graus_dia_acumulados" },
+  { rotulo: "Umidade média", campo: "umidade_media_pct" },
+  { rotulo: "Precipitação total", campo: "precipitacao_total_mm" },
+  { rotulo: "Dias com chuva", campo: "dias_com_chuva" },
+  { rotulo: "Evapotranspiração", campo: "et0_medio_mm_dia" },
+  { rotulo: "Radiação solar", campo: "radiacao_media_mj_m2" },
+  { rotulo: "Água no solo", campo: "agua_solo_media_pct" },
+  { rotulo: "Capacidade de água do solo", campo: "capacidade_agua_solo_mm" },
+  { rotulo: "Fertilidade do solo", campo: "fertilidade_solo" },
+  { rotulo: "Latitude", campo: "latitude" },
+  { rotulo: "Geadas no período", campo: "geadas_no_periodo" },
+  { rotulo: "Dias encharcado", campo: "dias_encharcado" },
+  { rotulo: "Dias em floração", campo: "dias_floracao" },
 ];
 
 const LIMITACOES = [
-  "A altura de hoje é extrapolada, não medida: é a última medição mais o crescimento previsto vezes os dias decorridos.",
-  "Medição velha acumula erro. Quanto mais antiga a visita ao trecho, mais a altura atual é estimativa em cima de estimativa.",
+  "A altura de hoje é prevista, não medida: é o modelo rodando sobre o clima observado entre a última medição e hoje.",
+  "Medição velha deixa a previsão andar sozinha. Quanto mais antiga a visita ao trecho, mais longa a janela sem nada de campo para corrigi-la.",
   "A análise em lote só chama a LLM para trechos a menos de 45 dias do limite. Trecho folgado ganha previsão, mas não ganha agendamento. O silêncio ali é economia, não ausência de risco.",
   "O copiloto lê apenas agendamentos: rodovia, km, UF, prioridade, data e justificativa. Medição, altura, crescimento e escala de equipe ficam fora da pergunta.",
 ];
@@ -87,11 +99,11 @@ export function FichaModelo({ modeloLlm }: { modeloLlm: string | null }) {
               <p className="tnum font-mono text-2xs text-ink-3">IA 1 · regressão</p>
               <p className="mt-1 text-sm font-medium text-ink">Quanto a vegetação cresce</p>
               <p className="mt-1 text-xs text-ink-2">
-                Modelo de <em className="not-italic">gradient boosting</em> treinado em histórico de
-                campo e serializado em{" "}
-                <span className="font-mono text-ink-3">modelo_vegetacao.pkl</span>. Devolve o
-                crescimento em cm/dia. É determinístico: mesma entrada, mesma saída, sem chamar a
-                OpenAI.
+                Três modelos de <em className="not-italic">gradient boosting</em> de quantil (q10,
+                q50, q90) treinados em janelas simuladas com clima real e serializados em{" "}
+                <span className="font-mono text-ink-3">modelo_gramas.pkl</span>. Devolvem o
+                crescimento do PERÍODO inteiro, em centímetros e em intervalo — não uma taxa
+                diária. São determinísticos: mesma entrada, mesma saída, sem chamar a OpenAI.
               </p>
             </li>
 
@@ -99,7 +111,7 @@ export function FichaModelo({ modeloLlm }: { modeloLlm: string | null }) {
               <p className="tnum font-mono text-2xs text-ink-3">IA 2 · linguagem</p>
               <p className="mt-1 text-sm font-medium text-ink">Quando roçar, e por quê</p>
               <p className="mt-1 text-xs text-ink-2">
-                Recebe o cm/dia já calculado e{" "}
+                Recebe os centímetros já calculados e{" "}
                 <strong className="font-medium text-ink">não recalcula o número</strong>. Lê as
                 observações do trecho (curva fechada, reclamação no 0800, risco de incêndio, janela
                 seca) e escolhe a data e escreve a justificativa.

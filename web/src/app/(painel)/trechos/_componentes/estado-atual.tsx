@@ -73,7 +73,7 @@ export function EstadoAtual({
           como="h2"
           icone={<Gauge />}
           titulo="Altura contra o limite"
-          descricao="Altura extrapolada da última medição pela taxa do modelo."
+          descricao="Previsão do modelo sobre o clima observado desde a última medição."
         />
         <CartaoCorpo className="flex justify-center pt-1 pb-6">
           {altura == null ? (

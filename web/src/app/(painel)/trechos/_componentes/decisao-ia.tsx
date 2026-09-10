@@ -157,7 +157,8 @@ export function DecisaoIa({
               ) : (
                 <span className="tnum font-mono text-ink">{fmt.cmDia(crescimento)}</span>
               )}{" "}
-              veio do modelo de regressão treinado no histórico do trecho: clima, espécie, UF e mês.{" "}
+              veio das três regressões de quantil treinadas em janelas de clima real: clima diário,
+              espécie, latitude, altura inicial, fase da rebrota e água no solo.{" "}
               {manual ? (
                 <>
                   A data foi escolhida por uma pessoa, no painel, e a prioridade acompanha o prazo

@@ -68,7 +68,7 @@ export function RegistrarMedicao({ trechoId, hojeIso }: { trechoId: number; hoje
         como="h2"
         icone={<Ruler />}
         titulo="Registrar medição"
-        descricao="A altura medida hoje em campo. Entra no histórico e corrige a extrapolação."
+        descricao="A altura medida hoje em campo. Entra no histórico e reancora a previsão do modelo."
       />
 
       <CartaoCorpo>
