@@ -226,57 +226,67 @@ export function BarraFiltros({
         ))}
       </div>
 
+      {/* `Selecao` e `Entrada` são `w-full` por dentro, para servirem a
+          formulário em coluna. Aqui eles são controles de barra, então quem
+          define a largura é este invólucro — sem ele o primeiro select come a
+          linha inteira e empurra o resto do filtro para baixo. */}
       <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <Selecao
-          aria-label="Equipe"
-          value={String(filtros.equipeId)}
-          onChange={(evento) => aoMudar({ equipeId: Number(evento.target.value) })}
-          className="w-auto min-w-40"
-        >
-          <option value="0">Todas as equipes</option>
-          {equipes.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.nome}
-            </option>
-          ))}
-        </Selecao>
+        <div className="w-44 shrink-0">
+          <Selecao
+            aria-label="Equipe"
+            value={String(filtros.equipeId)}
+            onChange={(evento) => aoMudar({ equipeId: Number(evento.target.value) })}
+          >
+            <option value="0">Todas as equipes</option>
+            {equipes.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.nome}
+              </option>
+            ))}
+          </Selecao>
+        </div>
 
-        <Selecao
-          aria-label="Rodovia"
-          value={filtros.rodovia}
-          onChange={(evento) => aoMudar({ rodovia: evento.target.value })}
-          className="w-auto min-w-36"
-        >
-          <option value="">Todas as rodovias</option>
-          {rodovias.map((r) => (
-            <option key={r} value={r}>
-              {r}
-            </option>
-          ))}
-        </Selecao>
+        <div className="w-40 shrink-0">
+          <Selecao
+            aria-label="Rodovia"
+            value={filtros.rodovia}
+            onChange={(evento) => aoMudar({ rodovia: evento.target.value })}
+          >
+            <option value="">Todas as rodovias</option>
+            {rodovias.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </Selecao>
+        </div>
 
         {/* Data PREVISTA, não data de criação: é por ela que a operação
             pergunta ("o que estava marcado para a semana passada?"). */}
         <div className="flex min-w-0 items-center gap-1.5">
-          <Entrada
-            type="date"
-            aria-label="Prevista a partir de"
-            value={filtros.de}
-            max={filtros.ate || undefined}
-            onChange={(evento) => aoMudar({ de: evento.target.value })}
-            className="tnum w-auto min-w-36"
-          />
+          <div className="w-36 shrink-0">
+            <Entrada
+              type="date"
+              aria-label="Prevista a partir de"
+              value={filtros.de}
+              max={filtros.ate || undefined}
+              onChange={(evento) => aoMudar({ de: evento.target.value })}
+              className="tnum"
+            />
+          </div>
           <span aria-hidden="true" className="shrink-0 text-xs text-ink-3">
             até
           </span>
-          <Entrada
-            type="date"
-            aria-label="Prevista até"
-            value={filtros.ate}
-            min={filtros.de || undefined}
-            onChange={(evento) => aoMudar({ ate: evento.target.value })}
-            className="tnum w-auto min-w-36"
-          />
+          <div className="w-36 shrink-0">
+            <Entrada
+              type="date"
+              aria-label="Prevista até"
+              value={filtros.ate}
+              min={filtros.de || undefined}
+              onChange={(evento) => aoMudar({ ate: evento.target.value })}
+              className="tnum"
+            />
+          </div>
         </div>
       </div>
 

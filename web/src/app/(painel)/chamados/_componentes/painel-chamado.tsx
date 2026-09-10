@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { CalendarClock, CircleSlash, Ruler, ShieldCheck, Undo2, CircleCheck } from "lucide-react";
+import { CalendarClock, CircleCheck, CircleSlash, LoaderCircle, Ruler, ShieldCheck, Undo2 } from "lucide-react";
 
 import { Aviso } from "@/components/ui/aviso";
 import { Botao } from "@/components/ui/botao";
@@ -81,6 +81,11 @@ type PropsCorpo = {
   hoje: string;
   agora: string;
   pendente: boolean;
+  /** Recusa da última decisão. Vive AQUI, e não só no toast: a pilha de
+   *  notificações nasce no canto inferior direito, que no desktop é
+   *  exatamente onde a gaveta está — o toast de erro fica atrás dela e a
+   *  pessoa vê o botão parar de girar sem nenhuma explicação. */
+  erroDecisao: string | null;
   nomeDaEquipe: (id: number) => string;
   aoAprovar: (e: EntradaAprovar) => void;
   aoDevolver: (e: EntradaDevolver) => void;
@@ -102,11 +107,14 @@ type PropsCorpo = {
 export function PainelChamado({
   detalhe,
   aberto,
+  carregando,
   aoFechar,
   ...resto
 }: Omit<PropsCorpo, "detalhe"> & {
   detalhe: DetalheChamado | null;
   aberto: boolean;
+  /** O servidor está buscando o chamado do `?chamado=` recém-clicado. */
+  carregando: boolean;
   aoFechar: () => void;
 }) {
   return (
@@ -122,12 +130,24 @@ export function PainelChamado({
       largura="lg"
     >
       {detalhe ? (
-        /* A `key` e o que zera o formulario meio preenchido quando a gaveta
-           troca de chamado OU o chamado troca de estado debaixo dela (uma
-           aprovacao que voltou do servidor). Remontar e mais honesto do que
-           limpar campo a campo num efeito: o formulario pertencia ao estado
-           anterior, e os botoes validos agora sao outros. */
-        <CorpoChamado key={`${detalhe.id}:${detalhe.status}`} detalhe={detalhe} {...resto} />
+        /* A `key` é o que fecha o formulário quando o chamado muda debaixo da
+           gaveta. `atualizado_em` é carimbado por gatilho a cada `update`, então
+           ela troca em TODA alteração confirmada pelo banco — inclusive as que
+           não mexem no estado, como informar a altura inicial. Com a chave só
+           no estado, salvar a altura deixava o campo aberto com o valor antigo
+           ao lado do novo, convidando a salvar de novo.
+
+           Remontar é mais honesto do que limpar campo a campo num efeito: o
+           formulário pertencia à versão anterior do chamado. */
+        <CorpoChamado key={`${detalhe.id}:${detalhe.atualizado_em}`} detalhe={detalhe} {...resto} />
+      ) : carregando ? (
+        /* Enquanto o servidor busca, a gaveta espera. Sem este ramo ela
+           abriria dizendo "não encontrado" no intervalo entre o clique e a
+           resposta — uma acusação de erro para o caso normal. */
+        <p role="status" className="flex items-center gap-2 text-sm text-ink-3">
+          <LoaderCircle aria-hidden="true" className="size-4 shrink-0 animate-spin" />
+          Abrindo o chamado…
+        </p>
       ) : (
         <Aviso tom="warning" titulo="Chamado não encontrado">
           <p>O endereço aponta para um chamado que não existe mais. Feche e escolha outro na lista.</p>
@@ -143,6 +163,7 @@ function CorpoChamado({
   hoje,
   agora,
   pendente,
+  erroDecisao,
   nomeDaEquipe,
   aoAprovar,
   aoDevolver,
@@ -177,6 +198,12 @@ function CorpoChamado({
 
   return (
     <div className="flex min-w-0 flex-col gap-5">
+      {erroDecisao ? (
+        <Aviso tom="critical" titulo="A decisão não foi registrada">
+          <p>{erroDecisao}</p>
+        </Aviso>
+      ) : null}
+
       <Secao titulo="Estado e prazo">
         <div className="flex flex-wrap items-center gap-2">
           <ChipChamado status={detalhe.status} />

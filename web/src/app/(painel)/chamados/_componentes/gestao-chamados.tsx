@@ -85,18 +85,38 @@ export function GestaoChamados({
     busca: paramBusca,
   });
 
-  const [chamadoAberto, setChamadoAberto] = useQueryState("chamado", paramChamado);
-  const [criandoRocada, setCriandoRocada] = useQueryState("nova", paramNova);
-
   const { mostrar } = useNotificacao();
   const router = useRouter();
   const [pendente, iniciar] = useTransition();
+  const [abrindo, iniciarAbertura] = useTransition();
+
+  /* `shallow: false` é o que faz o servidor rodar de novo, e sem ele a gaveta
+     não funciona: `?chamado=` é lido em `page.tsx`, não na lista do cliente, e
+     com a atualização rasa a URL mudava enquanto `detalhe` continuava nulo —
+     a gaveta abria dizendo "Chamado não encontrado" para um chamado que está
+     ali na tela. É o preço de ler o detalhe no servidor, e é o que faz o link
+     valer quando outra pessoa o abre. */
+  const [chamadoAberto, setChamadoAberto] = useQueryState(
+    "chamado",
+    paramChamado.withOptions({ shallow: false, startTransition: iniciarAbertura }),
+  );
+  const [criandoRocada, setCriandoRocada] = useQueryState("nova", paramNova);
 
   /* A recusa da criação fica NA GAVETA, além do toast: a gaveta continua
      aberta com o formulário preenchido, e mandar a pessoa ler o motivo num
      canto oposto da tela enquanto o formulário está na frente dela é jogar a
      mensagem no lugar errado. Mesma decisão da agenda. */
   const [erroNova, setErroNova] = useState<string | null>(null);
+
+  /* Mesma decisão para a gaveta do chamado, e aqui ela não é conforto: a pilha
+     de toasts fica no canto inferior direito, embaixo da gaveta no desktop. O
+     erro que só fosse para o toast seria um erro que ninguém lê. */
+  const [erroDecisao, setErroDecisao] = useState<string | null>(null);
+
+  function abrir(id: number) {
+    setErroDecisao(null);
+    void setChamadoAberto(id);
+  }
 
   const indice = useMemo(() => montarIndiceBusca(chamados), [chamados]);
   const rodovias = useMemo(() => rodoviasDe(chamados), [chamados]);
@@ -125,6 +145,7 @@ export function GestaoChamados({
    */
   const executar = useCallback(
     (acao: () => Promise<Resposta>, titulo: string, descricao?: (dados: unknown) => string | undefined) => {
+      setErroDecisao(null);
       iniciar(async () => {
         try {
           const resultado = await acao();
@@ -132,15 +153,13 @@ export function GestaoChamados({
             mostrar({ tom: "good", titulo, descricao: descricao?.(resultado.dados) });
             router.refresh();
           } else {
+            setErroDecisao(resultado.erro);
             mostrar({ tom: "critical", titulo: "A decisão não foi registrada", descricao: resultado.erro, duracao: 0 });
           }
         } catch {
-          mostrar({
-            tom: "critical",
-            titulo: "A decisão não foi registrada",
-            descricao: "A conexão com o servidor falhou. Confira a rede e tente de novo.",
-            duracao: 0,
-          });
+          const erro = "A conexão com o servidor falhou. Confira a rede e tente de novo.";
+          setErroDecisao(erro);
+          mostrar({ tom: "critical", titulo: "A decisão não foi registrada", descricao: erro, duracao: 0 });
         }
       });
     },
@@ -199,7 +218,7 @@ export function GestaoChamados({
         hoje={hoje}
         agora={agora}
         chamadoAberto={chamadoAberto}
-        aoAbrir={(id) => void setChamadoAberto(id)}
+        aoAbrir={abrir}
         aoVerTodos={verTodos}
       />
 
@@ -225,14 +244,19 @@ export function GestaoChamados({
         agora={agora}
         chamadoAberto={chamadoAberto}
         filtrada={temFiltro(filtros as FiltrosChamados)}
-        aoAbrir={(id) => void setChamadoAberto(id)}
+        aoAbrir={abrir}
         aoLimpar={() => void setFiltros(FILTROS_VAZIOS)}
       />
 
       <PainelChamado
         detalhe={detalhe}
         aberto={chamadoAberto != null}
-        aoFechar={() => void setChamadoAberto(null)}
+        carregando={abrindo}
+        erroDecisao={erroDecisao}
+        aoFechar={() => {
+          void setChamadoAberto(null);
+          setErroDecisao(null);
+        }}
         cargo={cargo}
         hoje={hoje}
         agora={agora}

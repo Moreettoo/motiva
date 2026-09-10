@@ -121,7 +121,11 @@ export function FilaDecisao({
   }
 
   return (
-    <div className="grid min-w-0 gap-3 md:grid-cols-3">
+    /* `items-start`: cada bloco tem a altura do seu conteúdo. Esticados até a
+       altura do maior, os dois blocos com uma ficha ficavam com meia tela de
+       vazio embaixo — e um retângulo vazio grande lê como área que falhou em
+       carregar, não como "nada esperando você", que a frase já diz. */
+    <div className="grid min-w-0 items-start gap-3 md:grid-cols-3">
       <Bloco
         titulo="Aguardando aprovação"
         status="aguardando_aprovacao"
