@@ -129,6 +129,15 @@ export type ItemFila = EventoCampo & {
   tentativas: number;
   ultimo_erro: string | null;
   criado_em: string;
+  /**
+   * Quando foi a ULTIMA tentativa de envio. E daqui que a espera exponencial
+   * conta, e nao de `criado_em`, que nunca muda.
+   *
+   * OPCIONAL, como `ChamadoCampo.eventos_recentes` e pelo mesmo motivo: um
+   * aparelho que enfileirou antes desta versao tem itens gravados sem o campo, e
+   * exigi-lo faria a fila quebrar justamente com o trabalho ja registrado dentro.
+   */
+  ultima_tentativa_em?: string | null;
 };
 
 /**

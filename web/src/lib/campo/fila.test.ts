@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { StatusChamado } from "@/lib/types";
 
 import type { ChamadoCampo, ItemFila, TipoEventoCampo, TrechoCampo } from "./contratos";
-import { agruparChamados, aplicarPendencias, esperaAntesDaTentativa, ordenarFila, resumoPendencias } from "./fila";
+import { agruparChamados, aplicarPendencias, esperaAntesDaTentativa, ordenarFila, podeTentarAgora, resumoPendencias } from "./fila";
 
 const TRECHO: TrechoCampo = {
   id: 1, rodovia: "BR-101", km_inicio: 10, km_fim: 14, uf: "SP", sentido: "norte",
@@ -113,6 +113,40 @@ describe("resumoPendencias", () => {
 describe("esperaAntesDaTentativa", () => {
   it("cresce ate o teto de 120 s e para la", () => {
     expect([0, 1, 2, 3, 4, 5].map((n) => esperaAntesDaTentativa(n))).toEqual([0, 2000, 8000, 30000, 120000, 120000]);
+  });
+});
+
+describe("podeTentarAgora", () => {
+  const criado = "2026-09-10T08:00:00.000Z";
+  const t = (iso: string) => new Date(iso).getTime();
+
+  it("item que nunca foi tentado sai na hora", () => {
+    expect(podeTentarAgora(item("a", 1, "iniciado", criado), t("2026-09-10T08:00:00.000Z"))).toBe(true);
+  });
+
+  it("conta da ultima tentativa, nao da criacao", () => {
+    /* Este e o defeito que existia: com `criado_em` como base, um item criado
+       ha uma hora tinha `criado_em + 120 s` sempre no passado e era liberado na
+       hora, por mais que acabasse de falhar — a espera exponencial nao existia. */
+    const i = item("a", 1, "iniciado", criado, { tentativas: 4, ultima_tentativa_em: "2026-09-10T09:00:00.000Z" });
+    expect(podeTentarAgora(i, t("2026-09-10T09:01:00.000Z"))).toBe(false);
+    expect(podeTentarAgora(i, t("2026-09-10T09:02:00.000Z"))).toBe(true);
+  });
+
+  it("respeita a espera de cada degrau", () => {
+    const i = (tentativas: number) => item("a", 1, "iniciado", criado, { tentativas, ultima_tentativa_em: criado });
+    expect(podeTentarAgora(i(1), t("2026-09-10T08:00:01.000Z"))).toBe(false);
+    expect(podeTentarAgora(i(1), t("2026-09-10T08:00:02.000Z"))).toBe(true);
+    expect(podeTentarAgora(i(3), t("2026-09-10T08:00:29.000Z"))).toBe(false);
+    expect(podeTentarAgora(i(3), t("2026-09-10T08:00:30.000Z"))).toBe(true);
+  });
+
+  /* Item enfileirado por uma versao anterior do app nao tem o campo. Tentar
+     cedo demais e o erro seguro; travar a fila do dia seria o inseguro. */
+  it("item antigo, sem ultima_tentativa_em, cai em criado_em", () => {
+    const i = item("a", 1, "iniciado", criado, { tentativas: 1 });
+    expect(podeTentarAgora(i, t("2026-09-10T08:00:01.000Z"))).toBe(false);
+    expect(podeTentarAgora(i, t("2026-09-10T08:00:05.000Z"))).toBe(true);
   });
 });
 

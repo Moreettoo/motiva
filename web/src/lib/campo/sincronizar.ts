@@ -1,6 +1,6 @@
 import { atualizarItem, fotosDoEvento, gravarEstado, listarFila, marcarForaDeOrdem, marcarFotoEnviada, removerDaFila } from "./banco-local";
 import type { EstadoCampo, ItemFila, ResultadoEvento } from "./contratos";
-import { esperaAntesDaTentativa, ordenarFila } from "./fila";
+import { ordenarFila, podeTentarAgora } from "./fila";
 
 /**
  * O UNICO caminho de saida do aparelho para o servidor. Roda na pagina e no
@@ -103,8 +103,12 @@ export async function sincronizarFila(opcoes: { origem: "pagina" | "worker"; equ
   const agora = Date.now();
 
   for (const item of fila) {
-    const podeTentarEm = new Date(item.criado_em).getTime() + esperaAntesDaTentativa(item.tentativas);
-    if (item.tentativas > 0 && agora < podeTentarEm && opcoes.origem === "pagina") continue;
+    /* `break` e nao `continue`: pular um item e enviar o proximo quebraria a
+       ordem, e `iniciado` depois de `finalizado` do mesmo chamado e recusado
+       pelo servidor. Quem esta recuando segura a fila inteira, do mesmo jeito
+       que uma falha de rede segura — e a proxima passada vem logo, por `online`,
+       por `visibilitychange` ou pelo botao "Enviar agora". */
+    if (opcoes.origem === "pagina" && !podeTentarAgora(item, agora)) break;
 
     try {
       await enviarFotos(item);
@@ -139,7 +143,7 @@ export async function sincronizarFila(opcoes: { origem: "pagina" | "worker"; equ
         relatorio.foraDeOrdem += 1;
       } else {
         // Recusado por regra (ex.: fotos faltando). Fica na fila com o motivo, para a pessoa ver e corrigir.
-        await atualizarItem({ ...item, tentativas: item.tentativas + 1, ultimo_erro: r.erro ?? "O servidor não aceitou este registro. Fale com o gestor." });
+        await atualizarItem({ ...item, tentativas: item.tentativas + 1, ultima_tentativa_em: new Date().toISOString(), ultimo_erro: r.erro ?? "O servidor não aceitou este registro. Fale com o gestor." });
         relatorio.recusados += 1;
       }
     } catch (e) {
@@ -148,7 +152,7 @@ export async function sincronizarFila(opcoes: { origem: "pagina" | "worker"; equ
         relatorio.erro = SESSAO_EXPIRADA;
         break; // nada mais vai passar; a tela pede login e a fila fica intacta
       }
-      await atualizarItem({ ...item, tentativas: item.tentativas + 1, ultimo_erro: mensagem });
+      await atualizarItem({ ...item, tentativas: item.tentativas + 1, ultima_tentativa_em: new Date().toISOString(), ultimo_erro: mensagem });
       relatorio.erro = mensagem;
       break; // sem rede: parar e tentar de novo depois, mantendo a ordem
     }

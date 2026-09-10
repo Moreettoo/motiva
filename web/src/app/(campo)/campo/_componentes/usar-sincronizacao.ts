@@ -109,7 +109,7 @@ export function useSincronizacao(equipeId: number | null) {
   const registrar = useCallback(
     async (evento: EventoCampo, fotos: FotoLocal[]) => {
       for (const foto of fotos) await guardarFoto(foto);
-      await enfileirar({ ...evento, fotos: fotos.map((f) => f.foto_id), tentativas: 0, ultimo_erro: null, criado_em: new Date().toISOString() });
+      await enfileirar({ ...evento, fotos: fotos.map((f) => f.foto_id), tentativas: 0, ultimo_erro: null, ultima_tentativa_em: null, criado_em: new Date().toISOString() });
       await relerLocal();
       await pedirSincronizacaoEmSegundoPlano();
       void enviarAgora();

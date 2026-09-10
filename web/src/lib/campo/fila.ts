@@ -47,6 +47,25 @@ export function esperaAntesDaTentativa(tentativas: number): number {
   return [0, 2_000, 8_000, 30_000][tentativas] ?? 120_000;
 }
 
+/**
+ * Ja da para tentar este item de novo?
+ *
+ * A conta parte da ULTIMA TENTATIVA. Partia de `criado_em`, que nunca muda, e
+ * com isso a espera exponencial morria sozinha: um item criado ha mais de dois
+ * minutos tinha `criado_em + 120 s` sempre no passado, entao TODA tentativa
+ * seguinte era liberada na hora, por mais que falhasse. O recuo existe para nao
+ * martelar um servidor que ja esta mal, e ele nao existia de fato.
+ *
+ * `ultima_tentativa_em` ausente (item enfileirado por uma versao anterior) cai
+ * em `criado_em`, que e o comportamento antigo — e o erro seguro aqui e tentar
+ * cedo demais, nunca tarde demais.
+ */
+export function podeTentarAgora(item: ItemFila, agora: number): boolean {
+  if (item.tentativas === 0) return true;
+  const base = new Date(item.ultima_tentativa_em ?? item.criado_em).getTime();
+  return agora >= base + esperaAntesDaTentativa(item.tentativas);
+}
+
 export type GruposDeChamados = {
   hoje: ChamadoCampo[];
   atrasados: ChamadoCampo[];
