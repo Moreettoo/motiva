@@ -131,11 +131,26 @@ describe("agruparChamados", () => {
 
   it("separa por data e por status", () => {
     const g = agruparChamados(chamados, hoje);
-    expect(g.hoje.map((c) => c.id)).toEqual([1, 8]);
+    expect(g.hoje.map((c) => c.id)).toEqual([1]);
     expect(g.atrasados.map((c) => c.id)).toEqual([2]);
     expect(g.proximos.map((c) => c.id)).toEqual([3]);
-    expect(g.aguardando.map((c) => c.id)).toEqual([5, 4]);
+    // 8 e `adiamento_solicitado`: a bola esta com o gestor, nao com a equipe.
+    expect(g.aguardando.map((c) => c.id)).toEqual([5, 4, 8]);
     expect(g.recentes.map((c) => c.id)).toEqual([6, 7]);
+  });
+
+  /* Medido na malha de demonstracao: CH-2026-0008 (adiamento_solicitado, data
+     vencida) saia em "Atrasados" com o chip "Crítica", lido como servico urgente
+     largado. Nao ha o que a equipe faca — `acoesDisponiveis` devolve lista vazia
+     para este status — e a tela de detalhe ja diz "Nada a fazer por enquanto". */
+  it("adiamento pedido nao e trabalho da equipe, nem hoje nem atrasado", () => {
+    const g = agruparChamados(
+      [chamado(10, "adiamento_solicitado", hoje), chamado(11, "adiamento_solicitado", "2026-08-19")],
+      hoje,
+    );
+    expect(g.hoje).toEqual([]);
+    expect(g.atrasados).toEqual([]);
+    expect(g.aguardando.map((c) => c.id)).toEqual([11, 10]);
   });
 
   it("status de espera manda sobre a data: aguardando de hoje nao cai em hoje", () => {
