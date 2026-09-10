@@ -15,6 +15,10 @@ import type { ExecucaoAnalise, StatusAgendamento } from "./types";
  * intencao; nenhuma decisao de permissao depende do que o navegador enviou.
  */
 
+import type { Resultado } from "./resultado";
+
+// Reexportado para os importadores existentes (`planejamento.tsx` e outros)
+// continuarem resolvendo `Resultado` por `@/lib/acoes`.
 export type { Resultado } from "./resultado";
 
 const STATUS_VALIDOS: StatusAgendamento[] = ["sugerido", "aprovado", "executado", "descartado"];
