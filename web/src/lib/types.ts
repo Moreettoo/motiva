@@ -50,6 +50,36 @@ export type StatusAgendamento = (typeof STATUS_AGENDAMENTO)[number];
 export const ORIGENS = ["ia", "manual"] as const;
 export type Origem = (typeof ORIGENS)[number];
 
+/** Cargos de acesso. Ordem: do maior ao menor poder; `CARGO` em dominio.ts da o rotulo. */
+export const CARGOS = ["super_admin", "admin", "analista", "rocador"] as const;
+export type Cargo = (typeof CARGOS)[number];
+
+export type Perfil = {
+  usuario_id: string;
+  nome: string;
+  email: string;
+  cargo: Cargo;
+  ativo: boolean;
+  senha_provisoria: boolean;
+  convidado_por: string | null;
+  criado_em: string;
+  ultimo_acesso_em: string | null;
+  desativado_em: string | null;
+};
+
+export type Convite = {
+  id: string;
+  email: string;
+  cargo: Cargo;
+  equipe_id: number | null;
+  expira_em: string;
+  criado_por: string;
+  criado_em: string;
+  enviado_em: string | null;
+  aceito_em: string | null;
+  revogado_em: string | null;
+};
+
 /** Risco derivado do prazo pela view, nao do texto da LLM. */
 export type Risco = Prioridade;
 
@@ -167,6 +197,7 @@ export type Equipe = {
   base_cidade: string | null;
   capacidade_km_dia: number;
   ativo: boolean;
+  lider_id: string | null;
 };
 
 export type Execucao = {

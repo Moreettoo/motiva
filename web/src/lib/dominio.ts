@@ -10,7 +10,7 @@
  * `serious` ficam abaixo de 3:1 de proposito.
  */
 
-import type { Especie, Regime, Risco, StatusAgendamento } from "./types";
+import type { Cargo, Especie, Regime, Risco, StatusAgendamento } from "./types";
 
 /** Tom da `BarraProgresso` para cada risco. Fica aqui, e nao no componente,
  *  porque a tabela, o cartao e o painel da agenda pintavam a mesma barra a
@@ -116,6 +116,13 @@ export const STATUS: Record<StatusAgendamento, { rotulo: string; icone: string; 
   aprovado: { rotulo: "Aprovado", icone: "CircleCheck", tinta: "var(--good-ink)", fundo: "var(--good-soft)" },
   executado: { rotulo: "Executado", icone: "Flag", tinta: "var(--ink-3)", fundo: "var(--surface-3)" },
   descartado: { rotulo: "Descartado", icone: "CircleSlash", tinta: "var(--ink-3)", fundo: "var(--surface-3)" },
+};
+
+export const CARGO: Record<Cargo, { rotulo: string; descricao: string; icone: string }> = {
+  super_admin: { rotulo: "Super Admin", descricao: "Tudo, inclusive o Laboratório", icone: "ShieldCheck" },
+  admin: { rotulo: "Admin", descricao: "Gestão da malha, chamados e usuários", icone: "UserCog" },
+  analista: { rotulo: "Analista", descricao: "Painel, Malha e Agenda, somente leitura", icone: "Eye" },
+  rocador: { rotulo: "Roçador", descricao: "Líder de equipe: só a tela de campo", icone: "Tractor" },
 };
 
 export const ESPECIE: Record<Especie, { rotulo: string; nomeCientifico: string; nota: string }> = {
