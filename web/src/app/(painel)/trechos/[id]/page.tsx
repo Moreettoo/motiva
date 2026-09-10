@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
 import { CabecalhoPagina, MetricaCabecalho } from "@/components/shell/cabecalho-pagina";
+import { exigirCargo } from "@/lib/auth/sessao";
 import { rotuloPrazo } from "@/lib/dominio";
 import { fmt, isoHoje } from "@/lib/format";
 import {
@@ -59,6 +60,8 @@ export async function generateMetadata({
 }
 
 export default async function PaginaTrecho({ params }: { params: Promise<{ id: string }> }) {
+  const sessao = await exigirCargo("super_admin", "admin", "analista");
+  void sessao;
   const { id } = await params;
   const trechoId = lerId(id);
   if (trechoId == null) notFound();

@@ -18,10 +18,10 @@ import { CornerDownLeft, Search } from "lucide-react";
 import { ChipRisco } from "@/components/ui/chip";
 import { RISCO, ordemRisco } from "@/lib/dominio";
 import { fmt } from "@/lib/format";
-import type { Risco, UF } from "@/lib/types";
+import type { Cargo, Risco, UF } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-import { NAVEGACAO } from "./barra-lateral";
+import { itensDeNavegacao } from "./navegacao";
 
 /** O mínimo que a paleta precisa saber de um trecho. Carregado no servidor e
  *  entregue por prop, a paleta nunca vai ao banco. */
@@ -116,11 +116,13 @@ function trechoParaOpcao(trecho: TrechoNaPaleta): Opcao {
  */
 export function PaletaComandos({
   trechos,
+  cargo,
   aberta,
   aoAbrir,
   aoFechar,
 }: {
   trechos: TrechoNaPaleta[];
+  cargo: Cargo;
   aberta: boolean;
   aoAbrir: () => void;
   aoFechar: () => void;
@@ -177,7 +179,7 @@ export function PaletaComandos({
               "sm:top-[12vh] sm:max-h-[70dvh]",
             )}
           >
-            <ConteudoPaleta trechos={trechos} aoFechar={aoFechar} />
+            <ConteudoPaleta trechos={trechos} cargo={cargo} aoFechar={aoFechar} />
           </motion.div>
         </>
       )}
@@ -188,9 +190,11 @@ export function PaletaComandos({
 
 function ConteudoPaleta({
   trechos,
+  cargo,
   aoFechar,
 }: {
   trechos: TrechoNaPaleta[];
+  cargo: Cargo;
   aoFechar: () => void;
 }) {
   const id = useId();
@@ -204,7 +208,7 @@ function ConteudoPaleta({
   const termos = useMemo(() => busca.trim().split(/\s+/).filter(Boolean), [busca]);
 
   const rotas: Opcao[] = useMemo(() => {
-    const itens: Opcao[] = NAVEGACAO.map((item) => ({
+    const itens: Opcao[] = itensDeNavegacao(cargo).map((item) => ({
       chave: `rota-${item.rotulo}`,
       href: item.href,
       rotulo: item.rotulo,
@@ -218,7 +222,7 @@ function ConteudoPaleta({
       const texto = semAcento(`${item.rotulo} ${item.apoio}`);
       return termos.every((termo) => texto.includes(semAcento(termo)));
     });
-  }, [termos]);
+  }, [termos, cargo]);
 
   const achados: Opcao[] = useMemo(() => {
     if (termos.length === 0) {

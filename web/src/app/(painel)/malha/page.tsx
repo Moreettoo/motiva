@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { CabecalhoPagina, MetricaCabecalho } from "@/components/shell/cabecalho-pagina";
+import { exigirCargo } from "@/lib/auth/sessao";
 import { fmt, isoHoje } from "@/lib/format";
 import { listarTrechos, listarZonasClima, trechosPorRodovia } from "@/lib/queries";
 import { sum } from "@/lib/utils";
@@ -17,6 +18,8 @@ export const metadata: Metadata = { title: "Malha" };
  * seleção e visão, que vivem na URL para o gestor mandar o link à equipe.
  */
 export default async function PaginaMalha() {
+  const sessao = await exigirCargo("super_admin", "admin", "analista");
+  void sessao;
   const [trechos, porRodovia, zonas] = await Promise.all([
     listarTrechos(),
     trechosPorRodovia(),

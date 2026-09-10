@@ -5,10 +5,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronRight, Search } from "lucide-react";
 
+import type { Cargo } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-import { NAVEGACAO } from "./barra-lateral";
 import { Marca } from "./marca";
+import { MenuUsuario } from "./menu-usuario";
+import { itensDeNavegacao, type ItemNavegacao } from "./navegacao";
 import { PaletaComandos, type TrechoNaPaleta } from "./paleta-comandos";
 
 /* Espaço não-separável: o atalho nunca pode quebrar em duas linhas. */
@@ -28,7 +30,7 @@ const atalhoNeutro = () => "";
  *  trechos vive em `/malha`. Sem isto a trilha oferece um link para o 404. */
 type Migalha = { rotulo: string; href: string | null; atual: boolean };
 
-function montarTrilha(pathname: string): Migalha[] {
+function montarTrilha(pathname: string, itens: ItemNavegacao[]): Migalha[] {
   const segmentos = pathname.split("/").filter(Boolean);
   if (segmentos.length === 0) return [{ rotulo: "Painel", href: "/", atual: true }];
 
@@ -37,7 +39,7 @@ function montarTrilha(pathname: string): Migalha[] {
 
   segmentos.forEach((segmento, i) => {
     acumulado += `/${segmento}`;
-    const daNavegacao = NAVEGACAO.find((item) => item.href === acumulado);
+    const daNavegacao = itens.find((item) => item.href === acumulado);
     const decodificado = decodeURIComponent(segmento);
 
     const rotulo =
@@ -57,12 +59,21 @@ function montarTrilha(pathname: string): Migalha[] {
   return trilha;
 }
 
-export function BarraSuperior({ trechos }: { trechos: TrechoNaPaleta[] }) {
+export function BarraSuperior({
+  trechos,
+  cargo,
+  usuario,
+}: {
+  trechos: TrechoNaPaleta[];
+  cargo: Cargo;
+  usuario: { nome: string; cargo: Cargo };
+}) {
   const pathname = usePathname();
+  const itens = itensDeNavegacao(cargo);
   const [paletaAberta, setPaletaAberta] = useState(false);
   const atalho = useSyncExternalStore(semAssinatura, lerAtalho, atalhoNeutro);
 
-  const trilha = useMemo(() => montarTrilha(pathname), [pathname]);
+  const trilha = useMemo(() => montarTrilha(pathname, itens), [pathname, itens]);
 
   const abrir = useCallback(() => setPaletaAberta(true), []);
   const fechar = useCallback(() => setPaletaAberta(false), []);
@@ -132,9 +143,11 @@ export function BarraSuperior({ trechos }: { trechos: TrechoNaPaleta[] }) {
             {atalho || ATALHO_MAC}
           </kbd>
         </button>
+
+        <MenuUsuario usuario={usuario} />
       </div>
 
-      <PaletaComandos trechos={trechos} aberta={paletaAberta} aoAbrir={abrir} aoFechar={fechar} />
+      <PaletaComandos trechos={trechos} cargo={cargo} aberta={paletaAberta} aoAbrir={abrir} aoFechar={fechar} />
     </header>
   );
 }

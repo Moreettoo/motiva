@@ -4,15 +4,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
 
+import type { Cargo } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-import { NAVEGACAO, rotaAtiva } from "./barra-lateral";
+import { itensDeNavegacao, rotaAtiva } from "./navegacao";
 
 /**
  * Barra inferior do celular. Substitui a lateral abaixo de 768px, onde 240px de
  * navegação fixa comeriam metade da tela útil.
  */
-export function NavegacaoMovel() {
+export function NavegacaoMovel({ cargo }: { cargo: Cargo }) {
+  const itens = itensDeNavegacao(cargo);
   const pathname = usePathname();
   const reduzido = useReducedMotion();
 
@@ -28,9 +30,9 @@ export function NavegacaoMovel() {
           Tailwind não gera classe montada em tempo de execução. */}
       <ul
         className="grid"
-        style={{ gridTemplateColumns: `repeat(${NAVEGACAO.length}, minmax(0, 1fr))` }}
+        style={{ gridTemplateColumns: `repeat(${itens.length}, minmax(0, 1fr))` }}
       >
-        {NAVEGACAO.map((item) => {
+        {itens.map((item) => {
           const ativo = rotaAtiva(pathname, item.href);
           const Icone = item.icone;
 

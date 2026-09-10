@@ -17,5 +17,5 @@ export default async function LayoutPainel({ children }: { children: React.React
   const sessao = await exigirSessao();
   if (sessao.cargo === "rocador") redirect(rotaInicial(sessao.cargo));
 
-  return <Shell>{children}</Shell>;
+  return <Shell sessao={sessao}>{children}</Shell>;
 }

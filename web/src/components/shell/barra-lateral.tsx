@@ -4,56 +4,13 @@ import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
-import {
-  CalendarRange,
-  FlaskConical,
-  LayoutDashboard,
-  MessageSquareText,
-  Waypoints,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-
 import { Dica } from "@/components/ui/dica";
+import type { Cargo } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 import { AlternadorTema } from "./alternador-tema";
 import { Marca } from "./marca";
-
-/**
- * Dois grupos, e não um rótulo "Operação" cobrindo tudo. O simulador não é
- * ferramenta de operação: ele não escreve no banco, não agenda nada e existe
- * para explicar o sistema. Misturá-lo com Agenda e Malha faria a lateral
- * prometer uma coisa que a página não é.
- */
-export const GRUPOS = [
-  { chave: "operacao", rotulo: "Operação" },
-  { chave: "laboratorio", rotulo: "Laboratório" },
-] as const;
-
-export type GrupoNavegacao = (typeof GRUPOS)[number]["chave"];
-
-export type ItemNavegacao = {
-  href: string;
-  rotulo: string;
-  icone: LucideIcon;
-  /** Frase curta que a Dica mostra quando a lateral está colapsada. */
-  descricao: string;
-  grupo: GrupoNavegacao;
-};
-
-/** Fonte única da navegação do produto: a lateral, a barra inferior do celular
- *  e a seção "Ir para" da paleta leem esta mesma lista. */
-export const NAVEGACAO: ItemNavegacao[] = [
-  { href: "/", rotulo: "Painel", icone: LayoutDashboard, descricao: "Visão geral da malha", grupo: "operacao" },
-  { href: "/malha", rotulo: "Malha", icone: Waypoints, descricao: "Trechos por rodovia, em régua de km", grupo: "operacao" },
-  { href: "/agenda", rotulo: "Agenda", icone: CalendarRange, descricao: "Roçadas sugeridas e aprovadas", grupo: "operacao" },
-  { href: "/copiloto", rotulo: "Copiloto", icone: MessageSquareText, descricao: "Perguntas em português sobre a malha", grupo: "operacao" },
-  { href: "/simulador", rotulo: "Simulador", icone: FlaskConical, descricao: "Crescimento previsto em um ponto qualquer", grupo: "laboratorio" },
-];
-
-export function rotaAtiva(pathname: string, href: string): boolean {
-  return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
-}
+import { GRUPOS, itensDeNavegacao, rotaAtiva, type ItemNavegacao } from "./navegacao";
 
 /* A lateral colapsa por CSS (o rótulo some em `lg`), mas a Dica só deve existir
    quando ela está de fato colapsada, senão o balão apareceria em cima de um
@@ -74,8 +31,9 @@ function useExpandida() {
   return useSyncExternalStore(assinarLg, lerLg, lgNoServidor);
 }
 
-export function BarraLateral({ ultimaAnalise }: { ultimaAnalise?: string | null }) {
+export function BarraLateral({ cargo, ultimaAnalise }: { cargo: Cargo; ultimaAnalise?: string | null }) {
   const pathname = usePathname();
+  const itens = itensDeNavegacao(cargo);
   const larguraGrande = useExpandida();
   const reduzido = useReducedMotion();
   // Preferência manual: sobrepõe o breakpoint quando a pessoa clica no ícone da
@@ -131,8 +89,8 @@ export function BarraLateral({ ultimaAnalise }: { ultimaAnalise?: string | null 
 
       <nav id="navegacao-lateral" className="min-h-0 flex-1 overflow-y-auto px-2 py-4 scroll-thin">
         {GRUPOS.map((grupo, indice) => {
-          const itens = NAVEGACAO.filter((item) => item.grupo === grupo.chave);
-          if (itens.length === 0) return null;
+          const doGrupo = itens.filter((item) => item.grupo === grupo.chave);
+          if (doGrupo.length === 0) return null;
 
           return (
             <div
@@ -154,7 +112,7 @@ export function BarraLateral({ ultimaAnalise }: { ultimaAnalise?: string | null 
               </p>
 
               <ul className="flex flex-col gap-1">
-                {itens.map((item) => (
+                {doGrupo.map((item) => (
                   <ItemLateral
                     key={item.href}
                     item={item}

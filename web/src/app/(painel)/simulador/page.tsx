@@ -4,6 +4,7 @@ import { FlaskConical } from "lucide-react";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { Cartao, CartaoCabecalho, CartaoCorpo } from "@/components/ui/cartao";
 import { Chip } from "@/components/ui/chip";
+import { exigirCargo } from "@/lib/auth/sessao";
 
 // Imports que so o cartao `ComoFunciona` usava, desativados junto com ele.
 // import { Brain, CloudSun, Sparkles } from "lucide-react";
@@ -37,6 +38,7 @@ export default async function PaginaSimulador({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await exigirCargo("super_admin");
   // `tentou` so alimentava o cartao `ComoFunciona`, desativado abaixo. Os erros
   // de validacao continuam aparecendo campo a campo, dentro do formulario.
   const { pedido, valores, erros } = interpretar(await searchParams);

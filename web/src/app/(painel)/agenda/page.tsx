@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { CabecalhoPagina, MetricaCabecalho } from "@/components/shell/cabecalho-pagina";
+import { exigirCargo } from "@/lib/auth/sessao";
 import { fmt, isoHoje } from "@/lib/format";
 import { listarAgendamentos, listarEquipes, listarTrechos } from "@/lib/queries";
 
@@ -14,6 +15,8 @@ export const metadata: Metadata = {
 };
 
 export default async function PaginaAgenda() {
+  const sessao = await exigirCargo("super_admin", "admin", "analista");
+  void sessao;
   const [agendamentos, equipes, trechos] = await Promise.all([
     listarAgendamentos(),
     listarEquipes(),

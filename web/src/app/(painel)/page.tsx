@@ -8,6 +8,7 @@ import type { DeltaIndicador } from "@/components/ui/indicador";
 import type { BarraDado } from "@/components/viz/barras";
 import type { SerieLinha } from "@/components/viz/linha";
 import { corSerie, ESPECIE, ordemRisco } from "@/lib/dominio";
+import { exigirCargo } from "@/lib/auth/sessao";
 import { diasEntre, fmt, isoHoje, proximaReanalise } from "@/lib/format";
 import {
   cargaDasEquipes,
@@ -96,6 +97,8 @@ function variacaoCrescimento(datas: string[], valores: number[]): DeltaIndicador
 }
 
 export default async function PaginaPainel() {
+  const sessao = await exigirCargo("super_admin", "admin", "analista");
+  void sessao;
   const [painel, trechos, porRodovia, serie, carga, lacunas, agendamentos, equipes] = await Promise.all([
     montarPainel(),
     listarTrechos(),

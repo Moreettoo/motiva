@@ -1,4 +1,5 @@
 import { ProvedorNotificacoes } from "@/components/ui/notificacoes";
+import type { Sessao } from "@/lib/auth/sessao";
 import { fmt } from "@/lib/format";
 import { listarTrechos } from "@/lib/queries";
 import { cn } from "@/lib/utils";
@@ -42,16 +43,20 @@ async function carregarCasco(): Promise<DadosDoCasco> {
   }
 }
 
-export async function Shell({ children }: { children: React.ReactNode }) {
+export async function Shell({ sessao, children }: { sessao: Sessao; children: React.ReactNode }) {
   const { trechos, ultimaAnalise } = await carregarCasco();
 
   return (
     <ProvedorNotificacoes>
       <div className="flex min-h-dvh">
-        <BarraLateral ultimaAnalise={ultimaAnalise} />
+        <BarraLateral cargo={sessao.cargo} ultimaAnalise={ultimaAnalise} />
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <BarraSuperior trechos={trechos} />
+          <BarraSuperior
+            trechos={trechos}
+            cargo={sessao.cargo}
+            usuario={{ nome: sessao.nome, cargo: sessao.cargo }}
+          />
 
           <main
             id="conteudo"
@@ -76,7 +81,7 @@ export async function Shell({ children }: { children: React.ReactNode }) {
             </div>
           </main>
 
-          <NavegacaoMovel />
+          <NavegacaoMovel cargo={sessao.cargo} />
         </div>
       </div>
     </ProvedorNotificacoes>

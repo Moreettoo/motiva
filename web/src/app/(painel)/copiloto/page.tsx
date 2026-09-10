@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
+import { exigirCargo } from "@/lib/auth/sessao";
 import { lacunasDeDados, listarAgendamentos, listarTrechos, montarPainel } from "@/lib/queries";
 
 import { Conversa } from "./_componentes/conversa";
@@ -19,6 +20,8 @@ export const metadata: Metadata = {
 const TETO_CONTEXTO = 60;
 
 export default async function PaginaCopiloto() {
+  const sessao = await exigirCargo("super_admin", "admin", "analista");
+  void sessao;
   const [painel, trechos, agendamentos, lacunas] = await Promise.all([
     montarPainel(),
     listarTrechos(),
