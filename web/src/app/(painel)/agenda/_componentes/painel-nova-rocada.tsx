@@ -38,13 +38,25 @@ export type EntradaNovaRocada = {
   data: string;
   equipeId: number;
   motivo: string;
+  /** `null` = não informada, e o chamado fica com a altura PREVISTA. Não é o
+   *  mesmo que zero, que seria afirmar que o trecho está roçado. */
+  alturaInicialCm: number | null;
 };
 
 /** Espelha `MOTIVO_MAX` em `acoes.ts`. Aqui ele serve ao contador de
  *  caracteres; lá, à recusa. Os dois números precisam continuar iguais. */
 const MOTIVO_MAX = 500;
 
-type Erros = Partial<Record<"trecho" | "data" | "equipe" | "motivo", string>>;
+/** Espelha `ALTURA_MAX_CM` em `acoes.ts`, pelo mesmo motivo do `MOTIVO_MAX`. */
+const ALTURA_MAX_CM = 300;
+
+/** Aceita 12,5 e 12.5: o teclado do celular em pt-BR entrega vírgula. Mesma
+ *  conversão de `registrar-medicao.tsx`, e pelo mesmo motivo. */
+function paraNumero(texto: string): number {
+  return Number(texto.trim().replace(",", "."));
+}
+
+type Erros = Partial<Record<"trecho" | "data" | "equipe" | "motivo" | "altura", string>>;
 
 export function PainelNovaRocada({
   aberta,
@@ -56,6 +68,7 @@ export function PainelNovaRocada({
   pendente,
   erroServidor,
   aoCriar,
+  titulo = "Nova roçada",
 }: {
   aberta: boolean;
   aoFechar: () => void;
@@ -72,17 +85,25 @@ export function PainelNovaRocada({
    *  causou o erro está na frente dela é jogar a mensagem no lugar errado. */
   erroServidor: string | null;
   aoCriar: (entrada: EntradaNovaRocada) => void;
+  /** A mesma gaveta abre em dois lugares com dois nomes: "Nova roçada" no
+   *  cabeçalho do quadro da agenda e "Novo chamado" em `/chamados`. O que ela
+   *  cria é o mesmo em ambos, um agendamento aprovado cujo gatilho abre o
+   *  chamado; o que muda é de que lado a pessoa chegou, e o título é o que
+   *  confirma que ela está no lugar certo. */
+  titulo?: string;
 }) {
   const idFormulario = useId();
   const idTrecho = useId();
   const idData = useId();
   const idEquipe = useId();
   const idMotivo = useId();
+  const idAltura = useId();
 
   const [trecho, setTrecho] = useState("");
   const [data, setData] = useState(hoje);
   const [equipe, setEquipe] = useState("");
   const [motivo, setMotivo] = useState("");
+  const [altura, setAltura] = useState("");
   const [erros, setErros] = useState<Erros>({});
 
   /* Zera o formulário na ABERTURA, não no fechamento: fechando, a gaveta ainda
@@ -97,6 +118,7 @@ export function PainelNovaRocada({
       setData(hoje);
       setEquipe("");
       setMotivo("");
+      setAltura("");
       setErros({});
     }
   }
@@ -148,6 +170,9 @@ export function PainelNovaRocada({
   function enviar(evento: React.FormEvent) {
     evento.preventDefault();
 
+    const textoAltura = altura.trim();
+    const alturaCm = paraNumero(textoAltura);
+
     const achados: Erros = {};
     if (!trechoEscolhido) achados.trecho = "Escolha o trecho que vai ser roçado.";
     if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) achados.data = "Escolha um dia no calendário.";
@@ -156,6 +181,10 @@ export function PainelNovaRocada({
     if (motivo.trim().length === 0) achados.motivo = "Escreva por que esta roçada foi marcada.";
     else if (motivo.trim().length > MOTIVO_MAX) {
       achados.motivo = `Passou de ${fmt.n(MOTIVO_MAX)} caracteres. Resuma um pouco.`;
+    }
+    // Campo vazio não é erro: é a escolha de deixar valer a altura prevista.
+    if (textoAltura.length > 0 && (!Number.isFinite(alturaCm) || alturaCm < 0 || alturaCm > ALTURA_MAX_CM)) {
+      achados.altura = `Use um número entre 0 e ${fmt.n(ALTURA_MAX_CM)} cm, foi o que o campo consegue medir.`;
     }
 
     setErros(achados);
@@ -169,6 +198,7 @@ export function PainelNovaRocada({
       data,
       equipeId: equipeEscolhida.id,
       motivo: motivo.trim(),
+      alturaInicialCm: textoAltura.length > 0 ? alturaCm : null,
     });
   }
 
@@ -177,7 +207,7 @@ export function PainelNovaRocada({
       aberto={aberta}
       aoFechar={aoFechar}
       largura="md"
-      titulo="Nova roçada"
+      titulo={titulo}
       descricao="Uma roçada que a IA não propôs: reclamação, obra, evento."
       rodape={
         <div className="flex flex-wrap items-center gap-2">
@@ -274,6 +304,43 @@ export function PainelNovaRocada({
                 </option>
               ))}
           </Selecao>
+        </Campo>
+
+        {/* Opcional, e o único campo desta gaveta que é. A altura do mato NÃO
+            muda a decisão que está sendo tomada aqui (a data e a equipe já
+            foram escolhidas acima, e a prioridade sai do prazo, não deste
+            número): ela muda o `altura_antes_cm` que a execução vai registrar
+            quando esta roçada for aprovada, e daí o histórico do trecho.
+            Quem agenda na mão às vezes acabou de olhar o trecho e sabe a
+            altura; quem agenda de longe não sabe, e para esse a previsão do
+            modelo é melhor palpite que um número inventado. A dica diz qual é
+            essa previsão, para a escolha entre as duas ser informada em vez de
+            ser um campo vazio sem consequência visível. */}
+        <Campo
+          rotulo="Altura atual do mato (cm)"
+          id={idAltura}
+          erro={erros.altura}
+          dica={
+            trechoEscolhido
+              ? `Se deixar vazio, entra a altura prevista pelo modelo: ${fmt.cm(trechoEscolhido.altura_atual_cm)}.`
+              : "Se deixar vazio, entra a altura prevista pelo modelo para o trecho."
+          }
+        >
+          <Entrada
+            type="number"
+            inputMode="decimal"
+            step="0.5"
+            min={0}
+            max={ALTURA_MAX_CM}
+            placeholder="ex.: 18,5"
+            autoComplete="off"
+            value={altura}
+            disabled={pendente}
+            onChange={(e) => {
+              setAltura(e.target.value);
+              if (erros.altura) setErros((atual) => ({ ...atual, altura: undefined }));
+            }}
+          />
         </Campo>
 
         <Campo

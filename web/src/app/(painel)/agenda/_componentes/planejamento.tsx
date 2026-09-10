@@ -666,6 +666,20 @@ export function PlanejamentoAgenda({
             titulo: "Roçada agendada",
             descricao: `${rodovia} · ${fmt.dataMedia(resultado.dados.data)}`,
           });
+          /* Segundo toast, e persistente: a roçada FOI criada (o primeiro toast
+             diz a verdade), mas a altura que a pessoa mediu não entrou no
+             chamado. Calar isso deixaria a gaveta do chamado exibindo "altura
+             prevista" sobre um número que ninguém previu. */
+          if (resultado.dados.avisoAltura) {
+            mostrar({
+              // `info` porque a criação DEU certo: o toast de cima já é o
+              // `good`, e um `critical` ao lado dele diria que a roçada falhou.
+              tom: "info",
+              titulo: "A altura informada não foi gravada",
+              descricao: resultado.dados.avisoAltura,
+              duracao: 0,
+            });
+          }
         } catch {
           const recado = "A conexão com o servidor falhou. Confira a rede e tente de novo.";
           setErroNova(recado);
