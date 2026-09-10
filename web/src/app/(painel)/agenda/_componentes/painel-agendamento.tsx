@@ -272,6 +272,15 @@ function Gaveta({
         ) : null}
       </div>
 
+      {/* A LLM discordou do prazo. O chip acima ja saiu do prazo; esta linha e
+          a outra metade da regra, "a tela mostra as duas e diz qual
+          prevaleceu". Sem ela a gaveta punha o chip "Media" no topo e, quinze
+          centimetros abaixo, a justificativa da propria IA dizendo
+          "prioridade critica" -- as duas na mesma tela, nenhuma explicada. */}
+      {item.divergencia ? (
+        <p className="mt-3 text-xs text-ink-3">{item.divergencia}</p>
+      ) : null}
+
       {/* A explicação de por que o selo apareceu, com o botão logo abaixo no
           rodapé. O lote descarta sozinho o que ele mesmo sugeriu e o que já
           venceu sem execução; um `aprovado` com data futura chega até aqui de

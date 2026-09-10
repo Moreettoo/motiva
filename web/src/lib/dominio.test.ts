@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { erroFaltaEquipe, REGIME, rotuloPrazo } from "./dominio";
+import { erroFaltaEquipe, prioridadeExibida, REGIME, rotuloPrazo, textoDivergencia } from "./dominio";
 import { REGIMES, REGIME_PADRAO } from "./types";
 
 describe("erroFaltaEquipe", () => {
@@ -58,5 +58,44 @@ describe("rotuloPrazo", () => {
     expect(rotuloPrazo(null)).toBe("sem crescimento");
     expect(rotuloPrazo(0)).toBe("acima do limite");
     expect(rotuloPrazo(1)).toBe("1 dia");
+  });
+});
+
+describe("prioridadeExibida", () => {
+  it("pinta o prazo, e não a palavra da LLM", () => {
+    // O caso registrado no CLAUDE.md: a LLM devolveu `critica` para um trecho
+    // que cruzava o limite em 61 dias.
+    const leitura = prioridadeExibida(61, "critica");
+    expect(leitura.risco).toBe("baixa");
+    expect(leitura.divergente).toBe("critica");
+    expect(textoDivergencia(leitura)).toBe("A IA classificou como Crítica. Vale o prazo: Baixa.");
+  });
+
+  it("não inventa divergência quando as duas concordam", () => {
+    const leitura = prioridadeExibida(3, "critica");
+    expect(leitura.risco).toBe("critica");
+    expect(leitura.divergente).toBeNull();
+    expect(textoDivergencia(leitura)).toBeNull();
+  });
+
+  it("promove o trecho que já passou do limite, mesmo marcado baixa", () => {
+    // CH-2026-0009 nesta base: chip verde sobre `dias_ate_limite = 0`.
+    expect(prioridadeExibida(0, "baixa").risco).toBe("critica");
+  });
+
+  it("sem prazo, mantém a palavra registrada e avisa que nada a sustenta", () => {
+    // `riscoPorPrazo(null)` responderia `baixa`, que é a armadilha de tratar
+    // "não se sabe nada" como "folgado". Ver `dispensaAgendamento`.
+    const leitura = prioridadeExibida(null, "critica");
+    expect(leitura.risco).toBe("critica");
+    expect(leitura.semPrazo).toBe(true);
+    expect(leitura.divergente).toBeNull();
+  });
+
+  it("em roçada manual não atribui a divergência a LLM nenhuma", () => {
+    // A coluna nasceu cópia do `risco` da view e só envelheceu.
+    const leitura = prioridadeExibida(522, "alta", "manual");
+    expect(leitura.risco).toBe("baixa");
+    expect(leitura.divergente).toBeNull();
   });
 });

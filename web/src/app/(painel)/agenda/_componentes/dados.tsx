@@ -7,7 +7,7 @@
  * tela. Por isso todo cálculo de janela, duração e carga mora aqui.
  */
 
-import { dispensaAgendamento, ordemRisco, riscoPorPrazo } from "@/lib/dominio";
+import { dispensaAgendamento, ordemRisco, prioridadeExibida, riscoPorPrazo, textoDivergencia } from "@/lib/dominio";
 import { diasEntre, fmt, inicioDaSemana, parseData, somarDias } from "@/lib/format";
 import type {
   AgendamentoDetalhado,
@@ -497,6 +497,11 @@ export type ItemAgenda = {
   equipeNome: string | null;
   uf: UF;
   risco: Risco;
+  /** A frase a dizer quando a LLM classificou diferente do prazo, e nula quando
+   *  as duas concordam. O chip acima SEMPRE sai do prazo; esta linha existe
+   *  para a divergência não sumir da tela, que é a outra metade da regra do
+   *  CLAUDE.md ("a tela mostra as duas e diz qual prevaleceu"). */
+  divergencia: string | null;
   km: number;
   /** km ÷ capacidade da equipe, arredondado para cima em dias inteiros. */
   diasServico: number;
@@ -595,6 +600,13 @@ export function montarItens({
       equipeNome: ag.equipe?.nome ?? null,
       uf: ag.trecho.uf,
       risco: riscoDoItem(ag, trecho),
+      divergencia: textoDivergencia(
+        prioridadeExibida(
+          trecho ? trecho.dias_ate_limite : (ag.previsao?.dias_ate_limite ?? null),
+          ag.prioridade,
+          ag.origem,
+        ),
+      ),
       km,
       diasServico: diasDeServico(km, capacidade),
       capacidade,

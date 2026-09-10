@@ -3,6 +3,7 @@ import { Bot, CalendarClock, Cpu, Pencil, Quote, Sparkles, Users } from "lucide-
 import { Cartao, CartaoCabecalho, CartaoCorpo, CartaoRodape } from "@/components/ui/cartao";
 import { Chip, ChipRisco, ChipStatus } from "@/components/ui/chip";
 import { EstadoVazio } from "@/components/ui/vazio";
+import { prioridadeExibida, textoDivergencia } from "@/lib/dominio";
 import { fmt, parseData, relativoEmDias } from "@/lib/format";
 import type { AgendamentoDetalhado, TrechoStatus } from "@/lib/types";
 
@@ -58,6 +59,12 @@ export function DecisaoIa({
 
   const fatores = (agendamento.fatores ?? []).filter((f) => f.trim().length > 0);
   const manual = agendamento.origem === "manual";
+  /* Do PRAZO, nunca de `agendamento.prioridade`. Sem isto o cartao imprimia
+     "Prioridade: Alta" a duzentos pixels do cabecalho da mesma pagina, que
+     dizia "Baixa" e "mais de 1 ano" -- a coluna guarda a classificacao do dia
+     em que o agendamento nasceu, e ela envelhece. Ver `prioridadeExibida`. */
+  const prioridade = prioridadeExibida(trecho.dias_ate_limite, agendamento.prioridade, agendamento.origem);
+  const divergencia = textoDivergencia(prioridade);
 
   return (
     <Cartao>
@@ -94,8 +101,10 @@ export function DecisaoIa({
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <span className="text-xs text-ink-3">Prioridade</span>
-            <ChipRisco risco={agendamento.prioridade} />
+            <ChipRisco risco={prioridade.risco} />
           </div>
+
+          {divergencia ? <p className="mt-2 text-xs text-ink-3">{divergencia}</p> : null}
 
           {agendamento.equipe ? (
             <p className="mt-3 flex items-center gap-1.5 text-xs text-ink-2">
