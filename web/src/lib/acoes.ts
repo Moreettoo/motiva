@@ -367,7 +367,7 @@ async function gravarAlturaInformada(
   // Sem chamado não é falha: o gatilho só o cria com equipe, e um dia a roçada
   // manual pode nascer sem ela. Hoje a equipe é obrigatória, então isto é a
   // rede, não o caminho.
-  if (erroChamado) return naoGravou;
+  if (erroChamado) return `${naoGravou} (${erroChamado.message})`;
   if (!chamado) return null;
 
   const { error } = await db.rpc("registrar_evento_chamado", {
@@ -380,7 +380,7 @@ async function gravarAlturaInformada(
     p_ocorrido_em: new Date().toISOString(),
   });
 
-  return error ? naoGravou : null;
+  return error ? `${naoGravou} (${error.message})` : null;
 }
 
 /**
@@ -484,15 +484,25 @@ export async function remarcarAgendamento(agendamentoId: number, novaData: strin
     return { ok: false, erro: "Data inválida. Use o formato AAAA-MM-DD." };
   }
 
+  /* As duas travas que `gravarAlocacao` e `devolverParaFila` ja tinham e esta
+     nao: num arquivo `"use server"` todo export e endpoint alcançavel pela
+     rede. Sem `.in(status)` dava para remarcar um servico ja `executado` ou
+     `descartado`, e sem a guarda de passado dava para joga-lo num dia que ja
+     passou -- ele reaparecia na regua da agenda naquele dia. */
+  if (novaData < isoHoje()) {
+    return { ok: false, erro: "A nova data não pode estar no passado." };
+  }
+
   const { data, error } = await db
     .from("agendamentos")
     .update({ data_sugerida: novaData, atualizado_em: new Date().toISOString() })
     .eq("id", agendamentoId)
+    .in("status", ["sugerido", "aprovado"])
     .select("id")
     .maybeSingle();
 
   if (error) return { ok: false, erro: `Não foi possível remarcar: ${error.message}` };
-  if (!data) return { ok: false, erro: "Agendamento não encontrado. Recarregue a página." };
+  if (!data) return { ok: false, erro: "Agendamento não encontrado ou já encerrado. Recarregue a página." };
 
   revalidarTudo();
   return { ok: true, dados: undefined };
@@ -504,6 +514,19 @@ export async function registrarMedicao(trechoId: number, alturaCm: number, data?
   void sessao;
   if (!Number.isFinite(alturaCm) || alturaCm < 0 || alturaCm > 300) {
     return { ok: false, erro: "Altura fora da faixa esperada (0 a 300 cm)." };
+  }
+  /* A data ia direto para o insert, sem formato e sem teto. Uma medicao com
+     data futura inverte a janela [ultima medicao, hoje) de que
+     `altura_atual_cm` sai, e envenena o prazo e o risco do trecho em silencio
+     -- o pior modo de falha que este projeto tem. Todas as outras acoes que
+     recebem data ja aplicavam esta mesma expressao. */
+  if (data != null) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) {
+      return { ok: false, erro: "Data inválida. Use o formato AAAA-MM-DD." };
+    }
+    if (data > isoHoje()) {
+      return { ok: false, erro: "A medição não pode ter data futura." };
+    }
   }
 
   const { error } = await db.from("medicoes").insert({

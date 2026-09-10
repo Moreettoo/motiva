@@ -537,6 +537,7 @@ export function QuadroSemana({
           engolirClique={engolirClique}
           refCartao={refCartaoTrilho}
           aoFocar={aoFocarTrilho}
+          aoRestaurar={aoRestaurar}
         />
 
         <div className="quadro-pista scroll-thin max-h-[min(78vh,760px)] min-w-0 flex-1">

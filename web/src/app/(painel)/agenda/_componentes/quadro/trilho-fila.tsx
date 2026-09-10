@@ -1,5 +1,7 @@
 "use client";
 
+import { Eraser } from "lucide-react";
+
 import { Botao } from "@/components/ui/botao";
 import { EstadoVazio } from "@/components/ui/vazio";
 import { IconeDominio } from "@/components/viz/legenda";
@@ -29,6 +31,7 @@ export function TrilhoFila({
   engolirClique,
   refCartao,
   aoFocar,
+  aoRestaurar,
 }: {
   /** Já cortado por quem chama (`TETO_TRILHO`, em `quadro-semana.tsx`), o
    *  corte subiu pra lá porque o roving tabindex da grade inteira
@@ -57,6 +60,11 @@ export function TrilhoFila({
   aoPegar: (e: React.PointerEvent<HTMLElement>, carga: CargaArrasto) => void;
   /** Analista: o trilho continua legivel, os cartoes nao arrastam. */
   somenteLeitura: boolean;
+  /** O MESMO "Restaurar padrão" do cabeçalho. Sem ele o vazio desta coluna era
+   *  um beco: dois cliques no menu de status escondem a fila inteira e a única
+   *  saída ficava lá em cima, no controle que a pessoa não associa ao que
+   *  acabou de sumir. O quadro ao lado já oferece o botão no vazio dele. */
+  aoRestaurar: () => void;
   aoTeclar: (e: React.KeyboardEvent<HTMLElement>, carga: CargaArrasto) => void;
   aoAbrir: (id: number) => void;
   engolirClique: (e: React.MouseEvent) => void;
@@ -152,6 +160,11 @@ export function TrilhoFila({
             icone={<IconeDominio nome="CircleCheck" />}
             titulo="Nada esperando decisão"
             descricao="Nenhuma roçada sem equipe nos status escolhidos agora."
+            acao={
+              <Botao variante="secundario" iconeEsquerda={<Eraser />} onClick={aoRestaurar}>
+                Restaurar padrão
+              </Botao>
+            }
           />
         </div>
       ) : (
