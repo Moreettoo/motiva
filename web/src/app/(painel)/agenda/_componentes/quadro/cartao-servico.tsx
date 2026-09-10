@@ -1,16 +1,91 @@
 "use client";
 
 import { memo } from "react";
-import { CircleSlash, GripVertical, OctagonAlert, Undo2 } from "lucide-react";
+import {
+  CalendarClock,
+  CircleCheck,
+  CircleSlash,
+  Clock,
+  GripVertical,
+  Hourglass,
+  OctagonAlert,
+  Play,
+  Undo2,
+} from "lucide-react";
 
 import { Chip } from "@/components/ui/chip";
 import { IconeDominio } from "@/components/viz/legenda";
-import { RISCO, STATUS } from "@/lib/dominio";
+import { RISCO, STATUS, STATUS_CHAMADO_TOKEN } from "@/lib/dominio";
 import { fmt, relativoEmDias } from "@/lib/format";
+import type { StatusChamado } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 import { textoServico, type ItemAgenda } from "../dados";
 import type { Alvo, CargaArrasto } from "./usar-arrasto";
+
+/**
+ * Ponte entre o nome de ícone que `STATUS_CHAMADO_TOKEN` guarda e o componente.
+ *
+ * Existe separada de `IconeDominio` pelo mesmo motivo de `icone-cargo.tsx`: o
+ * mapa de `components/viz/legenda.tsx` cobre risco, status de agendamento e
+ * procedência do clima, e nenhum dos sete estados do chamado. Passar "Play" ou
+ * "Hourglass" por lá cai no `?? Circle` e o chip desenha uma bolinha vazia, que
+ * na tela lê como ícone que não carregou — e este chip é justamente onde a cor
+ * de status não pode aparecer sozinha. Quando os estados do chamado entrarem
+ * naquele mapa, este bloco sai.
+ */
+const ICONES_CHAMADO = {
+  Clock,
+  Play,
+  Hourglass,
+  Undo2,
+  CalendarClock,
+  CircleCheck,
+  CircleSlash,
+} as const;
+
+function IconeStatusChamado({ status }: { status: StatusChamado }) {
+  const Icone = ICONES_CHAMADO[STATUS_CHAMADO_TOKEN[status].icone as keyof typeof ICONES_CHAMADO];
+  return <Icone aria-hidden="true" className="size-3 shrink-0" />;
+}
+
+/**
+ * Estado do chamado como chip.
+ *
+ * Cor vinda do TOKEN (`STATUS_CHAMADO_TOKEN`), como fazem `ChipRisco` e
+ * `ChipStatus` em `components/ui/chip.tsx`, e não do `tom` do `Chip` genérico:
+ * o `tom` é um par de classes Tailwind e o token é um par de variáveis CSS.
+ * São duas escritas da mesma decisão de cor, e a segunda é a que `dominio.ts`
+ * declara como fonte única — mapear uma na outra criaria o lugar por onde elas
+ * divergem. Mesma razão pela qual este arquivo não escolhe cor nenhuma sozinho.
+ *
+ * Vive aqui, e não em `chip.tsx`, porque aquele arquivo é da faixa de outro
+ * agente nesta onda; o lugar definitivo é um `ChipChamado` ao lado dos outros
+ * dois, e então este sai.
+ */
+export function ChipChamado({
+  status,
+  tamanho = "sm",
+}: {
+  status: StatusChamado;
+  tamanho?: "sm" | "md";
+}) {
+  const token = STATUS_CHAMADO_TOKEN[status];
+
+  return (
+    <span
+      title={token.descricao}
+      className={cn(
+        "inline-flex max-w-full items-center gap-1.5 rounded-full font-medium whitespace-nowrap",
+        tamanho === "sm" ? "h-5 px-1.5 text-2xs" : "h-6 px-2 text-xs",
+      )}
+      style={{ color: token.tinta, backgroundColor: token.fundo }}
+    >
+      <IconeStatusChamado status={status} />
+      <span className="truncate">{token.rotulo}</span>
+    </span>
+  );
+}
 
 export function cargaDoItem(item: ItemAgenda, origem: Alvo): CargaArrasto {
   const t = item.ag.trecho;
@@ -59,6 +134,14 @@ function rotuloCompleto(item: ItemAgenda): string {
   // esconderia de quem usa leitor de tela um fato que a tela só não mostra por
   // falta de espaço.
   if (item.dispensavel) partes.push("O trecho não precisa mais desta roçada");
+  // O chamado entra no nome falado mesmo no cartão COMPACTO, que não o desenha:
+  // o limite de quatro linhas é da caixa, não da frase. Mesmo argumento dos
+  // dois selos acima.
+  if (item.chamado) {
+    partes.push(
+      `Chamado ${item.chamado.numero}: ${STATUS_CHAMADO_TOKEN[item.chamado.status].rotulo}`,
+    );
+  }
   return partes.join(". ");
 }
 
@@ -433,6 +516,35 @@ export const CartaoServico = memo(function CartaoServico({
           {compacto ? null : (
             <span className="chip-km tnum mt-0.5 block truncate font-mono text-2xs">
               {fmt.km(item.km)} · {relativoEmDias(item.data)}
+            </span>
+          )}
+
+          {/* A ORDEM DE SERVIÇO, quando ela já existe.
+              Fica depois da identidade do trecho (rodovia e faixa de km, que
+              precisam ficar juntas) e antes do selo de baixo, junto com o resto
+              do que descreve o ESTADO deste serviço, que é o que ela é: o
+              chamado responde "a equipe já começou?", pergunta que o status do
+              agendamento (`aprovado`) não responde.
+
+              O chip carrega cor, ícone E rótulo, os três sempre: `--warning` e
+              `--serious` ficam abaixo de 3:1 no tema claro de propósito (ver
+              `globals.css`), e o par ícone + rótulo é a mitigação. Por isso o
+              rótulo não virou só o número, que caberia numa linha.
+
+              O número vai em linha PRÓPRIA e em `font-mono`: é um identificador
+              que a pessoa vai ditar no rádio ou procurar em `/chamados`, e as
+              células do quadro são estreitas — inline com o chip, "Aguardando
+              aprovação" e "CH-2026-0001" se truncariam um ao outro. `chip-km`
+              não entra aqui, ele é o fundo dos números de CARGA.
+
+              Nada disso aparece no cartão compacto (a linha "Propostas da IA"):
+              ela só carrega `sugerido`, e chamado nasce na aprovação. */}
+          {compacto || !item.chamado ? null : (
+            <span className="mt-1 block">
+              <ChipChamado status={item.chamado.status} />
+              <span className="tnum mt-0.5 block truncate font-mono text-2xs text-ink-2">
+                {item.chamado.numero}
+              </span>
             </span>
           )}
 

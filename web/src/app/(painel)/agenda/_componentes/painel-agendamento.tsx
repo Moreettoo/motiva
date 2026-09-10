@@ -1,7 +1,17 @@
 "use client";
 
 import { useId, useState } from "react";
-import { Check, CircleSlash, Flag, OctagonAlert, Pencil, Undo2 } from "lucide-react";
+import Link from "next/link";
+import {
+  ArrowUpRight,
+  Check,
+  CircleSlash,
+  ClipboardList,
+  Flag,
+  OctagonAlert,
+  Pencil,
+  Undo2,
+} from "lucide-react";
 
 import { BarraProgresso } from "@/components/ui/barra-progresso";
 import { Botao } from "@/components/ui/botao";
@@ -16,10 +26,17 @@ import {
   rotuloPrazo,
 } from "@/lib/dominio";
 import { AvisoSomenteLeitura } from "@/components/ui/aviso-somente-leitura";
+import { terminal } from "@/lib/chamados/maquina";
 import { fmt } from "@/lib/format";
 import type { Equipe, StatusAgendamento } from "@/lib/types";
 
+import {
+  FormularioEncerrarAdmin,
+  type EntradaEncerrarAdmin,
+} from "../../chamados/_componentes/formularios-decisao";
+
 import { textoServico, type ItemAgenda, type TrechoResumo } from "./dados";
+import { ChipChamado } from "./quadro/cartao-servico";
 
 type AcoesPainel = {
   pendente: boolean;
@@ -27,6 +44,9 @@ type AcoesPainel = {
   aoMudarStatus: (item: ItemAgenda, status: StatusAgendamento) => void;
   aoAtribuir: (item: ItemAgenda, equipe: Equipe | null) => void;
   aoRemarcar: (item: ItemAgenda, data: string) => void;
+  /** Fecha o chamado sem a evidência de campo. Recebe o id do CHAMADO, não o
+   *  do agendamento: quem executa é `ia.encerrar_chamado_admin`. */
+  aoEncerrarAdmin: (chamadoId: number, entrada: EntradaEncerrarAdmin) => void;
 };
 
 /**
@@ -40,12 +60,17 @@ export function PainelAgendamento({
   agendamento,
   trecho,
   equipes,
+  hoje,
   podeEscrever,
   ...acoes
 }: AcoesPainel & {
   agendamento: ItemAgenda | null;
   trecho: TrechoResumo | undefined;
   equipes: Equipe[];
+  /** `isoHoje()` do servidor, nunca `new Date()` do navegador: é o teto da
+   *  data no formulário de encerramento, e um relógio de máquina em UTC já
+   *  virou o dia às 21 h de Brasília. */
+  hoje: string;
   /** Analista: a gaveta abre e explica a decisão, mas não a altera. */
   podeEscrever: boolean;
 }) {
@@ -62,6 +87,7 @@ export function PainelAgendamento({
       aberta={agendamento != null}
       trecho={trecho}
       equipes={equipes}
+      hoje={hoje}
       podeEscrever={podeEscrever}
       {...acoes}
     />
@@ -73,30 +99,56 @@ function Gaveta({
   aberta,
   trecho,
   equipes,
+  hoje,
   pendente,
   aoFechar,
   aoMudarStatus,
   aoAtribuir,
   aoRemarcar,
+  aoEncerrarAdmin,
   podeEscrever,
 }: AcoesPainel & {
   item: ItemAgenda;
   aberta: boolean;
   trecho: TrechoResumo | undefined;
   equipes: Equipe[];
+  hoje: string;
   podeEscrever: boolean;
 }) {
   const idEquipe = useId();
   const idData = useId();
   const [novaData, setNovaData] = useState(item.data);
   const [confirmando, setConfirmando] = useState(false);
+  const [encerrando, setEncerrando] = useState(false);
 
   const t = item.ag.trecho;
   const previsao = item.ag.previsao;
   const ocupacao = trecho?.ocupacao_pct ?? null;
   const emAberto = item.status === "sugerido" || item.status === "aprovado";
   const bloqueioAprovacao = erroFaltaEquipe(item.equipeId, "aprovado");
-  const bloqueioConclusao = erroFaltaEquipe(item.equipeId, "executado");
+
+  /* Por que o encerramento pede um CHAMADO e não um agendamento.
+     Quem fecha a roçada é `ia.encerrar_chamado_admin`, que grava a execução, a
+     medição e o evento numa transação só. Sem chamado não há o que encerrar —
+     e "aprovado sem equipe" é exatamente esse caso, porque o gatilho só abre a
+     ordem de serviço quando a equipe chega. Antes o botão "Marcar como
+     executada" atravessava isso escrevendo `executado` direto na tabela, o que
+     concluía o chamado com `sem_evidencia` e nada mais: nenhum km, nenhuma
+     altura, nenhum autor. Ver a recusa em `mudarStatusAgendamento`. */
+  const chamado = item.chamado;
+  const podeEncerrar = chamado != null && !terminal(chamado.status);
+
+  /* Só faz sentido explicar a AUSÊNCIA do chamado enquanto a roçada ainda pode
+     ganhar um. Numa `executado` ou `descartada` o chamado terminou e saiu da
+     consulta de abertos por desenho, e dizer "ainda não existe" ali seria a
+     tela anunciando como pendência o desfecho normal do que acabou de
+     acontecer — foi o que apareceu logo depois do primeiro encerramento feito
+     por esta gaveta. */
+  const bloqueioEncerramento =
+    emAberto && chamado == null
+      ? erroFaltaEquipe(item.equipeId, "executado") ??
+        "O chamado desta roçada ainda não existe. Recarregue a página."
+      : null;
 
   return (
     <PainelLateral
@@ -121,16 +173,26 @@ function Gaveta({
               </Botao>
             ) : null}
 
-            {item.status === "aprovado" ? (
+            {/* "Marcar como executada" virou "Encerrar administrativamente", e
+                o nome mudou porque o ATO mudou. O botão antigo dizia "isto foi
+                roçado" e não registrava nada disso; este abre o formulário que
+                pergunta quando aconteceu e por que não passou pelo app, e o
+                chamado fecha com o selo "sem evidência".
+
+                Ele não é o caminho normal: o normal é a equipe fechar pelo
+                celular e o gestor aprovar em `/chamados`, com as fotos lado a
+                lado. Por isso `secundario`, e não `primario` — o botão
+                primário desta gaveta é a aprovação da sugestão. */}
+            {item.status === "aprovado" && !encerrando ? (
               <Botao
-                variante="primario"
+                variante="secundario"
                 tamanho="sm"
-                disabled={pendente || bloqueioConclusao != null}
-                title={bloqueioConclusao ?? undefined}
+                disabled={pendente || !podeEncerrar}
+                title={bloqueioEncerramento ?? undefined}
                 iconeEsquerda={<Flag />}
-                onClick={() => aoMudarStatus(item, "executado")}
+                onClick={() => setEncerrando(true)}
               >
-                Marcar como executada
+                Encerrar administrativamente
               </Botao>
             ) : null}
 
@@ -258,6 +320,62 @@ function Gaveta({
         </dl>
       </section>
 
+      {/* A ORDEM DE SERVIÇO.
+          Depois de "O serviço", que descreve o que foi PLANEJADO, e antes da
+          leitura do modelo, que é o porquê: esta seção é o que está
+          ACONTECENDO, e é a única da gaveta que muda sem ninguém mexer no
+          painel — quem a move é a equipe, do celular.
+
+          O link e o encerramento administrativo, e mais nada. Aprovar,
+          devolver e decidir adiamento exigem as fotos lado a lado, km, custo e
+          comentário, e essa é a gaveta de `/chamados`, que tem largura para
+          isso; duplicá-las aqui criaria duas telas para a mesma decisão, cada
+          uma com metade do contexto. O encerramento fica porque ele SUBSTITUI
+          um botão que já existia nesta gaveta e não tem essa exigência: quem
+          encerra administrativamente está justamente dizendo que não há
+          evidência de campo nenhuma para olhar. */}
+      {chamado ? (
+        <section className="mt-6">
+          <h3 className="flex items-center gap-1.5 text-2xs font-medium tracking-widest text-ink-3 uppercase">
+            <ClipboardList aria-hidden="true" className="size-3.5 shrink-0" />
+            Chamado
+          </h3>
+
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+            <span className="tnum font-mono text-sm text-ink">{chamado.numero}</span>
+            <ChipChamado status={chamado.status} tamanho="md" />
+          </div>
+
+          {/* O formulário abre AQUI, no corpo, e não no rodapé: ele tem data,
+              altura e um texto obrigatório, e o rodapé da gaveta é uma tira de
+              botões. Mesma disposição da gaveta de `/chamados`, que é de onde
+              o componente vem — e é ele mesmo, importado, não uma segunda
+              cópia: duas validações da mesma decisão divergem na primeira vez
+              que uma delas muda. */}
+          {encerrando ? (
+            <div className="mt-3">
+              <FormularioEncerrarAdmin
+                hoje={hoje}
+                pendente={pendente}
+                aoCancelar={() => setEncerrando(false)}
+                aoConfirmar={(entrada) => {
+                  setEncerrando(false);
+                  aoEncerrarAdmin(chamado.id, entrada);
+                }}
+              />
+            </div>
+          ) : (
+            <Link
+              href={`/chamados?chamado=${chamado.id}`}
+              className="mt-3 inline-flex items-center gap-1.5 rounded-sm text-xs text-accent transition-colors duration-150 ease-[var(--ease-out-quint)] hover:text-ink"
+            >
+              Abrir em Chamados
+              <ArrowUpRight aria-hidden="true" className="size-3.5 shrink-0" />
+            </Link>
+          )}
+        </section>
+      ) : null}
+
       <section className="mt-6">
         <h3 className="text-2xs font-medium tracking-widest text-ink-3 uppercase">
           Leitura do modelo
@@ -333,8 +451,12 @@ function Gaveta({
             <Campo
               rotulo="Equipe responsável"
               id={idEquipe}
+              /* Em `sugerido` a falta de equipe barra a aprovação; em
+                 `aprovado`, barra o encerramento — e ali ela barra por não
+                 existir chamado nenhum, que é o que `bloqueioEncerramento`
+                 explica. Nos dois casos a dica diz o que a equipe destrava. */
               dica={
-                (item.status === "sugerido" ? bloqueioAprovacao : bloqueioConclusao) ?? undefined
+                (item.status === "sugerido" ? bloqueioAprovacao : bloqueioEncerramento) ?? undefined
               }
             >
               <Selecao

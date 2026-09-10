@@ -9,8 +9,27 @@
 
 import { dispensaAgendamento, ordemRisco, riscoPorPrazo } from "@/lib/dominio";
 import { diasEntre, fmt, inicioDaSemana, parseData, somarDias } from "@/lib/format";
-import type { AgendamentoDetalhado, Equipe, Risco, StatusAgendamento, UF } from "@/lib/types";
+import type {
+  AgendamentoDetalhado,
+  Equipe,
+  Risco,
+  StatusAgendamento,
+  StatusChamado,
+  UF,
+} from "@/lib/types";
 import { sum } from "@/lib/utils";
+
+/** O chamado do agendamento, reduzido ao que o quadro precisa DESENHAR.
+ *
+ *  Três campos, e não o `ChamadoDetalhado` inteiro: o cartão mostra número e
+ *  estado, a gaveta acrescenta o link, e nada nesta tela lê fotos, eventos nem
+ *  alturas. Carregar o resto atravessaria a rede ~200 vezes (um por
+ *  agendamento aberto) para ser descartado no primeiro render.
+ *
+ *  A EQUIPE não está aqui de propósito: ela mora em `agendamentos.equipe_id`,
+ *  que este mesmo item já carrega em `equipeId`/`equipeNome`. Uma segunda cópia
+ *  seria a primeira coisa a divergir depois de uma troca de equipe. */
+export type ChamadoDoItem = { id: number; numero: string; status: StatusChamado };
 
 /** Só o que a agenda lê da view de trechos, o resto não precisa cruzar a rede.
  *
@@ -502,6 +521,13 @@ export type ItemAgenda = {
    *  lado: o painel contradizendo, na mesma tela, a decisão que a pessoa acabou
    *  de tomar nela. */
   dispensavel: boolean;
+  /** A ordem de serviço deste agendamento, quando ela existe.
+   *
+   *  `null` em três casos, e nenhum é erro: agendamento `sugerido` (o chamado
+   *  nasce na aprovação), `aprovado` sem equipe (nasce quando a equipe chegar),
+   *  e agendamento já `executado` ou `descartado`, cujo chamado terminou e
+   *  saiu da consulta que alimenta este campo. Ver `agenda/page.tsx`. */
+  chamado: ChamadoDoItem | null;
 };
 
 function media(ns: number[]): number {
@@ -539,11 +565,17 @@ export function montarItens({
   trechos,
   equipes,
   hoje,
+  chamados,
 }: {
   agendamentos: AgendamentoDetalhado[];
   trechos: TrechoResumo[];
   equipes: Equipe[];
   hoje: string;
+  /** Chamados abertos por id de AGENDAMENTO. Opcional porque a relação é
+   *  `agendamento 1—0..1 chamado` e a ausência do mapa é indistinguível de um
+   *  mapa vazio: os itens saem com `chamado: null`, que é o mesmo que a tela
+   *  desenha para todo agendamento que ainda não virou ordem de serviço. */
+  chamados?: Map<number, ChamadoDoItem>;
 }): ItemAgenda[] {
   const porTrecho = new Map(trechos.map((t) => [t.id, t]));
 
@@ -581,6 +613,7 @@ export function montarItens({
         emAberto &&
         !manual &&
         dispensaAgendamento(trecho ? trecho.dias_ate_limite : ag.previsao?.dias_ate_limite),
+      chamado: chamados?.get(ag.id) ?? null,
     };
   });
 }

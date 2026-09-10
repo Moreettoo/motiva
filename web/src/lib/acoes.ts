@@ -39,9 +39,30 @@ export async function mudarStatusAgendamento(
     return { ok: false, erro: `Status inválido: ${status}` };
   }
 
-  // Aprovar ou concluir sem equipe é o estado que essa trava existe pra
-  // evitar, ver `erroFaltaEquipe`. Descartar e reabrir não têm essa exigência.
-  if (status === "aprovado" || status === "executado") {
+  /* `executado` deixou de ter porta pela UI, e a recusa fica AQUI e não só na
+     tela: num arquivo `"use server"` toda action é alcançável pela rede, e o
+     caminho legado precisa fechar do lado que manda.
+
+     O motivo não é purismo de fluxo. `executado` escrito direto na tabela faz o
+     gatilho `tg_agendamentos_chamado` concluir o chamado com
+     `sem_evidencia = true` e nada mais: nenhuma linha em `ia.execucoes`, nenhuma
+     medição nova, nenhum km, nenhuma observação, nenhum autor no histórico. O
+     mesmo botão passava a marcar como "roçado" um trecho cuja roçada não deixou
+     registro nenhum — e o histórico do trecho, que é o que alimenta
+     `dias_desde_rocada_inicio`, ficava com um buraco silencioso.
+
+     As duas saídas legítimas gravam tudo, em transação: `ia.aprovar_chamado`
+     (com as fotos da equipe) e `ia.encerrar_chamado_admin` (sem elas, e com o
+     selo "sem evidência" dizendo isso). */
+  if (status === "executado") {
+    return { ok: false, erro: "Conclua pelo chamado (aprovação) ou encerre administrativamente." };
+  }
+
+  // Aprovar sem equipe é o estado que essa trava existe pra evitar, ver
+  // `erroFaltaEquipe`. Descartar e reabrir não têm essa exigência, e
+  // `executado` já saiu acima — a mesma trava vale para ele por outro caminho,
+  // dentro de `ia.encerrar_chamado_admin`, que lê a equipe do agendamento.
+  if (status === "aprovado") {
     const { data: atual, error: erroAtual } = await db
       .from("agendamentos")
       .select("equipe_id")
@@ -161,6 +182,10 @@ export async function aprovarAgendamento(
  *  cabem na gaveta sem virar rolagem. */
 const MOTIVO_MAX = 500;
 
+/** Teto da altura informada, o mesmo de `registrarMedicao` e do `check` da
+ *  coluna `ia.chamados.altura_inicial_cm`: é o que o campo consegue medir. */
+const ALTURA_MAX_CM = 300;
+
 /**
  * Cria uma roçada que a IA não propôs.
  *
@@ -189,11 +214,14 @@ export async function criarRocadaManual(entrada: {
   data: string;
   equipeId: number | null;
   motivo: string;
-}): Promise<Resultado<{ id: number; data: string }>> {
+  /** Altura do mato medida agora, em cm. Vazio deixa valer a altura PREVISTA
+   *  pelo modelo, que é o que o gatilho de `ia.agendamentos` já carimba no
+   *  chamado. Ver `ALTURA_MAX_CM`. */
+  alturaInicialCm?: number | null;
+}): Promise<Resultado<{ id: number; data: string; avisoAltura: string | null }>> {
   const sessao = await permitir("super_admin", "admin");
   if (!sessao.ok) return sessao;
-  void sessao;
-  const { trechoId, data, equipeId } = entrada;
+  const { trechoId, data, equipeId, alturaInicialCm } = entrada;
   const motivo = entrada.motivo.trim();
 
   if (!Number.isInteger(trechoId) || trechoId <= 0) {
@@ -213,6 +241,13 @@ export async function criarRocadaManual(entrada: {
   }
   if (motivo.length > MOTIVO_MAX) {
     return { ok: false, erro: `O motivo passou de ${MOTIVO_MAX} caracteres. Resuma um pouco.` };
+  }
+  // Só valida quando FOI informada: vazio é escolha legítima, e nesse caso a
+  // altura do chamado é a prevista pelo modelo, não zero.
+  if (alturaInicialCm != null) {
+    if (!Number.isFinite(alturaInicialCm) || alturaInicialCm < 0 || alturaInicialCm > ALTURA_MAX_CM) {
+      return { ok: false, erro: `Use uma altura entre 0 e ${ALTURA_MAX_CM} cm, foi o que o campo consegue medir.` };
+    }
   }
 
   const erroEquipe = erroFaltaEquipe(equipeId, "aprovado");
@@ -285,8 +320,66 @@ export async function criarRocadaManual(entrada: {
   }
   if (!linha) return { ok: false, erro: "A roçada não foi criada. Tente de novo." };
 
+  const avisoAltura = alturaInicialCm == null
+    ? null
+    : await gravarAlturaInformada(linha.id as number, alturaInicialCm, sessao.dados.usuarioId);
+
   revalidarTudo();
-  return { ok: true, dados: { id: linha.id as number, data: linha.data_sugerida as string } };
+  return {
+    ok: true,
+    dados: { id: linha.id as number, data: linha.data_sugerida as string, avisoAltura },
+  };
+}
+
+/**
+ * Carimba no chamado a altura que a pessoa MEDIU, no lugar da que o modelo
+ * previu.
+ *
+ * O chamado já existe quando esta função roda: quem o cria é o gatilho
+ * `tg_agendamentos_chamado`, na mesma transação do insert acima, com
+ * `altura_inicial_origem = 'prevista'`. A troca é um EVENTO, e não um update,
+ * porque quem muda `altura_inicial_cm` é `ia.registrar_evento_chamado`: ela
+ * grava a coluna, vira a origem para `informada` e deixa o
+ * `altura_inicial_alterada` na linha do tempo, na mesma transação. Um update
+ * direto daqui pularia as três coisas.
+ *
+ * Devolve o AVISO em vez de derrubar a criação: o agendamento e o chamado já
+ * estão no banco, e recusar agora deixaria a tela negando uma roçada que
+ * existe. Mas também não pode sumir em silêncio — a origem da altura é o que a
+ * gaveta do chamado exibe, e dizer "prevista" sobre um número que alguém mediu
+ * é a tela mentindo sobre a procedência do dado. Por isso a frase sobe até o
+ * toast.
+ */
+async function gravarAlturaInformada(
+  agendamentoId: number,
+  alturaCm: number,
+  autorId: string,
+): Promise<string | null> {
+  const naoGravou = "A roçada foi criada, mas a altura informada não entrou no chamado: informe-a na gaveta do chamado.";
+
+  const { data: chamado, error: erroChamado } = await db
+    .from("chamados")
+    .select("id")
+    .eq("agendamento_id", agendamentoId)
+    .maybeSingle();
+
+  // Sem chamado não é falha: o gatilho só o cria com equipe, e um dia a roçada
+  // manual pode nascer sem ela. Hoje a equipe é obrigatória, então isto é a
+  // rede, não o caminho.
+  if (erroChamado) return naoGravou;
+  if (!chamado) return null;
+
+  const { error } = await db.rpc("registrar_evento_chamado", {
+    p_chamado_id: chamado.id as number,
+    p_evento_id: crypto.randomUUID(),
+    p_tipo: "altura_inicial_alterada",
+    p_autor: autorId,
+    p_origem: "painel",
+    p_payload: { altura_inicial_cm: alturaCm },
+    p_ocorrido_em: new Date().toISOString(),
+  });
+
+  return error ? naoGravou : null;
 }
 
 /**

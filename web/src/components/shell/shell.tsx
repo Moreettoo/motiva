@@ -1,7 +1,9 @@
 import { ProvedorNotificacoes } from "@/components/ui/notificacoes";
 import type { Sessao } from "@/lib/auth/sessao";
+import { contarNaoLidas, listarNotificacoes } from "@/lib/chamados/queries";
 import { fmt } from "@/lib/format";
 import { listarTrechos } from "@/lib/queries";
+import type { Notificacao } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 import { BarraLateral } from "./barra-lateral";
@@ -16,11 +18,32 @@ function formatarCarimbo(iso: string): string {
   return soData ? fmt.dataCurta(iso) : `${fmt.dataCurta(iso)} · ${fmt.horaMin(iso)}`;
 }
 
-type DadosDoCasco = { trechos: TrechoNaPaleta[]; ultimaAnalise: string | null };
+type DadosDoCasco = {
+  trechos: TrechoNaPaleta[];
+  ultimaAnalise: string | null;
+  naoLidas: number;
+  notificacoes: Notificacao[];
+};
 
-async function carregarCasco(): Promise<DadosDoCasco> {
+/** O que a moldura mostra em toda tela. Zerado quando o banco tropeça, ver o
+ *  `catch`: um sino sem contagem é melhor que um painel que não abre. */
+const CASCO_VAZIO: DadosDoCasco = {
+  trechos: [],
+  ultimaAnalise: null,
+  naoLidas: 0,
+  notificacoes: [],
+};
+
+async function carregarCasco(usuarioId: string): Promise<DadosDoCasco> {
   try {
-    const trechos = await listarTrechos();
+    /* Em paralelo, e não em série: são três consultas independentes que
+       atrasariam a PRIMEIRA pintura de toda página do painel se enfileiradas.
+       Dentro do mesmo `try` porque o destino delas é o mesmo — a moldura. */
+    const [trechos, naoLidas, notificacoes] = await Promise.all([
+      listarTrechos(),
+      contarNaoLidas(usuarioId),
+      listarNotificacoes(usuarioId),
+    ]);
 
     const previsoes = trechos.map((t) => t.previsto_em).filter((v): v is string => v != null);
     const maisRecente = previsoes.length ? previsoes.reduce((a, b) => (a > b ? a : b)) : null;
@@ -35,16 +58,18 @@ async function carregarCasco(): Promise<DadosDoCasco> {
         risco: t.risco,
       })),
       ultimaAnalise: maisRecente ? formatarCarimbo(maisRecente) : null,
+      naoLidas,
+      notificacoes,
     };
   } catch {
     // O casco envolve TODAS as telas: se o banco tropeça, a moldura continua de
     // pé e quem reporta o erro é a página, que sabe o que estava tentando ler.
-    return { trechos: [], ultimaAnalise: null };
+    return CASCO_VAZIO;
   }
 }
 
 export async function Shell({ sessao, children }: { sessao: Sessao; children: React.ReactNode }) {
-  const { trechos, ultimaAnalise } = await carregarCasco();
+  const { trechos, ultimaAnalise, naoLidas, notificacoes } = await carregarCasco(sessao.usuarioId);
 
   return (
     <ProvedorNotificacoes>
@@ -55,6 +80,8 @@ export async function Shell({ sessao, children }: { sessao: Sessao; children: Re
           <BarraSuperior
             trechos={trechos}
             cargo={sessao.cargo}
+            naoLidas={naoLidas}
+            notificacoes={notificacoes}
             usuario={{ nome: sessao.nome, cargo: sessao.cargo }}
           />
 

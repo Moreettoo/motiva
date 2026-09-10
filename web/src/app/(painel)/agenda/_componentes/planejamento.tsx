@@ -22,6 +22,7 @@ import {
   mudarStatusAgendamento,
   remarcarAgendamento,
 } from "@/lib/acoes";
+import { encerrarAdministrativamente } from "@/lib/chamados/acoes";
 import { fmt, inicioDaSemana, parseData } from "@/lib/format";
 import {
   STATUS_AGENDAMENTO,
@@ -41,9 +42,11 @@ import {
   resolverEquipeFoco,
   resumo28,
   semanaDoAtrasoMaisAntigo,
+  type ChamadoDoItem,
   type ItemAgenda,
   type TrechoResumo,
 } from "./dados";
+import type { EntradaEncerrarAdmin } from "../../chamados/_componentes/formularios-decisao";
 import { PainelAgendamento } from "./painel-agendamento";
 import { PainelNovaRocada, type EntradaNovaRocada } from "./painel-nova-rocada";
 import { QuadroSemana } from "./quadro/quadro-semana";
@@ -86,12 +89,16 @@ export function PlanejamentoAgenda({
   agendamentos,
   equipes,
   trechos,
+  chamados,
   hoje,
   podeEscrever,
 }: {
   agendamentos: AgendamentoDetalhado[];
   equipes: Equipe[];
   trechos: TrechoResumo[];
+  /** Chamados abertos como pares `[agendamentoId, chamado]`, ver
+   *  `agenda/page.tsx` para por que pares e não `Map`. */
+  chamados: [number, ChamadoDoItem][];
   hoje: string;
   /** Analista: o quadro continua inteiro, as escritas somem. */
   podeEscrever: boolean;
@@ -332,9 +339,14 @@ export function PlanejamentoAgenda({
     [ajustar, mostrar, marcarErro],
   );
 
+  /* Fora do `useMemo` dos itens porque `chamados` só muda quando o servidor
+     manda dados novos, e `lista` muda a cada ajuste otimista do arrasto:
+     remontar o mapa em cada `pointermove` alocaria ~200 entradas por quadro. */
+  const chamadosPorAgendamento = useMemo(() => new Map(chamados), [chamados]);
+
   const itens = useMemo(
-    () => montarItens({ agendamentos: lista, trechos, equipes, hoje }),
-    [lista, trechos, equipes, hoje],
+    () => montarItens({ agendamentos: lista, trechos, equipes, hoje, chamados: chamadosPorAgendamento }),
+    [lista, trechos, equipes, hoje, chamadosPorAgendamento],
   );
 
   const janela = useMemo(() => montarJanela(ancora), [ancora]);
@@ -473,6 +485,11 @@ export function PlanejamentoAgenda({
     STATUS_PADRAO.some((s) => !status.includes(s));
 
   function mudarStatus(item: ItemAgenda, novo: StatusAgendamento) {
+    /* `executado` continua no mapa porque o tipo o exige, mas nenhum botão o
+       envia mais e `mudarStatusAgendamento` o recusa: quem conclui é a
+       aprovação do chamado ou o encerramento administrativo, e os dois passam
+       por funções SQL que gravam execução e medição junto. Se algo o alcançar,
+       o que aparece é o toast de erro daquela recusa, nunca este rótulo. */
     const rotulos: Record<StatusAgendamento, string> = {
       sugerido: "Sugestão reaberta",
       aprovado: "Roçada aprovada",
@@ -484,6 +501,27 @@ export function PlanejamentoAgenda({
       titulo: rotulos[novo],
       descricao: `${item.ag.trecho.rodovia} · ${fmt.dataMedia(item.data)}`,
     });
+  }
+
+  /**
+   * Encerra o chamado sem a evidência de campo, pela gaveta da agenda.
+   *
+   * O ajuste otimista é `executado` porque é o que `ia.encerrar_chamado_admin`
+   * faz com o agendamento, na mesma transação em que grava a execução, a
+   * medição (quando há altura) e o evento `encerrado_admin`. Sem ele o cartão
+   * ficaria parado em `aprovado` até a revalidação chegar, e o gesto perderia
+   * a confirmação imediata que o resto desta tela tem.
+   */
+  function encerrarAdmin(item: ItemAgenda, chamadoId: number, entrada: EntradaEncerrarAdmin) {
+    executar(
+      { id: item.id, status: "executado" },
+      () => encerrarAdministrativamente({ chamadoId, ...entrada }),
+      item.id,
+      {
+        titulo: "Chamado encerrado administrativamente",
+        descricao: `${item.ag.trecho.rodovia} · marcado como sem evidência de campo.`,
+      },
+    );
   }
 
   function atribuir(item: ItemAgenda, novaEquipe: Equipe | null) {
@@ -666,6 +704,20 @@ export function PlanejamentoAgenda({
             titulo: "Roçada agendada",
             descricao: `${rodovia} · ${fmt.dataMedia(resultado.dados.data)}`,
           });
+          /* Segundo toast, e persistente: a roçada FOI criada (o primeiro toast
+             diz a verdade), mas a altura que a pessoa mediu não entrou no
+             chamado. Calar isso deixaria a gaveta do chamado exibindo "altura
+             prevista" sobre um número que ninguém previu. */
+          if (resultado.dados.avisoAltura) {
+            mostrar({
+              // `info` porque a criação DEU certo: o toast de cima já é o
+              // `good`, e um `critical` ao lado dele diria que a roçada falhou.
+              tom: "info",
+              titulo: "A altura informada não foi gravada",
+              descricao: resultado.dados.avisoAltura,
+              duracao: 0,
+            });
+          }
         } catch {
           const recado = "A conexão com o servidor falhou. Confira a rede e tente de novo.";
           setErroNova(recado);
@@ -775,11 +827,15 @@ export function PlanejamentoAgenda({
         agendamento={emFoco}
         trecho={emFoco ? trechos.find((t) => t.id === emFoco.ag.trecho.id) : undefined}
         equipes={equipes}
+        hoje={hoje}
         pendente={emFoco != null && salvandoIds.has(emFoco.id)}
         aoFechar={() => setSelecionado(null)}
         aoMudarStatus={mudarStatus}
         aoAtribuir={atribuir}
         aoRemarcar={remarcar}
+        aoEncerrarAdmin={(chamadoId, entrada) => {
+          if (emFoco) encerrarAdmin(emFoco, chamadoId, entrada);
+        }}
       />
 
       {/* O Analista não monta a gaveta: sem botão que a abra, ela seria só um
