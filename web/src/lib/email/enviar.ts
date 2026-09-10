@@ -1,5 +1,6 @@
 import "server-only";
 
+import { render, toPlainText } from "@react-email/components";
 import type { ReactElement } from "react";
 import { Resend } from "resend";
 
@@ -26,12 +27,22 @@ export async function enviarEmail(e: {
     };
   }
 
+  // O HTML sai daqui, e nao do `react:` do Resend: `resend` importa
+  // `@react-email/render` de forma dinamica e o declara como peer OPCIONAL, e o
+  // npm so o instalou aninhado dentro de `@react-email/components` — o import
+  // dele nao resolve a partir de `resend/dist` e todo envio morre em
+  // "Failed to render React component". Renderizando aqui, com o `render` que a
+  // propria `@react-email/components` reexporta, o caminho e o mesmo e nenhuma
+  // dependencia nova entra. O texto puro vai junto: e-mail so-HTML pesa no spam.
+  const html = await render(e.react);
+
   const resend = new Resend(chave);
   const { data, error } = await resend.emails.send({
     from: process.env.EMAIL_REMETENTE ?? "HighwAI <onboarding@resend.dev>",
     to: e.para,
     subject: e.assunto,
-    react: e.react,
+    html,
+    text: toPlainText(html),
   });
 
   if (error) return { ok: false, erro: `O Resend recusou o envio: ${error.message}` };
