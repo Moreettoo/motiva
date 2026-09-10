@@ -1,4 +1,4 @@
-import type { MotivoAdiamento, Prioridade, StatusChamado } from "@/lib/types";
+import type { MotivoAdiamento, Prioridade, StatusChamado, TipoEventoChamado } from "@/lib/types";
 
 /**
  * O contrato entre a API do painel e o aparelho. Os dois lados leem daqui, e
@@ -25,6 +25,16 @@ export type TrechoCampo = {
   observacoes: string | null;
 };
 
+/**
+ * Uma linha da linha do tempo do detalhe. Recorte de `ChamadoEvento` a proposito:
+ * o `payload` inteiro nao cabe na tela e traz dado de gestao que o campo nao usa.
+ */
+export type EventoRecente = {
+  tipo: TipoEventoChamado;
+  ocorrido_em: string;
+  autor_nome: string;
+};
+
 export type ChamadoCampo = {
   id: number;
   numero: string;
@@ -40,8 +50,28 @@ export type ChamadoCampo = {
   iniciado_em: string | null;
   finalizado_em: string | null;
   comentario_gestor: string | null;
-  adiamento_pendente: { motivo: MotivoAdiamento; data_sugerida: string | null } | null;
+  adiamento_pendente: { motivo: MotivoAdiamento; data_sugerida: string | null; solicitado_em: string } | null;
+  /**
+   * Os cinco ultimos, do mais novo para o mais velho. E a linha do tempo do detalhe.
+   *
+   * OPCIONAL de proposito, como `EstadoCampo.notificacoes`: este tipo descreve
+   * tambem o que esta GRAVADO no IndexedDB, e um aparelho que sincronizou antes
+   * desta versao tem um snapshot sem o campo. Exigi-lo faria a tela quebrar na
+   * primeira abertura offline depois de atualizar o app, que e justamente a hora
+   * em que ninguem tem rede para consertar.
+   */
+  eventos_recentes?: EventoRecente[];
   atualizado_em: string;
+};
+
+/** O que o sino do campo mostra. Recorte de `Notificacao`: sem `href` nem `tipo`, que sao de navegacao do painel. */
+export type NotificacaoCampo = {
+  id: number;
+  titulo: string;
+  texto: string | null;
+  chamado_id: number | null;
+  lida_em: string | null;
+  criado_em: string;
 };
 
 export type EstadoCampo = {
@@ -49,6 +79,8 @@ export type EstadoCampo = {
   lider: { nome: string };
   chamados: ChamadoCampo[];
   notificacoesNaoLidas: number;
+  /** As 20 ultimas, para o sino abrir sem rede. Opcional: ver `ChamadoCampo.eventos_recentes`. */
+  notificacoes?: NotificacaoCampo[];
   /** Relogio do SERVIDOR na resposta. */
   servidorEm: string;
   /** Relogio do APARELHO quando o snapshot foi gravado; e o que a tela mostra. */
