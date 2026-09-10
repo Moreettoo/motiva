@@ -3,8 +3,6 @@ import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 
-import { Shell } from "@/components/shell/shell";
-
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -17,17 +15,6 @@ export const metadata: Metadata = {
   applicationName: "HighwAI",
   robots: { index: false, follow: false },
 };
-
-/**
- * Nada aqui pode ser pre-renderizado.
- *
- * Todas as telas leem estado operacional que muda por fora do app: o
- * `analisar_lote.py` roda todo dia pelo GitHub Actions e reescreve previsoes e
- * agendamentos. Sem isto, o build congela a malha no momento do deploy e o
- * gestor passa a decidir em cima de numero velho, o pior tipo de bug para este
- * produto, porque a tela continua parecendo certa.
- */
-export const dynamic = "force-dynamic";
 
 /**
  * Espelha --bg de globals.css: #f7f7f4 no tema claro, #0a0d0c no escuro.
@@ -86,9 +73,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         >
           Pular para o conteúdo
         </a>
-        <NuqsAdapter>
-          <Shell>{children}</Shell>
-        </NuqsAdapter>
+        <NuqsAdapter>{children}</NuqsAdapter>
       </body>
     </html>
   );
