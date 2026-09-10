@@ -131,6 +131,29 @@ export type ItemFila = EventoCampo & {
   criado_em: string;
 };
 
+/**
+ * "O servidor recebeu, mas o chamado ja tinha terminado."
+ *
+ * Fica num store PROPRIO e nao na fila: o item sai da fila (reenviar nunca vai
+ * mudar a resposta) e ainda assim a pessoa precisa saber. Sem isto o app
+ * engolia o fato — media-se `foraDeOrdem` no relatorio de sincronizacao e nunca
+ * se mostrava nada. A equipe passava a manha no trecho, fotografava, e a unica
+ * coisa que aparecia na tela era o chamado virando "Cancelado" sozinho.
+ *
+ * `visto` existe para o aviso poder ser DISPENSADO pela pessoa, e nao por um
+ * relogio: quem esta de luva no sol nao vai ler um aviso que sai da tela em
+ * quatro segundos.
+ */
+export type ForaDeOrdem = {
+  evento_id: string;
+  chamado_id: number;
+  tipo: TipoEventoCampo;
+  /** Frase do servidor, ja em portugues. */
+  motivo: string;
+  em: string;
+  visto: boolean;
+};
+
 export const LIMITES = {
   ladoMaximoPx: 1600,
   qualidadeJpeg: 0.82,

@@ -1,4 +1,4 @@
-import { atualizarItem, fotosDoEvento, gravarEstado, listarFila, marcarFotoEnviada, removerDaFila } from "./banco-local";
+import { atualizarItem, fotosDoEvento, gravarEstado, listarFila, marcarForaDeOrdem, marcarFotoEnviada, removerDaFila } from "./banco-local";
 import type { EstadoCampo, ItemFila, ResultadoEvento } from "./contratos";
 import { esperaAntesDaTentativa, ordenarFila } from "./fila";
 
@@ -123,7 +123,18 @@ export async function sincronizarFila(opcoes: { origem: "pagina" | "worker"; equ
         await removerDaFila(item.evento_id);
         relatorio.enviados += 1;
       } else if (r.situacao === "fora_de_ordem") {
-        // O servidor guardou o evento e avisou o gestor. Sai da fila: reenviar nao muda nada.
+        /* O servidor guardou o evento e avisou o gestor. Sai da fila (reenviar
+           nao muda nada) MAS deixa a marca: quem esteve no trecho tem que ficar
+           sabendo que o chamado ja havia terminado. Antes, isto so incrementava
+           um contador que nenhuma tela lia. */
+        await marcarForaDeOrdem({
+          evento_id: item.evento_id,
+          chamado_id: item.chamado_id,
+          tipo: item.tipo,
+          motivo: r.erro ?? "O chamado já havia terminado quando este registro chegou.",
+          em: new Date().toISOString(),
+          visto: false,
+        });
         await removerDaFila(item.evento_id);
         relatorio.foraDeOrdem += 1;
       } else {

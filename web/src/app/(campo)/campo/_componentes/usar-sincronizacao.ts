@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
-import { enfileirar, guardarFoto, lerEstado, listarFila } from "@/lib/campo/banco-local";
-import type { EstadoCampo, EventoCampo, FotoLocal, ItemFila } from "@/lib/campo/contratos";
+import { enfileirar, guardarFoto, lerEstado, listarFila, listarForaDeOrdem, verForaDeOrdem } from "@/lib/campo/banco-local";
+import type { EstadoCampo, EventoCampo, ForaDeOrdem, FotoLocal, ItemFila } from "@/lib/campo/contratos";
 import { baixarEstado, pedirSincronizacaoEmSegundoPlano, sincronizarFila, type RelatorioSync } from "@/lib/campo/sincronizar";
 
 export type SituacaoRede = "online" | "offline";
@@ -40,6 +40,7 @@ const redeNoServidor = (): SituacaoRede => "online";
 export function useSincronizacao(equipeId: number | null) {
   const [estado, setEstado] = useState<EstadoCampo | null>(null);
   const [fila, setFila] = useState<ItemFila[]>([]);
+  const [foraDeOrdem, setForaDeOrdem] = useState<ForaDeOrdem[]>([]);
   /**
    * "Ja terminei de ler o aparelho?" — e NAO `estado != null`.
    *
@@ -63,11 +64,21 @@ export function useSincronizacao(equipeId: number | null) {
   const emCurso = useRef(false);
 
   const relerLocal = useCallback(async () => {
-    const [e, f] = await Promise.all([lerEstado(), listarFila()]);
+    const [e, f, fdo] = await Promise.all([lerEstado(), listarFila(), listarForaDeOrdem()]);
     setEstado(e);
     setFila(f);
+    setForaDeOrdem(fdo.filter((x) => !x.visto));
     setCarregado(true);
   }, []);
+
+  /** A pessoa dispensou o aviso de fora de ordem. E ela quem fecha, nao um relogio. */
+  const dispensarForaDeOrdem = useCallback(
+    async (eventoId: string) => {
+      await verForaDeOrdem(eventoId);
+      await relerLocal();
+    },
+    [relerLocal],
+  );
 
   const enviarAgora = useCallback(async () => {
     if (emCurso.current || (typeof navigator !== "undefined" && !navigator.onLine)) return;
@@ -131,5 +142,5 @@ export function useSincronizacao(equipeId: number | null) {
     };
   }, [enviarAgora, relerLocal]);
 
-  return { estado, fila, carregado, rede, sincronizando, ultimoRelatorio, recarregar, enviarAgora, registrar };
+  return { estado, fila, foraDeOrdem, carregado, rede, sincronizando, ultimoRelatorio, recarregar, enviarAgora, registrar, dispensarForaDeOrdem };
 }

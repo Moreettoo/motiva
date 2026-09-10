@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { obterSessao } from "@/lib/auth/sessao";
 import type { EventoCampo, ResultadoEvento, TipoEventoCampo } from "@/lib/campo/contratos";
 import { podeAgirNoChamado } from "@/lib/campo/servidor";
-import { mensagemDoBanco } from "@/lib/chamados/erros";
+import { mensagemDoBanco, statusDoForaDeOrdem } from "@/lib/chamados/erros";
 import { db } from "@/lib/supabase";
 
 /**
@@ -25,6 +25,74 @@ const TIPOS: readonly TipoEventoCampo[] = ["iniciado", "finalizado", "adiamento_
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type ErroDoBanco = { code?: string; message: string; details?: string | null };
+
+/**
+ * Grava o evento fora de ordem e avisa os gestores.
+ *
+ * ISTO PARECE DUPLICAR O BANCO E NAO DUPLICA. `ia.registrar_evento_chamado`,
+ * ao ver um chamado terminal, insere o evento `fora_de_ordem`, chama
+ * `ia.notificar` e SO DEPOIS faz `raise exception ... errcode P0003`. O `raise`
+ * aborta a subtransacao da propria funcao: o insert e a notificacao dela sao
+ * descartados junto. A intencao do desenho e correta e o efeito e zero.
+ *
+ * Medido: o gestor cancelou CH-2026-0022 pelo painel enquanto o app estava sem
+ * sinal com um `iniciado` na fila. Voltando o sinal, as duas fotos subiram
+ * (estao em `ia.chamado_fotos`), o evento saiu da fila do aparelho — e no banco
+ * ficaram ZERO eventos de campo para aquele chamado e ZERO notificacoes. A
+ * equipe esteve no trecho, fotografou, e o sistema nao guardou registro nenhum
+ * de que esteve; as fotos ficaram orfas, sem evento que as explique.
+ *
+ * A correcao na raiz e na funcao SQL (trocar o `raise` por um retorno, ou
+ * gravar fora da subtransacao que aborta), e ela vive em `supabase/migrations`,
+ * que nao e desta onda. Aqui a rota faz o que ela mesma ja PROMETE no comentario
+ * do `P0003` logo abaixo, com a service_role que ela ja tem.
+ *
+ * Idempotente pelo `evento_id`: o `ignoreDuplicates` cobre o caso de a funcao
+ * SQL passar a gravar de verdade (a coluna e unica), e nesse dia esta gravacao
+ * simplesmente nao faz nada — nao ha um segundo evento nem um segundo aviso.
+ */
+async function registrarForaDeOrdem(
+  chamadoId: number,
+  evento: EventoCampo,
+  autorId: string,
+  statusNoMomento: string | null,
+): Promise<void> {
+  const { data: chamado } = await db.from("chamados").select("numero, status").eq("id", chamadoId).maybeSingle();
+  const status = statusNoMomento ?? (chamado?.status as string | undefined) ?? "encerrado";
+  const { data: nome } = await db.rpc("nome_do_autor", { p_autor: autorId });
+
+  const { error } = await db.from("chamado_eventos").upsert(
+    {
+      chamado_id: chamadoId,
+      evento_id: evento.evento_id,
+      tipo: "fora_de_ordem",
+      autor_id: autorId,
+      autor_nome: (nome as string | null) ?? "equipe",
+      origem: "campo",
+      payload: { tipo_original: evento.tipo, payload: evento.payload ?? {}, status_no_momento: status },
+      ocorrido_em: evento.ocorrido_em,
+    },
+    { onConflict: "evento_id", ignoreDuplicates: true },
+  );
+  /* Sem `throw`: o evento JA nao entra na fila de novo (o chamado terminou, e
+     reenviar nunca vai mudar isso). Falhar aqui em cima disso trocaria "perdi o
+     registro" por "a fila encalha para sempre", que e pior. */
+  if (error) {
+    console.error("[campo] nao foi possivel gravar o evento fora de ordem", { chamadoId, evento_id: evento.evento_id, error });
+    return;
+  }
+
+  const { data: admins } = await db.rpc("admins_ativos");
+  const numero = (chamado?.numero as string | undefined) ?? `chamado ${chamadoId}`;
+  await db.rpc("notificar", {
+    p_destinatarios: admins ?? [],
+    p_tipo: "fora_de_ordem",
+    p_titulo: `${numero}: evento recebido depois do fim`,
+    p_texto: `A equipe registrou "${evento.tipo}" num chamado ${status}. Veja o histórico.`,
+    p_href: `/chamados?chamado=${chamadoId}`,
+    p_chamado_id: chamadoId,
+  });
+}
 
 function invalido(e: unknown): string | null {
   const v = e as Partial<EventoCampo> | null;
@@ -100,8 +168,10 @@ export async function POST(request: NextRequest) {
 
     const e = error as ErroDoBanco;
     if (e.code === "P0003") {
-      // O chamado ja tinha terminado. O evento FICOU gravado como fora de ordem
-      // e os admins foram avisados: reenviar nao muda nada, entao sai da fila.
+      /* O chamado ja tinha terminado. Reenviar nao muda nada, entao sai da fila
+         — mas so depois de o registro EXISTIR: ver `registrarForaDeOrdem`, que
+         grava o que o `raise` da funcao SQL desfaz. */
+      await registrarForaDeOrdem(evento.chamado_id, evento, sessao.usuarioId, statusDoForaDeOrdem(e));
       resultados.push({ evento_id: eventoId, situacao: "fora_de_ordem", erro: mensagemDoBanco(e) });
       continue;
     }

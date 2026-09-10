@@ -1,6 +1,6 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
 
-import type { EstadoCampo, FotoLocal, ItemFila } from "./contratos";
+import type { EstadoCampo, ForaDeOrdem, FotoLocal, ItemFila } from "./contratos";
 
 /**
  * O aparelho e a fonte da verdade da TELA; o servidor e a fonte da verdade do
@@ -15,18 +15,35 @@ interface EsquemaCampo extends DBSchema {
   estado: { key: string; value: EstadoCampo };
   fila: { key: string; value: ItemFila; indexes: { por_criacao: string } };
   fotos: { key: string; value: FotoLocal; indexes: { por_evento: string } };
+  fora_de_ordem: { key: string; value: ForaDeOrdem };
 }
 
 let promessa: Promise<IDBPDatabase<EsquemaCampo>> | null = null;
 
+/**
+ * Versao 2: entrou `fora_de_ordem`.
+ *
+ * O `upgrade` do `idb` recebe a versao ANTIGA e tem que ser incremental, nao
+ * "cria tudo": um aparelho que ja sincronizou na v1 sobe para a v2 com os tres
+ * stores dele cheios, e um `createObjectStore("estado")` ali levantaria
+ * `ConstraintError` — o app abriria sem nada, com o dia de trabalho intacto no
+ * disco e invisivel. Por isso cada store nasce sob o seu proprio `if`.
+ */
 export function banco() {
-  promessa ??= openDB<EsquemaCampo>("highwai-campo", 1, {
+  promessa ??= openDB<EsquemaCampo>("highwai-campo", 2, {
     upgrade(db) {
-      db.createObjectStore("estado");
-      const fila = db.createObjectStore("fila", { keyPath: "evento_id" });
-      fila.createIndex("por_criacao", "criado_em");
-      const fotos = db.createObjectStore("fotos", { keyPath: "foto_id" });
-      fotos.createIndex("por_evento", "evento_id");
+      if (!db.objectStoreNames.contains("estado")) db.createObjectStore("estado");
+      if (!db.objectStoreNames.contains("fila")) {
+        const fila = db.createObjectStore("fila", { keyPath: "evento_id" });
+        fila.createIndex("por_criacao", "criado_em");
+      }
+      if (!db.objectStoreNames.contains("fotos")) {
+        const fotos = db.createObjectStore("fotos", { keyPath: "foto_id" });
+        fotos.createIndex("por_evento", "evento_id");
+      }
+      if (!db.objectStoreNames.contains("fora_de_ordem")) {
+        db.createObjectStore("fora_de_ordem", { keyPath: "evento_id" });
+      }
     },
   });
   return promessa;
@@ -62,10 +79,22 @@ export async function marcarFotoEnviada(fotoId: string) {
   if (f) await db.put("fotos", { ...f, enviada: true });
 }
 
+export async function listarForaDeOrdem() {
+  return (await banco()).getAll("fora_de_ordem");
+}
+export async function marcarForaDeOrdem(f: ForaDeOrdem) {
+  await (await banco()).put("fora_de_ordem", f);
+}
+export async function verForaDeOrdem(eventoId: string) {
+  const db = await banco();
+  const f = await db.get("fora_de_ordem", eventoId);
+  if (f) await db.put("fora_de_ordem", { ...f, visto: true });
+}
+
 /** Chamada por `sair`: o aparelho nao guarda dado de quem nao esta mais logado. */
 export async function limparTudo() {
   const db = await banco();
-  await Promise.all([db.clear("estado"), db.clear("fila"), db.clear("fotos")]);
+  await Promise.all([db.clear("estado"), db.clear("fila"), db.clear("fotos"), db.clear("fora_de_ordem")]);
 }
 
 /**
