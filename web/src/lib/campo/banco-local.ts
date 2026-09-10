@@ -79,6 +79,21 @@ export async function marcarFotoEnviada(fotoId: string) {
   if (f) await db.put("fotos", { ...f, enviada: true });
 }
 
+/**
+ * As fotos de um evento que ja saiu da fila.
+ *
+ * Sem isto elas ficavam no aparelho para sempre. Sao ~90 KB por foto e ate 6
+ * fotos por evento; uma equipe que fecha oito servicos por dia e nao sai da
+ * conta acumula dezenas de megabytes por semana, e o unico jeito de limpar era
+ * o `sair`. Depois do `200` do servidor o blob nao serve mais para nada: o
+ * arquivo esta no bucket e a tela do campo nunca reexibe foto enviada.
+ */
+export async function apagarFotosDoEvento(eventoId: string) {
+  const db = await banco();
+  const fotos = await db.getAllFromIndex("fotos", "por_evento", eventoId);
+  await Promise.all(fotos.map((f) => db.delete("fotos", f.foto_id)));
+}
+
 export async function listarForaDeOrdem() {
   return (await banco()).getAll("fora_de_ordem");
 }

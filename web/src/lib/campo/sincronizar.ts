@@ -1,4 +1,4 @@
-import { atualizarItem, fotosDoEvento, gravarEstado, listarFila, marcarForaDeOrdem, marcarFotoEnviada, removerDaFila } from "./banco-local";
+import { apagarFotosDoEvento, atualizarItem, fotosDoEvento, gravarEstado, listarFila, marcarForaDeOrdem, marcarFotoEnviada, removerDaFila } from "./banco-local";
 import type { EstadoCampo, ItemFila, ResultadoEvento } from "./contratos";
 import { ordenarFila, podeTentarAgora } from "./fila";
 
@@ -125,6 +125,7 @@ export async function sincronizarFila(opcoes: { origem: "pagina" | "worker"; equ
       const r = resultados[0];
       if (r.situacao === "aplicado" || r.situacao === "repetido") {
         await removerDaFila(item.evento_id);
+        await apagarFotosDoEvento(item.evento_id);
         relatorio.enviados += 1;
       } else if (r.situacao === "fora_de_ordem") {
         /* O servidor guardou o evento e avisou o gestor. Sai da fila (reenviar
@@ -140,6 +141,7 @@ export async function sincronizarFila(opcoes: { origem: "pagina" | "worker"; equ
           visto: false,
         });
         await removerDaFila(item.evento_id);
+        await apagarFotosDoEvento(item.evento_id);
         relatorio.foraDeOrdem += 1;
       } else {
         // Recusado por regra (ex.: fotos faltando). Fica na fila com o motivo, para a pessoa ver e corrigir.
