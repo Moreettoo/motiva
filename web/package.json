@@ -11,6 +11,7 @@
     "fumaca": "node scripts/fumaca.mjs",
     "icones": "node scripts/gerar-icones.mjs",
     "semear:super-admin": "node scripts/semear-super-admin.mjs",
+    "semear:demonstracao": "node scripts/semear-demonstracao.mjs",
     "testes": "vitest run",
     "verificar": "npm run tipos && npm run lint && npm run testes && npm run fumaca && npm run build"
   },
