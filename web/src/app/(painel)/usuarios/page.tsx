@@ -10,6 +10,7 @@ import {
   listarPerfis,
 } from "@/lib/usuarios/queries";
 
+import { BaixarApp } from "./_componentes/baixar-app";
 import { GestaoUsuarios } from "./_componentes/gestao-usuarios";
 
 export const metadata: Metadata = {
@@ -47,6 +48,9 @@ export default async function PaginaUsuarios() {
         superAdminsAtivos={superAdmins}
         eu={{ usuarioId: sessao.usuarioId, cargo: sessao.cargo }}
       />
+      {/* No fim da tela porque e a ultima coisa que se faz aqui: convidar o
+          Rocador e, depois, dizer a ele como instalar o app. */}
+      <BaixarApp />
     </div>
   );
 }
