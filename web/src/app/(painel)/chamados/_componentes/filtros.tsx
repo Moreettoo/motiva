@@ -164,10 +164,10 @@ function ChipStatusFiltro({
         "inline-flex h-7 max-w-full shrink-0 items-center gap-1.5 rounded-full border px-2.5",
         "text-xs font-medium whitespace-nowrap",
         "transition-[background-color,border-color,color] duration-150 ease-[var(--ease-out-quint)]",
-        ativo
-          ? "border-accent bg-accent-soft text-accent"
-          : "border-border bg-surface-2 text-ink-2 hover:border-border-strong hover:text-ink",
+        ativo ? "bg-accent-soft text-accent" : "bg-surface-2 text-ink-2 hover:text-ink",
       )}
+      /* `border-accent` e classe morta (ver `icones.tsx`). */
+      style={{ borderColor: ativo ? "var(--accent)" : undefined }}
     >
       <IconeChamado nome={token.icone} className="size-3" />
       <span className="truncate">{token.rotulo}</span>

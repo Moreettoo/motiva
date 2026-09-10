@@ -73,10 +73,11 @@ export function CartaoChamado({
         "w-full min-w-0 rounded-md border px-2.5 py-2 text-left",
         "transition-[background-color,border-color,transform] duration-150 ease-[var(--ease-out-quint)]",
         "active:translate-y-px",
-        selecionado
-          ? "border-accent bg-accent-soft"
-          : "border-border bg-surface-2 hover:border-border-strong hover:bg-surface-3",
+        selecionado ? "bg-accent-soft" : "bg-surface-2 hover:bg-surface-3",
       )}
+      /* `border-accent` e classe morta (ver `icones.tsx`): a borda da ficha
+         selecionada tem que vir por `style`, senao a selecao fica so no fundo. */
+      style={{ borderColor: selecionado ? "var(--accent)" : undefined }}
     >
       <span className="tnum block truncate font-mono text-2xs text-ink-3">{chamado.numero}</span>
 

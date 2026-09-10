@@ -62,8 +62,12 @@ export function IconeChamado({ nome, className }: { nome: string; className?: st
   return <Icone aria-hidden="true" className={cn("size-3.5 shrink-0", className)} />;
 }
 
+/* Sem `border-transparent`: `globals.css` tem `* { border-color: var(--border) }`
+   FORA de `@layer`, e CSS sem camada vence qualquer utility do Tailwind, que
+   mora em `@layer utilities`. A classe existia, nao valia, e o chip saia com um
+   anel cinza em volta da tinta do estado. A cor da borda vai por `style`. */
 const BASE_CHIP =
-  "inline-flex max-w-full items-center gap-1.5 rounded-full border border-transparent font-medium whitespace-nowrap";
+  "inline-flex max-w-full items-center gap-1.5 rounded-full border font-medium whitespace-nowrap";
 
 const TAMANHOS = {
   sm: "h-5 px-1.5 text-2xs [&_svg]:size-3",
@@ -92,7 +96,7 @@ export function ChipChamado({
   return (
     <span
       className={cn(BASE_CHIP, TAMANHOS[tamanho], className)}
-      style={{ color: token.tinta, backgroundColor: token.fundo }}
+      style={{ color: token.tinta, backgroundColor: token.fundo, borderColor: "transparent" }}
       title={token.descricao}
     >
       <IconeChamado nome={token.icone} />
