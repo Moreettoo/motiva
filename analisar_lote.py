@@ -305,27 +305,73 @@ def decidir(ctx):
 
 
 # ----------------------------------------------------------------------
+# Estados em que a EQUIPE ja esta trabalhando no chamado. Enquanto o chamado
+# estiver em um deles, o agendamento nao e do lote para fechar: fechar seria
+# apagar, de madrugada, o servico que alguem comecou ontem.
+ATIVOS = ("em_andamento", "aguardando_aprovacao", "devolvido", "adiamento_solicitado")
+
+# Folga que um `aprovado` vencido ganha antes de o lote desistir dele. Sem ela
+# um chamado com data de ontem — que a equipe atrasou em um dia, o caso mais
+# comum de todos — sumiria da fila antes de a equipe abrir o aplicativo.
+DIAS_DE_GRACA = 7
+
+
 def fechar_obsoletos(trecho_id, hoje):
     """Descarta os agendamentos em aberto de um trecho que nao precisa mais.
 
-    Fecha o que a MAQUINA criou (`sugerido`) e o que esta factualmente morto
-    (`aprovado` cuja data passou sem virar execucao — aquele plano nao
-    aconteceu). NAO toca em `aprovado` com data futura: alguem decidiu aquilo
-    com a informacao de entao, e desfazer decisao humana em silencio nao e
-    trabalho de lote. Esses ficam na agenda com o selo "nao e mais necessario"
-    e um descarte de um clique, que e onde a decisao pertence.
+    `sugerido` e do lote: fecha sempre. `aprovado` tem um CHAMADO desde a Fase 2,
+    e o lote respeita o trabalho da equipe:
+      - chamado em andamento, aguardando aprovacao, devolvido ou com adiamento
+        pendente: nao toca (imprime [chamado ativo]);
+      - chamado `aberto` sem nenhum evento alem de `criado` e vencido ha mais de
+        DIAS_DE_GRACA: descarta o agendamento; o gatilho cancela o chamado e o
+        historico registra a origem `lote`;
+      - chamado `aberto` vencido ha menos de 7 dias: fica, e o painel mostra
+        "atrasado".
+
+    Continua valendo a fronteira de sempre: a maquina so desfaz o que a maquina
+    fez, e agora ela consegue ver quando a maquina nao foi a ultima a agir.
 
     Devolve quantos fechou, para o resumo do fim contar a historia inteira.
     """
     abertos = (sb.table("agendamentos")
-               .select("id,status,data_sugerida")
+               .select("id,status,data_sugerida,chamados(id,status)")
                .eq("trecho_id", trecho_id)
                .in_("status", ["sugerido", "aprovado"])
                .execute().data)
 
-    limite = hoje.isoformat()
-    ids = [a["id"] for a in abertos
-           if a["status"] == "sugerido" or a["data_sugerida"] < limite]
+    limite_graca = (hoje - timedelta(days=DIAS_DE_GRACA)).isoformat()
+    ids = []
+    for a in abertos:
+        if a["status"] == "sugerido":
+            ids.append(a["id"])
+            continue
+
+        # O PostgREST devolve o embed como objeto quando a FK e unica e como
+        # lista quando nao consegue provar isso; aceitar as duas formas evita
+        # que a leitura dependa de qual versao do servidor esta no ar.
+        bruto = a.get("chamados")
+        chamado = (bruto or [None])[0] if isinstance(bruto, list) else bruto
+
+        if chamado and chamado["status"] in ATIVOS:
+            print(f"      [chamado ativo] agendamento {a['id']} "
+                  f"({chamado['status']}): mantido")
+            continue
+
+        if a["data_sugerida"] >= limite_graca:
+            continue
+
+        if chamado:
+            eventos = (sb.table("chamado_eventos").select("tipo")
+                       .eq("chamado_id", chamado["id"])
+                       .neq("tipo", "criado").limit(1).execute().data)
+            if eventos:
+                print(f"      [chamado com atividade] agendamento {a['id']}: "
+                      f"mantido")
+                continue
+
+        ids.append(a["id"])
+
     if not ids:
         return 0
 
