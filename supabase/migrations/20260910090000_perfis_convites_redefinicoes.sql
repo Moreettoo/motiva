@@ -50,5 +50,9 @@ comment on table ia.perfis is 'Uma linha por usuario do Auth. `cargo` e a verdad
 comment on column ia.equipes.lider_id is 'Exatamente um lider por equipe (unique). NULL = equipe sem lider; ninguem ve os chamados dela no app ate um Rocador ser convidado.';
 create or replace function ia.carimbar_atualizado_em() returns trigger language plpgsql as $$
 begin new.atualizado_em := now(); return new; end $$;
+-- Mesmo motivo do `alter function ia.gerar_zonas` na migracao seguinte: sem isto o
+-- advisor `function_search_path_mutable` acusa esta funcao. `now()` e de pg_catalog,
+-- que esta sempre no caminho, entao search_path vazio nao quebra o corpo.
+alter function ia.carimbar_atualizado_em() set search_path = '';
 create trigger tg_perfis_atualizado_em before update on ia.perfis
   for each row execute function ia.carimbar_atualizado_em();
