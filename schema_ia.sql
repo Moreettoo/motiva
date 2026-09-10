@@ -1,3 +1,4 @@
+-- HISTORICO (04/08/2026). O DDL vigente esta em supabase/migrations/. Nao rode.
 -- ============================================================
 -- PASSO 2 (ALTERNATIVO) - Instala num schema separado: "ia"
 --

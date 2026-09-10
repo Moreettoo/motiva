@@ -22,7 +22,18 @@ const env = Object.fromEntries(
     }),
 );
 
-const db = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY, {
+const db = createClient(
+  env.SUPABASE_URL ?? env.NEXT_PUBLIC_SUPABASE_URL,
+  env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_KEY,
+  {
+    db: { schema: "ia" },
+    auth: { persistSession: false },
+  },
+);
+
+/* A chave publishavel NAO pode ler nada. Se este teste passar a "ok", alguem ligou uma politica
+   permissiva ou desligou o RLS, e o banco inteiro voltou a ser publico. */
+const publico = createClient(env.NEXT_PUBLIC_SUPABASE_URL ?? env.SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
   db: { schema: "ia" },
   auth: { persistSession: false },
 });
@@ -132,6 +143,18 @@ await checar(
     return faltando.length ? `nenhum trecho com risco: ${faltando.join(", ")}` : null;
   },
 );
+
+await checar(
+  "publishavel nao le ia.trechos",
+  async () => {
+    const { data, error } = await publico.from("trechos").select("id").limit(1);
+    if (error) return { data: [{ bloqueado: true }], error: null }; // erro de permissao e o esperado
+    return { data, error: null };
+  },
+  (data) => (Array.isArray(data) && data.length === 0) || data?.[0]?.bloqueado ? null : "a chave publishavel conseguiu ler trechos",
+);
+await checar("perfis", () => db.from("perfis").select("usuario_id, cargo, ativo").limit(5), (d) => (Array.isArray(d) ? null : "forma inesperada"));
+await checar("convites", () => db.from("convites").select("id, email, expira_em").limit(5), (d) => (Array.isArray(d) ? null : "forma inesperada"));
 
 console.log(falhas ? `\n${falhas} verificação(ões) falharam.\n` : "\nTudo certo.\n");
 process.exit(falhas ? 1 : 0);
