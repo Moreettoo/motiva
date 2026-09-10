@@ -153,7 +153,8 @@ export function HistoricoTrecho({
       {execucoes.length ? (
         <CartaoRodape>
           <span>
-            <span className="tnum font-mono text-ink-2">{fmt.n(execucoes.length)}</span> roçadas
+            <span className="tnum font-mono text-ink-2">{fmt.n(execucoes.length)}</span>{" "}
+            {execucoes.length === 1 ? "roçada" : "roçadas"}
           </span>
           <span>
             <span className="tnum font-mono text-ink-2">{fmt.km(kmTotal)}</span> roçados

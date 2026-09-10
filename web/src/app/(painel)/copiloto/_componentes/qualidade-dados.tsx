@@ -98,7 +98,7 @@ export function QualidadeDados({
             )}
             {tudoEmDia
               ? "Malha completa: previsão e medição em dia"
-              : `${fmt.n(comprometidos.size)} trechos com leitura comprometida`}
+              : `${fmt.contar(comprometidos.size, "trecho")} com leitura comprometida`}
           </p>
         </div>
 

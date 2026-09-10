@@ -123,7 +123,7 @@ export function Conversa({ sugestoes, escopo }: { sugestoes: string[]; escopo: n
 
   const rodapeEscopo =
     escopo > 0
-      ? `Baseado nos ${fmt.n(escopo)} agendamentos mais recentes. O copiloto não lê medições, alturas nem escala de equipe.`
+      ? `Baseado ${escopo === 1 ? "no agendamento mais recente" : `nos ${fmt.n(escopo)} agendamentos mais recentes`}. O copiloto não lê medições, alturas nem escala de equipe.`
       : "A base ainda não tem agendamentos: rode a análise em lote antes de confiar na resposta.";
 
   return (

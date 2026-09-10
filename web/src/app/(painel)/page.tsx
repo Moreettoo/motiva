@@ -276,7 +276,7 @@ export default async function PaginaPainel() {
               <span className="tnum">
                 {decisoesRestantes === 1
                   ? "Mais 1 sugestão aguardando decisão."
-                  : `Mais ${decisoesRestantes} sugestões aguardando decisão.`}
+                  : `Mais ${fmt.contar(decisoesRestantes, "sugestão aguardando decisão", "sugestões aguardando decisão")}.`}
               </span>
               <LinkAcao href="/agenda" className="ml-auto">
                 Ver todas na agenda

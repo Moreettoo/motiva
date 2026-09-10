@@ -133,6 +133,11 @@ export const agendamentosDoTrecho = cache(async (trechoId: number): Promise<Agen
   return data as unknown as AgendamentoDetalhado[];
 });
 
+function dentroDe7Dias(data: string, hoje: string): boolean {
+  const d = diasEntre(hoje, data);
+  return d >= 0 && d <= 7;
+}
+
 /** Numeros do topo do painel. Calculados em memoria: 50 trechos nao justificam RPC. */
 export const montarPainel = cache(async (): Promise<Painel> => {
   const [trechos, agendamentos] = await Promise.all([
@@ -157,10 +162,11 @@ export const montarPainel = cache(async (): Promise<Painel> => {
     executados_30d: agendamentos.filter(
       (a) => a.status === "executado" && diasEntre(a.data_sugerida, hoje) <= 30 && diasEntre(a.data_sugerida, hoje) >= 0,
     ).length,
-    rocadas_proximos_7d: [...pendentes, ...aprovados].filter((a) => {
-      const d = diasEntre(hoje, a.data_sugerida);
-      return d >= 0 && d <= 7;
-    }).length,
+    // ATENCAO ao usar `pendentes` e `aprovados` ao lado deste: os dois contam a
+    // MALHA INTEIRA, sem recorte de data, e `rocadas_proximos_7d` conta 7 dias.
+    // Eles nao somam, e a nota do indicador ja anunciou "18 + 16" embaixo de um
+    // numero que dizia 20. Quem os exibir junto tem que dizer o escopo.
+    rocadas_proximos_7d: [...pendentes, ...aprovados].filter((a) => dentroDe7Dias(a.data_sugerida, hoje)).length,
     crescimento_medio_cm_dia: crescimentos.length ? sum(crescimentos) / crescimentos.length : 0,
     crescimento_maximo_cm_dia: crescimentos.length ? Math.max(...crescimentos) : 0,
     trechos_acima_do_limite: trechos.filter((t) => (t.altura_atual_cm ?? 0) >= t.altura_limite_cm).length,
