@@ -15,9 +15,10 @@ import {
   encerrarAdministrativamente,
   informarAlturaInicial,
 } from "@/lib/chamados/acoes";
+import type { ChamadoNaTela } from "@/lib/chamados/queries";
 import { criarRocadaManual } from "@/lib/acoes";
 import { somarDias } from "@/lib/format";
-import { STATUS_CHAMADO, type Cargo, type ChamadoDetalhado, type Equipe, type StatusChamado } from "@/lib/types";
+import { STATUS_CHAMADO, type Cargo, type Equipe, type StatusChamado } from "@/lib/types";
 
 import { chaveDia, type ItemAgenda, type TrechoResumo } from "../../agenda/_componentes/dados";
 import { PainelNovaRocada, type EntradaNovaRocada } from "../../agenda/_componentes/painel-nova-rocada";
@@ -66,7 +67,7 @@ export function GestaoChamados({
   agora,
   cargo,
 }: {
-  chamados: ChamadoDetalhado[];
+  chamados: ChamadoNaTela[];
   fila: Fila;
   equipes: Equipe[];
   trechos: TrechoResumo[];

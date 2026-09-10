@@ -110,11 +110,11 @@ export function montarIndiceBusca(chamados: ChamadoDetalhado[]): Map<number, str
   return indice;
 }
 
-export function filtrarChamados(
-  chamados: ChamadoDetalhado[],
+export function filtrarChamados<T extends ChamadoDetalhado>(
+  chamados: T[],
   f: FiltrosChamados,
   indice: Map<number, string>,
-): ChamadoDetalhado[] {
+): T[] {
   const termo = normalizar(f.busca);
 
   return chamados.filter((c) => {

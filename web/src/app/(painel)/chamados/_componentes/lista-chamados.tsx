@@ -14,8 +14,9 @@ import {
 } from "@/components/ui/tabela";
 import { EstadoVazio } from "@/components/ui/vazio";
 import { diasDeAtraso, estaAtrasado } from "@/lib/chamados/numero";
+import type { ChamadoNaTela } from "@/lib/chamados/queries";
+import { prioridadeExibida, textoDivergencia } from "@/lib/dominio";
 import { fmt, relativoEmDias } from "@/lib/format";
-import type { ChamadoDetalhado } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 import { desde } from "./cartao-chamado";
@@ -37,7 +38,7 @@ export function ListaChamados({
   aoAbrir,
   aoLimpar,
 }: {
-  chamados: ChamadoDetalhado[];
+  chamados: ChamadoNaTela[];
   hoje: string;
   agora: string;
   chamadoAberto: number | null;
@@ -91,6 +92,7 @@ export function ListaChamados({
           const { trecho, agendamento } = c;
           const equipe = agendamento.equipe;
           const atrasado = estaAtrasado(c.status, agendamento.data_sugerida, hoje);
+          const prioridade = prioridadeExibida(c.prazo_dias, agendamento.prioridade, agendamento.origem);
 
           return (
             <TabelaLinha
@@ -162,8 +164,13 @@ export function ListaChamados({
                 <ChipChamado status={c.status} />
               </TabelaCelula>
 
+              {/* Do PRAZO de hoje, nunca de `agendamento.prioridade`: ver
+                  `prioridadeExibida`. O `title` guarda a palavra registrada
+                  quando ela discorda, para a divergência não sumir da tela. */}
               <TabelaCelula>
-                <ChipRisco risco={agendamento.prioridade} />
+                <span title={textoDivergencia(prioridade) ?? undefined}>
+                  <ChipRisco risco={prioridade.risco} />
+                </span>
               </TabelaCelula>
 
               <TabelaCelula className="whitespace-nowrap">
