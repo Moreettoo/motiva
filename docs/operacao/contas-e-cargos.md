@@ -35,7 +35,8 @@ Três coisas que costumam surpreender:
 Ninguém se cadastra sozinho: não existe tela de cadastro, e a única porta de entrada é o
 convite — a conta é criada pelo servidor no momento em que o convite é aceito.
 
-1. **Usuários → Convidar.**
+1. **Usuários → Convidar** (o botão fica no canto do cabeçalho; a gaveta também abre pela URL
+   `/usuarios?convidar=true`).
 2. **E-mail.** Se já existir conta com esse endereço, o convite é recusado com "Já existe uma
    conta com este e-mail" — nesse caso o caminho é a seção 6, não um convite novo.
 3. **Cargo.** A lista já vem filtrada: um Admin não vê a opção Super Admin.
@@ -84,12 +85,16 @@ marcando *"substituir o líder atual"*. A troca acontece no momento em que ela a
 liderada** → escolha a equipe → *Gravar*. Se a equipe já tem outro líder, marque
 *"substituir o líder atual"*.
 
+**A pessoa nova tem conta, mas não é Roçador** → são duas gravações, nesta ordem: mude o cargo
+para Roçador e clique em *Alterar cargo*; **o campo Equipe liderada só aparece depois disso**,
+porque ele é desenhado a partir do cargo que está gravado, não do que está escolhido na tela.
+
 Em qualquer dos dois casos, o líder antigo **continua com a conta ativa**, apenas sem equipe:
 ele passa a ver a mensagem "Você ainda não lidera uma equipe. Peça a um administrador." ao
 abrir o app. Se ele saiu da empresa, desative-o (seção 5).
 
 **Uma pessoa lidera no máximo uma equipe.** Escolher outra solta a anterior automaticamente.
-E escolher "— nenhuma" deixa a equipe sem líder: os chamados dela continuam existindo no
+E escolher **"Nenhuma"** deixa a equipe sem líder: os chamados dela continuam existindo no
 painel, mas nenhum celular os mostra.
 
 **Mudar o cargo de um Roçador para Admin ou Analista solta a equipe** dele na hora. Um Admin
@@ -99,7 +104,7 @@ não lidera turma.
 
 ## 4 · Alterar o cargo de alguém
 
-Usuários → clique no nome → **Cargo** → *Gravar cargo*.
+Usuários → clique no nome → **Cargo** → *Alterar cargo*.
 
 Quando a mudança não é permitida, o campo já mostra o motivo antes de você clicar, com a
 mesma frase que o servidor usaria:
