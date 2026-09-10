@@ -67,3 +67,33 @@ export async function limparTudo() {
   const db = await banco();
   await Promise.all([db.clear("estado"), db.clear("fila"), db.clear("fotos")]);
 }
+
+/**
+ * Este cache pode conter RESPOSTA de servidor, isto e, dado de quem estava
+ * logado? Entao ele vai embora no `sair`.
+ *
+ * A pergunta ao contrario e o que importa: o precache do Serwist e os caches de
+ * ativo estatico sao SAIDA DE BUILD — a casca de /campo (estatica, sem cookie) e
+ * os ~50 chunks de JS, iguais para todas as equipes. Apagar esses e o que
+ * quebrava o app: o Serwist so preenche o precache no install do worker, entao
+ * uma vez apagado ele nunca mais volta, e /campo passava a abrir sem sinal
+ * travado no esqueleto para sempre. Ver o comentario de `encerrar`, em
+ * `cabecalho-campo.tsx`.
+ *
+ * A regra e por PREFIXO e nao por lista fechada de nomes a apagar, de proposito:
+ * o `defaultCache` do @serwist/turbopack pode ganhar um cache novo numa
+ * atualizacao, e o erro seguro e apagar demais (perde-se velocidade) e nao de
+ * menos (fica dado de sessao no aparelho da equipe).
+ */
+const PRESERVADOS = ["serwist-precache", "static-"] as const;
+
+export function ehCacheDeResposta(nome: string): boolean {
+  return !PRESERVADOS.some((prefixo) => nome.startsWith(prefixo));
+}
+
+export async function apagarCachesDeResposta(): Promise<string[]> {
+  if (typeof caches === "undefined") return [];
+  const apagar = (await caches.keys()).filter(ehCacheDeResposta);
+  await Promise.all(apagar.map((k) => caches.delete(k)));
+  return apagar;
+}
