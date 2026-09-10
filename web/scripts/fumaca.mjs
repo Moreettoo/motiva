@@ -170,5 +170,106 @@ await checar("bucket chamados privado", async () => {
   return { data: data ? [data] : null, error };
 }, (d) => (d?.[0] && d[0].public === false ? null : "bucket ausente ou publico"));
 
+/* O embed que a tela de chamados usa, com o LIDER aninhado dois niveis abaixo. E o caso que o
+   TypeScript nao pega: `perfis!equipes_lider_id_fkey` e um nome de constraint, e se ele mudar a
+   gaveta abre vazia em runtime. Espelha SELECT_CHAMADO de src/lib/chamados/queries.ts. */
+const SELECT_CHAMADO = `
+  *,
+  agendamento:agendamentos!inner ( id, data_sugerida, prioridade, justificativa, origem, equipe_id,
+    equipe:equipes ( id, nome, lider:perfis!equipes_lider_id_fkey ( nome ) ) ),
+  trecho:trechos!inner ( id, rodovia, km_inicio, km_fim, uf, sentido, latitude, longitude, altura_limite_cm, observacoes )
+`;
+
+await checar(
+  "chamado + agendamento/equipe/lider/trecho",
+  () => db.from("chamados").select(SELECT_CHAMADO).limit(5),
+  (data) => {
+    if (!data?.length) return null; // base sem chamado ainda e valido
+    if (!data[0].agendamento) return "embed de agendamento vazio — a FK sumiu?";
+    if (!data[0].trecho) return "embed de trecho vazio — a FK sumiu?";
+    if (!("equipe" in data[0].agendamento)) return "embed de equipe ausente";
+    return null;
+  },
+);
+
+/* Filtro sobre coluna EMBUTIDA: o PostgREST so aceita isso com `!inner`, e a lista de chamados
+   filtra por equipe, rodovia e data assim. */
+await checar(
+  "filtros da lista sobre colunas embutidas",
+  async () => {
+    const alvos = [
+      db.from("chamados").select(SELECT_CHAMADO).eq("agendamento.equipe_id", 1),
+      db.from("chamados").select(SELECT_CHAMADO).eq("trecho.rodovia", "BR-116 Via Dutra"),
+      db.from("chamados").select(SELECT_CHAMADO).gte("agendamento.data_sugerida", "2026-01-01"),
+    ];
+    for (const alvo of alvos) {
+      const { error } = await alvo;
+      if (error) return { data: null, error };
+    }
+    return { data: [{ ok: true }], error: null };
+  },
+);
+
+/* O embed de /api/fotos/[id]: e por ele que a rota decide se o rocador lidera a equipe do chamado. */
+await checar(
+  "embed de permissao de /api/fotos/[id]",
+  () =>
+    db
+      .from("chamado_fotos")
+      .select("caminho, chamado:chamados!inner ( agendamento:agendamentos!inner ( equipe:equipes ( lider_id ) ) )")
+      .limit(1),
+  (d) => (Array.isArray(d) ? null : "forma inesperada"),
+);
+
+/* As quatro funcoes SQL alcancaveis por `db.rpc` com a chave secreta. A migracao revoga EXECUTE de
+   public, e `service_role` NAO herda nada por ser service_role: sem o grant explicito estas quatro
+   respondem "permission denied" e toda decisao do gestor para de funcionar. Chamamos cada uma com
+   argumento que ela DEVE recusar: o que se prova e que ela existe, roda e recusa com o errcode
+   proprio (P000x) em vez de 42501. */
+await checar(
+  "as rpc de chamado respondem com a chave secreta",
+  async () => {
+    // O errcode que cada uma devolve para id inexistente, MEDIDO em 10/09/2026. So
+    // `registrar_evento_chamado` usa `if not found` e responde P0002; as outras caem no
+    // proximo `raise` porque `NULL <> 'x'` e NULL, nao TRUE. Nada e gravado em nenhum caso.
+    const esperado = {
+      registrar_evento_chamado: "P0002",
+      aprovar_chamado: "P0004",
+      decidir_adiamento: "P0004",
+      encerrar_chamado_admin: "P0004",
+    };
+    const args = {
+      registrar_evento_chamado: {
+        p_chamado_id: -1, p_evento_id: crypto.randomUUID(), p_tipo: "comentario", p_autor: null,
+        p_origem: "painel", p_payload: {}, p_ocorrido_em: new Date().toISOString(),
+      },
+      aprovar_chamado: { p_chamado_id: -1, p_autor: null, p_km_rocados: 1, p_custo_reais: null, p_observacao: null },
+      decidir_adiamento: { p_adiamento_id: -1, p_autor: null, p_aceito: true, p_nova_data: null, p_resposta: null },
+      encerrar_chamado_admin: { p_chamado_id: -1, p_autor: null, p_data_execucao: "2026-01-01", p_altura_depois_cm: null, p_observacao: "" },
+    };
+    const negadas = [];
+    for (const [nome, params] of Object.entries(args)) {
+      const { error } = await db.rpc(nome, params);
+      if (!error) negadas.push(`${nome}: aceitou argumento invalido`);
+      else if (error.code === "42501" || /permission denied/i.test(error.message)) negadas.push(`${nome}: sem EXECUTE para a chave secreta`);
+      else if (error.code !== esperado[nome]) negadas.push(`${nome}: recusou com ${error.code}, esperado ${esperado[nome]}`);
+    }
+    return { data: negadas.length ? null : [{ ok: true }], error: negadas.length ? { message: negadas.join(" | ") } : null };
+  },
+);
+
+/* A chave publishavel nao pode nem ler chamado nem executar decisao. */
+await checar(
+  "publishavel nao le nem decide chamado",
+  async () => {
+    const leitura = await publico.from("chamados").select("id").limit(1);
+    const decisao = await publico.rpc("aprovar_chamado", { p_chamado_id: 1, p_autor: null, p_km_rocados: 1, p_custo_reais: null, p_observacao: null });
+    const problemas = [];
+    if (!leitura.error && leitura.data?.length) problemas.push("leu ia.chamados");
+    if (!decisao.error) problemas.push("EXECUTOU aprovar_chamado");
+    return { data: problemas.length ? null : [{ bloqueado: true }], error: problemas.length ? { message: problemas.join(" e ") } : null };
+  },
+);
+
 console.log(falhas ? `\n${falhas} verificação(ões) falharam.\n` : "\nTudo certo.\n");
 process.exit(falhas ? 1 : 0);
