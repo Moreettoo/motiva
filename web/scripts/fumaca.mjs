@@ -156,5 +156,19 @@ await checar(
 await checar("perfis", () => db.from("perfis").select("usuario_id, cargo, ativo").limit(5), (d) => (Array.isArray(d) ? null : "forma inesperada"));
 await checar("convites", () => db.from("convites").select("id, email, expira_em").limit(5), (d) => (Array.isArray(d) ? null : "forma inesperada"));
 
+/* Chamados: tabela vazia e resultado valido — a Fase 2 nasce sem nenhum chamado. O que se
+   checa aqui e a FORMA do embed e a existencia das colunas, que e onde o PostgREST quebra. */
+const listaOk = (d) => (Array.isArray(d) ? null : "forma inesperada");
+await checar("chamados", () => db.from("chamados").select("id, numero, status, agendamento_id, trecho_id").limit(5), listaOk);
+await checar("chamado_eventos", () => db.from("chamado_eventos").select("id, chamado_id, evento_id, tipo, origem").limit(5), listaOk);
+await checar("chamado_fotos", () => db.from("chamado_fotos").select("id, chamado_id, etapa, papel, caminho").limit(5), listaOk);
+await checar("chamado_adiamentos", () => db.from("chamado_adiamentos").select("id, chamado_id, motivo, decisao").limit(5), listaOk);
+await checar("notificacoes", () => db.from("notificacoes").select("id, destinatario_id, tipo, lida_em").limit(5), listaOk);
+
+await checar("bucket chamados privado", async () => {
+  const { data, error } = await db.storage.getBucket("chamados");
+  return { data: data ? [data] : null, error };
+}, (d) => (d?.[0] && d[0].public === false ? null : "bucket ausente ou publico"));
+
 console.log(falhas ? `\n${falhas} verificação(ões) falharam.\n` : "\nTudo certo.\n");
 process.exit(falhas ? 1 : 0);
