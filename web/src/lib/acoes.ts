@@ -39,9 +39,30 @@ export async function mudarStatusAgendamento(
     return { ok: false, erro: `Status inválido: ${status}` };
   }
 
-  // Aprovar ou concluir sem equipe é o estado que essa trava existe pra
-  // evitar, ver `erroFaltaEquipe`. Descartar e reabrir não têm essa exigência.
-  if (status === "aprovado" || status === "executado") {
+  /* `executado` deixou de ter porta pela UI, e a recusa fica AQUI e não só na
+     tela: num arquivo `"use server"` toda action é alcançável pela rede, e o
+     caminho legado precisa fechar do lado que manda.
+
+     O motivo não é purismo de fluxo. `executado` escrito direto na tabela faz o
+     gatilho `tg_agendamentos_chamado` concluir o chamado com
+     `sem_evidencia = true` e nada mais: nenhuma linha em `ia.execucoes`, nenhuma
+     medição nova, nenhum km, nenhuma observação, nenhum autor no histórico. O
+     mesmo botão passava a marcar como "roçado" um trecho cuja roçada não deixou
+     registro nenhum — e o histórico do trecho, que é o que alimenta
+     `dias_desde_rocada_inicio`, ficava com um buraco silencioso.
+
+     As duas saídas legítimas gravam tudo, em transação: `ia.aprovar_chamado`
+     (com as fotos da equipe) e `ia.encerrar_chamado_admin` (sem elas, e com o
+     selo "sem evidência" dizendo isso). */
+  if (status === "executado") {
+    return { ok: false, erro: "Conclua pelo chamado (aprovação) ou encerre administrativamente." };
+  }
+
+  // Aprovar sem equipe é o estado que essa trava existe pra evitar, ver
+  // `erroFaltaEquipe`. Descartar e reabrir não têm essa exigência, e
+  // `executado` já saiu acima — a mesma trava vale para ele por outro caminho,
+  // dentro de `ia.encerrar_chamado_admin`, que lê a equipe do agendamento.
+  if (status === "aprovado") {
     const { data: atual, error: erroAtual } = await db
       .from("agendamentos")
       .select("equipe_id")

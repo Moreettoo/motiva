@@ -22,6 +22,7 @@ import {
   mudarStatusAgendamento,
   remarcarAgendamento,
 } from "@/lib/acoes";
+import { encerrarAdministrativamente } from "@/lib/chamados/acoes";
 import { fmt, inicioDaSemana, parseData } from "@/lib/format";
 import {
   STATUS_AGENDAMENTO,
@@ -45,6 +46,7 @@ import {
   type ItemAgenda,
   type TrechoResumo,
 } from "./dados";
+import type { EntradaEncerrarAdmin } from "../../chamados/_componentes/formularios-decisao";
 import { PainelAgendamento } from "./painel-agendamento";
 import { PainelNovaRocada, type EntradaNovaRocada } from "./painel-nova-rocada";
 import { QuadroSemana } from "./quadro/quadro-semana";
@@ -483,6 +485,11 @@ export function PlanejamentoAgenda({
     STATUS_PADRAO.some((s) => !status.includes(s));
 
   function mudarStatus(item: ItemAgenda, novo: StatusAgendamento) {
+    /* `executado` continua no mapa porque o tipo o exige, mas nenhum botão o
+       envia mais e `mudarStatusAgendamento` o recusa: quem conclui é a
+       aprovação do chamado ou o encerramento administrativo, e os dois passam
+       por funções SQL que gravam execução e medição junto. Se algo o alcançar,
+       o que aparece é o toast de erro daquela recusa, nunca este rótulo. */
     const rotulos: Record<StatusAgendamento, string> = {
       sugerido: "Sugestão reaberta",
       aprovado: "Roçada aprovada",
@@ -494,6 +501,27 @@ export function PlanejamentoAgenda({
       titulo: rotulos[novo],
       descricao: `${item.ag.trecho.rodovia} · ${fmt.dataMedia(item.data)}`,
     });
+  }
+
+  /**
+   * Encerra o chamado sem a evidência de campo, pela gaveta da agenda.
+   *
+   * O ajuste otimista é `executado` porque é o que `ia.encerrar_chamado_admin`
+   * faz com o agendamento, na mesma transação em que grava a execução, a
+   * medição (quando há altura) e o evento `encerrado_admin`. Sem ele o cartão
+   * ficaria parado em `aprovado` até a revalidação chegar, e o gesto perderia
+   * a confirmação imediata que o resto desta tela tem.
+   */
+  function encerrarAdmin(item: ItemAgenda, chamadoId: number, entrada: EntradaEncerrarAdmin) {
+    executar(
+      { id: item.id, status: "executado" },
+      () => encerrarAdministrativamente({ chamadoId, ...entrada }),
+      item.id,
+      {
+        titulo: "Chamado encerrado administrativamente",
+        descricao: `${item.ag.trecho.rodovia} · marcado como sem evidência de campo.`,
+      },
+    );
   }
 
   function atribuir(item: ItemAgenda, novaEquipe: Equipe | null) {
@@ -799,11 +827,15 @@ export function PlanejamentoAgenda({
         agendamento={emFoco}
         trecho={emFoco ? trechos.find((t) => t.id === emFoco.ag.trecho.id) : undefined}
         equipes={equipes}
+        hoje={hoje}
         pendente={emFoco != null && salvandoIds.has(emFoco.id)}
         aoFechar={() => setSelecionado(null)}
         aoMudarStatus={mudarStatus}
         aoAtribuir={atribuir}
         aoRemarcar={remarcar}
+        aoEncerrarAdmin={(chamadoId, entrada) => {
+          if (emFoco) encerrarAdmin(emFoco, chamadoId, entrada);
+        }}
       />
 
       {/* O Analista não monta a gaveta: sem botão que a abra, ela seria só um
