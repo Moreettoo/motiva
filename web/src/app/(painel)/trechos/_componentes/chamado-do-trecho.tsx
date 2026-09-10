@@ -163,12 +163,18 @@ export function ChamadoDoTrecho({
 
         {/* A altura medida é a que vale, e dizê-lo aqui é o que separa este
             número de uma extrapolação: com origem `prevista`, ninguém foi ao
-            trecho, e é o modelo respondendo sobre si mesmo. */}
+            trecho ANTES da roçada, e a altura inicial é o modelo respondendo
+            sobre si mesmo.
+
+            A frase nomeia a altura INICIAL, e não "este chamado": a altura
+            final pode já existir (a equipe mede ao fechar), e uma frase sobre o
+            chamado inteiro negaria uma medição que está impressa duas linhas
+            acima. */}
         {alturaInformada ? null : (
           <p className="mt-3 flex items-start gap-1.5 text-2xs text-ink-3">
             <Ruler aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
-            Nenhuma medição de campo entrou neste chamado ainda: a altura acima é
-            a previsão do modelo na abertura dele.
+            Ninguém mediu o trecho antes desta roçada: a altura inicial é a
+            previsão do modelo na abertura do chamado.
           </p>
         )}
       </CartaoCorpo>

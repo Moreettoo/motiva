@@ -137,8 +137,15 @@ function Gaveta({
      altura, nenhum autor. Ver a recusa em `mudarStatusAgendamento`. */
   const chamado = item.chamado;
   const podeEncerrar = chamado != null && !terminal(chamado.status);
+
+  /* Só faz sentido explicar a AUSÊNCIA do chamado enquanto a roçada ainda pode
+     ganhar um. Numa `executado` ou `descartada` o chamado terminou e saiu da
+     consulta de abertos por desenho, e dizer "ainda não existe" ali seria a
+     tela anunciando como pendência o desfecho normal do que acabou de
+     acontecer — foi o que apareceu logo depois do primeiro encerramento feito
+     por esta gaveta. */
   const bloqueioEncerramento =
-    chamado == null
+    emAberto && chamado == null
       ? erroFaltaEquipe(item.equipeId, "executado") ??
         "O chamado desta roçada ainda não existe. Recarregue a página."
       : null;
