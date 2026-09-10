@@ -41,6 +41,7 @@ import {
   resolverEquipeFoco,
   resumo28,
   semanaDoAtrasoMaisAntigo,
+  type ChamadoDoItem,
   type ItemAgenda,
   type TrechoResumo,
 } from "./dados";
@@ -86,12 +87,16 @@ export function PlanejamentoAgenda({
   agendamentos,
   equipes,
   trechos,
+  chamados,
   hoje,
   podeEscrever,
 }: {
   agendamentos: AgendamentoDetalhado[];
   equipes: Equipe[];
   trechos: TrechoResumo[];
+  /** Chamados abertos como pares `[agendamentoId, chamado]`, ver
+   *  `agenda/page.tsx` para por que pares e não `Map`. */
+  chamados: [number, ChamadoDoItem][];
   hoje: string;
   /** Analista: o quadro continua inteiro, as escritas somem. */
   podeEscrever: boolean;
@@ -332,9 +337,14 @@ export function PlanejamentoAgenda({
     [ajustar, mostrar, marcarErro],
   );
 
+  /* Fora do `useMemo` dos itens porque `chamados` só muda quando o servidor
+     manda dados novos, e `lista` muda a cada ajuste otimista do arrasto:
+     remontar o mapa em cada `pointermove` alocaria ~200 entradas por quadro. */
+  const chamadosPorAgendamento = useMemo(() => new Map(chamados), [chamados]);
+
   const itens = useMemo(
-    () => montarItens({ agendamentos: lista, trechos, equipes, hoje }),
-    [lista, trechos, equipes, hoje],
+    () => montarItens({ agendamentos: lista, trechos, equipes, hoje, chamados: chamadosPorAgendamento }),
+    [lista, trechos, equipes, hoje, chamadosPorAgendamento],
   );
 
   const janela = useMemo(() => montarJanela(ancora), [ancora]);

@@ -4,11 +4,25 @@ import { CabecalhoPagina, MetricaCabecalho } from "@/components/shell/cabecalho-
 import { exigirCargo } from "@/lib/auth/sessao";
 import { AvisoSomenteLeitura } from "@/components/ui/aviso-somente-leitura";
 import { podeEscrever } from "@/lib/auth/permissoes";
+import { listarChamados } from "@/lib/chamados/queries";
 import { fmt, isoHoje } from "@/lib/format";
 import { listarAgendamentos, listarEquipes, listarTrechos } from "@/lib/queries";
+import type { StatusChamado } from "@/lib/types";
 
-import type { TrechoResumo } from "./_componentes/dados";
+import type { ChamadoDoItem, TrechoResumo } from "./_componentes/dados";
 import { PlanejamentoAgenda } from "./_componentes/planejamento";
+
+/** Os cinco estados NÃO TERMINAIS. Um chamado `concluido` ou `cancelado` não
+ *  entra: o cartão dele já carrega o status do próprio agendamento
+ *  (`executado`, `descartado`), e um chip "Concluído" ao lado de um cartão
+ *  encerrado repetiria a mesma informação com outro vocabulário. */
+const CHAMADOS_ABERTOS: StatusChamado[] = [
+  "aberto",
+  "em_andamento",
+  "aguardando_aprovacao",
+  "devolvido",
+  "adiamento_solicitado",
+];
 
 export const metadata: Metadata = {
   title: "Agenda",
@@ -19,10 +33,11 @@ export const metadata: Metadata = {
 export default async function PaginaAgenda() {
   const sessao = await exigirCargo("super_admin", "admin", "analista");
   const escreve = podeEscrever(sessao.cargo);
-  const [agendamentos, equipes, trechos] = await Promise.all([
+  const [agendamentos, equipes, trechos, chamados] = await Promise.all([
     listarAgendamentos(),
     listarEquipes(),
     listarTrechos(),
+    listarChamados({ status: CHAMADOS_ABERTOS }),
   ]);
 
   // `hoje` sai do servidor: se cada cliente calculasse o seu, o "hoje" do
@@ -43,6 +58,18 @@ export default async function PaginaAgenda() {
     altura_limite_cm: Number(t.altura_limite_cm),
     crescimento_cm_dia: t.crescimento_cm_dia,
   }));
+
+  /* Pares, e não um `Map`: a fronteira servidor→cliente serializa a prop, e um
+     array de tuplas atravessa sem depender de o payload do RSC saber remontar
+     `Map`. Quem constrói o mapa de verdade é `planejamento.tsx`, uma vez, em
+     `useMemo`; aqui só o formato de transporte.
+     Chaveado pelo AGENDAMENTO, não pelo trecho: é a chave que o cartão do
+     quadro tem na mão (`item.id`), e a que a coluna `agendamento_id` do
+     chamado torna única. */
+  const chamadosPorAgendamento: [number, ChamadoDoItem][] = chamados.map((c) => [
+    c.agendamento_id,
+    { id: c.id, numero: c.numero, status: c.status },
+  ]);
 
   /* UM número no cabeçalho, e eram três.
      "Em aberto" repetia a soma dos chips de status, que agora vivem no menu de
@@ -75,6 +102,7 @@ export default async function PaginaAgenda() {
         agendamentos={agendamentos}
         equipes={equipes}
         trechos={resumoTrechos}
+        chamados={chamadosPorAgendamento}
         hoje={hoje}
         podeEscrever={escreve}
       />

@@ -1,7 +1,17 @@
 "use client";
 
 import { useId, useState } from "react";
-import { Check, CircleSlash, Flag, OctagonAlert, Pencil, Undo2 } from "lucide-react";
+import Link from "next/link";
+import {
+  ArrowUpRight,
+  Check,
+  CircleSlash,
+  ClipboardList,
+  Flag,
+  OctagonAlert,
+  Pencil,
+  Undo2,
+} from "lucide-react";
 
 import { BarraProgresso } from "@/components/ui/barra-progresso";
 import { Botao } from "@/components/ui/botao";
@@ -20,6 +30,7 @@ import { fmt } from "@/lib/format";
 import type { Equipe, StatusAgendamento } from "@/lib/types";
 
 import { textoServico, type ItemAgenda, type TrechoResumo } from "./dados";
+import { ChipChamado } from "./quadro/cartao-servico";
 
 type AcoesPainel = {
   pendente: boolean;
@@ -257,6 +268,39 @@ function Gaveta({
           ) : null}
         </dl>
       </section>
+
+      {/* A ORDEM DE SERVIÇO.
+          Depois de "O serviço", que descreve o que foi PLANEJADO, e antes da
+          leitura do modelo, que é o porquê: esta seção é o que está
+          ACONTECENDO, e é a única da gaveta que muda sem ninguém mexer no
+          painel — quem a move é a equipe, do celular.
+
+          Só o link, sem as ações do chamado (aprovar, devolver, decidir
+          adiamento). Elas exigem fotos lado a lado, km, custo e comentário, e
+          essa é a gaveta de `/chamados`, que tem largura para isso. Duplicá-las
+          aqui criaria duas telas para a mesma decisão, cada uma com metade do
+          contexto. */}
+      {item.chamado ? (
+        <section className="mt-6">
+          <h3 className="flex items-center gap-1.5 text-2xs font-medium tracking-widest text-ink-3 uppercase">
+            <ClipboardList aria-hidden="true" className="size-3.5 shrink-0" />
+            Chamado
+          </h3>
+
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+            <span className="tnum font-mono text-sm text-ink">{item.chamado.numero}</span>
+            <ChipChamado status={item.chamado.status} tamanho="md" />
+          </div>
+
+          <Link
+            href={`/chamados?chamado=${item.chamado.id}`}
+            className="mt-3 inline-flex items-center gap-1.5 rounded-sm text-xs text-accent transition-colors duration-150 ease-[var(--ease-out-quint)] hover:text-ink"
+          >
+            Abrir em Chamados
+            <ArrowUpRight aria-hidden="true" className="size-3.5 shrink-0" />
+          </Link>
+        </section>
+      ) : null}
 
       <section className="mt-6">
         <h3 className="text-2xs font-medium tracking-widest text-ink-3 uppercase">
