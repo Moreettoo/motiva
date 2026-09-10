@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { dimensoesReduzidas } from "./imagem";
+import { _comPrazo, dimensoesReduzidas } from "./imagem";
 
 describe("dimensoesReduzidas", () => {
   it("reduz a paisagem pelo lado maior, guardando a proporcao", () => {
@@ -26,5 +26,23 @@ describe("dimensoesReduzidas", () => {
   it("arredonda o lado menor para inteiro", () => {
     expect(dimensoesReduzidas(4032, 3024)).toEqual({ largura: 1600, altura: 1200 });
     expect(dimensoesReduzidas(3000, 1777)).toEqual({ largura: 1600, altura: 948 });
+  });
+});
+
+describe("o prazo do app para o GPS", () => {
+  it("devolve a posicao quando ela chega a tempo", async () => {
+    await expect(_comPrazo(Promise.resolve({ latitude: -22.9 }), 50)).resolves.toEqual({ latitude: -22.9 });
+  });
+
+  /* O caso que motivou tudo: o prompt de permissao do Android sem resposta.
+     `getCurrentPosition` nao chama callback NENHUM — nem sucesso nem erro — e o
+     `timeout` da propria API nao vale, porque ele so comeca depois da permissao
+     concedida. Sem este prazo a tela fica em "Preparando a foto…" para sempre. */
+  it("desiste quando a promessa nunca responde", async () => {
+    await expect(_comPrazo(new Promise(() => {}), 20)).resolves.toBeNull();
+  });
+
+  it("trata rejeicao como sem posicao, e nao como erro da captura", async () => {
+    await expect(_comPrazo(Promise.reject(new Error("negado")), 50)).resolves.toBeNull();
   });
 });

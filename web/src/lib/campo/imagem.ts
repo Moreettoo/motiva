@@ -30,17 +30,56 @@ export async function comprimirFoto(arquivo: File): Promise<{ blob: Blob; largur
   return { blob, largura, altura };
 }
 
+export type Posicao = { latitude: number; longitude: number; precisao_m: number };
+
+/**
+ * Resolve `null` se a promessa nao responder no prazo.
+ *
+ * Existe por causa de UMA armadilha concreta da Geolocation API: o `timeout`
+ * dela conta a partir da PERMISSAO CONCEDIDA, e nao da chamada. Enquanto o
+ * prompt do Android estiver na tela sem resposta — a pessoa nao tocou, ou o
+ * prompt ficou atras do app da camera — `getCurrentPosition` nao chama callback
+ * nenhum, nem o de sucesso nem o de erro, e o `timeout: 8000` nao serve para
+ * nada. Medido: a tela ficou em "Preparando a foto…" por 24 s e nao ia parar;
+ * sem foto, sem botao, sem erro, sem saida a nao ser fechar o app. E o primeiro
+ * uso num aparelho novo, que e exatamente o teste de sabado.
+ */
+function comPrazo<T>(promessa: Promise<T>, ms: number): Promise<T | null> {
+  return new Promise((resolver) => {
+    const relogio = setTimeout(() => resolver(null), ms);
+    void promessa.then(
+      (v) => {
+        clearTimeout(relogio);
+        resolver(v);
+      },
+      () => {
+        clearTimeout(relogio);
+        resolver(null);
+      },
+    );
+  });
+}
+
 /**
  * GPS no momento da captura. Devolve `null` em vez de levantar: sem sinal de
  * satelite a foto vale do mesmo jeito, e a tela avisa que ela foi sem posicao.
+ *
+ * O prazo e do APP, e vale mesmo quando o do navegador nao vale. Ver `comPrazo`.
  */
-export function capturarPosicao(): Promise<{ latitude: number; longitude: number; precisao_m: number } | null> {
+export function capturarPosicao(): Promise<Posicao | null> {
   if (typeof navigator === "undefined" || !navigator.geolocation) return Promise.resolve(null);
-  return new Promise((resolver) => {
+  const doNavegador = new Promise<Posicao | null>((resolver) => {
     navigator.geolocation.getCurrentPosition(
       (p) => resolver({ latitude: p.coords.latitude, longitude: p.coords.longitude, precisao_m: p.coords.accuracy }),
       () => resolver(null),
       { enableHighAccuracy: true, timeout: LIMITES.gpsTimeoutMs, maximumAge: 30_000 },
     );
   });
+  /* Uma folga em cima do prazo do navegador: quando ELE funciona, quem responde
+     e ele, com posicao de verdade; o prazo daqui so entra quando o dele nunca
+     chega. */
+  return comPrazo(doNavegador, LIMITES.gpsTimeoutMs + 2_000).then((p) => p ?? null);
 }
+
+/** Exportado so para o teste: o prazo e a parte que nao da para ver na tela. */
+export const _comPrazo = comPrazo;
