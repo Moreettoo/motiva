@@ -15,7 +15,7 @@ import type { ExecucaoAnalise, StatusAgendamento } from "./types";
  * intencao; nenhuma decisao de permissao depende do que o navegador enviou.
  */
 
-export type Resultado<T = void> = { ok: true; dados: T } | { ok: false; erro: string };
+export type { Resultado } from "./resultado";
 
 const STATUS_VALIDOS: StatusAgendamento[] = ["sugerido", "aprovado", "executado", "descartado"];
 

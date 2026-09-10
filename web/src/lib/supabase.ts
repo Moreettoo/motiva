@@ -13,13 +13,15 @@ import { createClient } from "@supabase/supabase-js";
  * chave nao atravessa a rede em nenhum caminho.
  */
 
-const url = process.env.SUPABASE_URL;
-const key = process.env.SUPABASE_SERVICE_KEY;
+const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+// Chave secreta nova (`sb_secret_...`). A `service_role` legada continua aceita
+// ate o fim de 2026, quando o Supabase a desliga; ate la as duas funcionam aqui.
+const key = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_KEY;
 
 if (!url || !key) {
   throw new Error(
-    "SUPABASE_URL e SUPABASE_SERVICE_KEY sao obrigatorias. " +
-      "Copie web/.env.example para web/.env.local e preencha as duas.",
+    "SUPABASE_URL e SUPABASE_SECRET_KEY (ou SUPABASE_SERVICE_KEY) sao obrigatorias. " +
+      "Copie web/.env.example para web/.env.local e preencha.",
   );
 }
 
