@@ -40,6 +40,23 @@ const redeNoServidor = (): SituacaoRede => "online";
 export function useSincronizacao(equipeId: number | null) {
   const [estado, setEstado] = useState<EstadoCampo | null>(null);
   const [fila, setFila] = useState<ItemFila[]>([]);
+  /**
+   * "Ja terminei de ler o aparelho?" — e NAO `estado != null`.
+   *
+   * Os dois significados de `estado === null` sao diferentes e a tela precisa
+   * distingui-los: "o IndexedDB ainda nao respondeu" e "o IndexedDB esta
+   * vazio". Sem esta bandeira eles se confundem, e foi medido num aparelho com
+   * armazenamento lento (+700 ms por leitura): abrindo /campo a frio SEM SINAL,
+   * o app mostrava "Nada guardado no aparelho — conecte-se uma vez para baixar
+   * os chamados", com botao "Tentar de novo", por 1,4 s ANTES da lista real
+   * aparecer. E a pior frase possivel na pior hora possivel: o rocador, na
+   * beira da pista e sem sinal, lendo que o trabalho do dia nao esta ali.
+   *
+   * Vale tambem para o indicador do topo: antes da primeira leitura ninguem
+   * sabe quantas pendencias existem, entao "Tudo enviado" ali e chute — e ele
+   * piscava por ~300 ms mesmo com o armazenamento rapido.
+   */
+  const [carregado, setCarregado] = useState(false);
   const rede = useSyncExternalStore(assinarRede, lerRede, redeNoServidor);
   const [sincronizando, setSincronizando] = useState(false);
   const [ultimoRelatorio, setUltimoRelatorio] = useState<RelatorioSync | null>(null);
@@ -49,6 +66,7 @@ export function useSincronizacao(equipeId: number | null) {
     const [e, f] = await Promise.all([lerEstado(), listarFila()]);
     setEstado(e);
     setFila(f);
+    setCarregado(true);
   }, []);
 
   const enviarAgora = useCallback(async () => {
@@ -113,5 +131,5 @@ export function useSincronizacao(equipeId: number | null) {
     };
   }, [enviarAgora, relerLocal]);
 
-  return { estado, fila, rede, sincronizando, ultimoRelatorio, recarregar, enviarAgora, registrar };
+  return { estado, fila, carregado, rede, sincronizando, ultimoRelatorio, recarregar, enviarAgora, registrar };
 }

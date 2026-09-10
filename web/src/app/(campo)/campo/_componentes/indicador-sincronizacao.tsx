@@ -25,6 +25,7 @@ import type { SituacaoRede } from "./usar-sincronizacao";
 export function IndicadorSincronizacao({
   estado,
   fila,
+  carregado,
   rede,
   sincronizando,
   aoEnviar,
@@ -32,6 +33,8 @@ export function IndicadorSincronizacao({
 }: {
   estado: EstadoCampo | null;
   fila: ItemFila[];
+  /** Ja terminou a primeira leitura do IndexedDB? Ver `useSincronizacao`. */
+  carregado: boolean;
   rede: SituacaoRede;
   sincronizando: boolean;
   aoEnviar: () => void;
@@ -48,7 +51,13 @@ export function IndicadorSincronizacao({
   return (
     <div className="sticky top-0 z-20 border-b border-border bg-surface/95 backdrop-blur">
       <div className="mx-auto flex max-w-lg items-center gap-3 px-4 py-2.5">
-        <Situacao offline={offline} sincronizando={sincronizando} total={total} sincronizadoEm={estado?.sincronizadoEm} />
+        <Situacao
+          offline={offline}
+          sincronizando={sincronizando}
+          carregado={carregado}
+          total={total}
+          sincronizadoEm={estado?.sincronizadoEm}
+        />
 
         {total > 0 && !offline ? (
           <button
@@ -93,15 +102,29 @@ export function IndicadorSincronizacao({
 function Situacao({
   offline,
   sincronizando,
+  carregado,
   total,
   sincronizadoEm,
 }: {
   offline: boolean;
   sincronizando: boolean;
+  carregado: boolean;
   total: number;
   sincronizadoEm: string | undefined;
 }) {
   const classe = `${ESCALA.meta} flex min-w-0 flex-1 items-center gap-2 font-medium`;
+
+  /* Antes da primeira leitura do aparelho nao se sabe quantas pendencias ha, e
+     "Tudo enviado" seria chute. Palavra, nunca giro sozinho — a mesma regra do
+     `BotaoCampo`. */
+  if (!carregado) {
+    return (
+      <p className={`${classe} text-ink-2`} aria-live="polite">
+        <LoaderCircle aria-hidden="true" className="size-5 shrink-0 animate-spin" />
+        <span className="truncate">Abrindo o app…</span>
+      </p>
+    );
+  }
 
   if (sincronizando) {
     return (

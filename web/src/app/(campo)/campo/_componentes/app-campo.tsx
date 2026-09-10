@@ -81,7 +81,8 @@ export function AppCampo() {
   const equipeId = urlEquipe.id;
   const vista = pilha[pilha.length - 1];
 
-  const { estado, fila, rede, sincronizando, ultimoRelatorio, recarregar, enviarAgora, registrar } = useSincronizacao(equipeId);
+  const { estado, fila, carregado, rede, sincronizando, ultimoRelatorio, recarregar, enviarAgora, registrar } =
+    useSincronizacao(equipeId);
 
   /**
    * O voltar, do Android e do navegador.
@@ -193,6 +194,7 @@ export function AppCampo() {
       <IndicadorSincronizacao
         estado={estado}
         fila={fila}
+        carregado={carregado}
         rede={rede}
         sincronizando={sincronizando}
         aoEnviar={() => void enviarAgora()}
@@ -211,6 +213,10 @@ export function AppCampo() {
           <SessaoVencida pendentes={fila.length} />
         ) : equipesOferecidas != null && equipeId == null ? (
           <SeletorEquipe equipes={equipesOferecidas} aoEscolher={escolherEquipe} />
+        ) : estado == null && !carregado ? (
+          /* Ainda lendo o aparelho. O esqueleto vem ANTES da pergunta "tem
+             sinal?", senao a tela responde uma pergunta que ainda nao sabe. */
+          <Esqueleto />
         ) : estado == null && rede === "offline" ? (
           <SemDadoSemRede aoTentar={() => void recarregar()} />
         ) : estado == null ? (
