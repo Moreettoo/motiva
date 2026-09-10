@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { ehRotaPublica, podeVerRota, rotaInicial } from "@/lib/auth/permissoes";
+import { ehRotaPublica, podeVerRota } from "@/lib/auth/permissoes";
 import type { Cargo } from "@/lib/types";
 
 /**
@@ -53,10 +53,16 @@ export async function proxy(request: NextRequest) {
 
   const cargo = claims.app_metadata?.cargo as Cargo | undefined;
 
-  // Logado em /entrar ou /esqueci-a-senha: nao ha o que fazer la.
-  if (cargo && (caminho === "/entrar" || caminho === "/esqueci-a-senha")) {
-    return NextResponse.redirect(new URL(rotaInicial(cargo), request.url));
-  }
+  /* NAO desviar de rota publica com base no token.
+     O token vive até uma hora e sobrevive à desativação da conta; o perfil, que
+     é a verdade, some no mesmo instante. Quando os dois discordam — conta
+     desativada com cookie ainda válido — um desvio de `/entrar` daqui fecha um
+     ciclo: o layout do painel manda para `/entrar` (perfil inativo) e o proxy
+     manda de volta para a rota inicial (token válido), e o navegador para em
+     ERR_TOO_MANY_REDIRECTS. Medido em 10/09 desativando um usuário logado.
+
+     Quem leva o usuário logado embora de `/entrar` e de `/esqueci-a-senha` são
+     as próprias páginas, com `obterSessao()`, que lê o perfil. */
 
   if (cargo && !ehApi && !publica && !podeVerRota(cargo, caminho)) {
     const destino = cargo === "rocador" ? "/campo" : "/sem-acesso";
