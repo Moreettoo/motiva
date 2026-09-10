@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { obterSessao } from "@/lib/auth/sessao";
 import { LIMITES } from "@/lib/campo/contratos";
-import { chamadoPertenceAEquipe, equipeDaBusca, equipeDaSessao, recusou } from "@/lib/campo/servidor";
+import { podeAgirNoChamado } from "@/lib/campo/servidor";
 import { db } from "@/lib/supabase";
 
 /**
@@ -14,6 +14,11 @@ import { db } from "@/lib/supabase";
  *
  * Uma foto por requisicao porque a rede de beira de estrada cai no meio: perder
  * um upload de 300 KB e recomecar so ele e barato; perder um lote de 2 MB nao.
+ *
+ * NAO le `?equipe=`: a autorizacao sai do `chamado_id` do corpo, via
+ * `podeAgirNoChamado`. Ver o comentario dessa funcao — exigir o parametro aqui
+ * travava a fila de Admin e Super Admin em `400`, e a equipe do chamado e um
+ * fato do banco, nao uma dica do cliente.
  */
 
 const BYTES_MAX = 2_097_152; // = o `file_size_limit` do bucket `chamados`
@@ -50,9 +55,6 @@ export async function POST(request: NextRequest) {
   const sessao = await obterSessao();
   if (!sessao) return NextResponse.json({ erro: "Sessão necessária." }, { status: 401 });
 
-  const equipe = await equipeDaSessao(sessao, equipeDaBusca(request.nextUrl.searchParams));
-  if (recusou(equipe)) return NextResponse.json({ erro: equipe.erro }, { status: equipe.status });
-
   let corpo: FormData;
   try {
     corpo = await request.formData();
@@ -83,9 +85,8 @@ export async function POST(request: NextRequest) {
   if (larguraPx == null || alturaPx == null) return NextResponse.json({ erro: "`largura_px` e `altura_px` são obrigatórias." }, { status: 400 });
   if (capturadaEm == null) return NextResponse.json({ erro: "`capturada_em` tem que ser uma data ISO." }, { status: 400 });
 
-  if (!(await chamadoPertenceAEquipe(chamadoId, equipe.id))) {
-    return NextResponse.json({ erro: "Este chamado não é da sua equipe." }, { status: 403 });
-  }
+  const recusa = await podeAgirNoChamado(sessao, chamadoId);
+  if (recusa) return NextResponse.json({ erro: recusa.erro }, { status: recusa.status });
 
   /* Idempotencia por (evento_id, papel, capturada_em) e nao por `foto_id`: o
      aparelho reenvia a MESMA foto depois de uma rede que caiu no meio do upload,

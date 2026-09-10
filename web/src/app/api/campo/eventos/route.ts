@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { obterSessao } from "@/lib/auth/sessao";
 import type { EventoCampo, ResultadoEvento, TipoEventoCampo } from "@/lib/campo/contratos";
-import { chamadoPertenceAEquipe, equipeDaBusca, equipeDaSessao, recusou } from "@/lib/campo/servidor";
+import { podeAgirNoChamado } from "@/lib/campo/servidor";
 import { mensagemDoBanco } from "@/lib/chamados/erros";
 import { db } from "@/lib/supabase";
 
@@ -15,6 +15,9 @@ import { db } from "@/lib/supabase";
  * global faria a fila tratar como falha de rede e reenviar para sempre um evento
  * que o banco nunca vai aceitar. Quem decide o que sai da fila e `sincronizar.ts`,
  * e para isso ele precisa de UMA resposta por evento.
+ *
+ * NAO le `?equipe=`: cada evento traz o seu `chamado_id`, e a autorizacao sai
+ * dele por `podeAgirNoChamado`. Ver o comentario dessa funcao.
  */
 
 const MAX_EVENTOS = 50;
@@ -36,9 +39,6 @@ function invalido(e: unknown): string | null {
 export async function POST(request: NextRequest) {
   const sessao = await obterSessao();
   if (!sessao) return NextResponse.json({ erro: "Sessão necessária." }, { status: 401 });
-
-  const equipe = await equipeDaSessao(sessao, equipeDaBusca(request.nextUrl.searchParams));
-  if (recusou(equipe)) return NextResponse.json({ erro: equipe.erro }, { status: equipe.status });
 
   let entrada: unknown;
   try {
@@ -67,8 +67,9 @@ export async function POST(request: NextRequest) {
       continue;
     }
 
-    if (!(await chamadoPertenceAEquipe(evento.chamado_id, equipe.id))) {
-      resultados.push({ evento_id: eventoId, situacao: "recusado", erro: "Este chamado não é da sua equipe." });
+    const recusa = await podeAgirNoChamado(sessao, evento.chamado_id);
+    if (recusa) {
+      resultados.push({ evento_id: eventoId, situacao: "recusado", erro: recusa.erro });
       continue;
     }
 

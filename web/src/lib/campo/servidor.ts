@@ -87,6 +87,45 @@ export async function equipeDaSessao(sessao: Sessao, equipePedida: number | null
 }
 
 /**
+ * Esta sessao pode MOVER este chamado?
+ *
+ * As rotas de escrita (`/api/campo/fotos`, `/api/campo/eventos`) perguntam isto
+ * e NAO pedem `?equipe=`. Dois motivos, um pratico e um de desenho.
+ *
+ * O pratico: `lib/campo/sincronizar.ts` — o unico caminho de saida do aparelho,
+ * que roda tambem dentro do service worker — manda `?equipe=` apenas em
+ * `baixarEstado`. As duas rotas de escrita recebem so o corpo. Exigir o
+ * parametro nelas deixava o envio de Admin e de Super Admin travado em
+ * `400 Escolha a equipe`, com a fila reenviando para sempre: medido no teste
+ * offline, com a mensagem `foto 400: {"erro":"Escolha a equipe."}` guardada em
+ * `ultimo_erro`.
+ *
+ * O de desenho, que e o que importa: a pergunta de autorizacao de uma escrita e
+ * sobre o OBJETO que ela move, e o objeto ja vem identificado no corpo. A
+ * equipe sai do chamado, nao de uma dica que o cliente escreve na URL — e assim
+ * nao existe nem a possibilidade de um `?equipe=` trocado abrir o chamado de
+ * outra equipe. `?equipe=` continua valendo em `/estado`, onde ele responde uma
+ * pergunta diferente e legitima: QUAL lista devolver.
+ *
+ * Mesma matriz de `/api/fotos/[id]`: Rocador so na equipe que lidera, gestao em
+ * qualquer uma, Analista em nenhuma.
+ */
+export async function podeAgirNoChamado(sessao: Sessao, chamadoId: number): Promise<RecusaEquipe | null> {
+  if (sessao.cargo === "analista") return { erro: "Seu acesso é somente leitura.", status: 403 };
+
+  if (sessao.cargo === "rocador") {
+    if (sessao.equipeId == null) return { erro: "Você ainda não lidera uma equipe. Peça a um administrador.", status: 403 };
+    if (!(await chamadoPertenceAEquipe(chamadoId, sessao.equipeId))) {
+      return { erro: "Este chamado não é da sua equipe.", status: 403 };
+    }
+    return null;
+  }
+
+  const { data } = await db.from("chamados").select("id").eq("id", chamadoId).maybeSingle();
+  return data ? null : { erro: "Chamado não encontrado.", status: 404 };
+}
+
+/**
  * O chamado e desta equipe?
  *
  * A equipe do chamado mora no AGENDAMENTO, nao no chamado: remarcar de equipe e
