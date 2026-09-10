@@ -53,7 +53,7 @@ const LIMITACOES = [
   "A altura de hoje é prevista, não medida: é o modelo rodando sobre o clima observado entre a última medição e hoje.",
   "Medição velha deixa a previsão andar sozinha. Quanto mais antiga a visita ao trecho, mais longa a janela sem nada de campo para corrigi-la.",
   "A análise em lote só chama a LLM para trechos a menos de 45 dias do limite. Trecho folgado ganha previsão, mas não ganha agendamento. O silêncio ali é economia, não ausência de risco.",
-  "O copiloto lê apenas agendamentos: rodovia, km, UF, prioridade, data e justificativa. Medição, altura, crescimento e escala de equipe ficam fora da pergunta.",
+  "O copiloto lê agendamentos e o prazo até o limite de cada trecho: rodovia, km, UF, data, prazo, prioridade derivada do prazo e justificativa. Medição, altura, crescimento e escala de equipe ficam fora da pergunta.",
 ];
 
 /** Teto da sondagem que descobre as faixas. Precisa passar do último corte. */

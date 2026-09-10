@@ -2,9 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 
-import { erroFaltaEquipe } from "./dominio";
+import { erroFaltaEquipe, PRIORIDADE, prioridadeExibida, rotuloPrazo } from "./dominio";
 import { fmt, isoHoje } from "./format";
 import { enfileirarAnalise, situacaoDaExecucao } from "./github";
+import { listarTrechos } from "./queries";
 import { db } from "./supabase";
 import type { ExecucaoAnalise, StatusAgendamento } from "./types";
 
@@ -567,10 +568,23 @@ function dentroDoLimite(usuarioId: string, agora = Date.now()): boolean {
 /** Teto de contexto do copiloto: os agendamentos mais recentes cabem no prompt. */
 const AGENDAMENTOS_NO_CONTEXTO = 60;
 
+/**
+ * A tabela de prioridade vai nas instrucoes como FUNCAO PURA do numero, igual
+ * ao contexto do lote em `leitura-ia.ts`. Sem ela o copiloto so podia repetir a
+ * palavra que a outra LLM escreveu no dia em que o agendamento nasceu -- e essa
+ * palavra envelhece: nesta base, 14 dos 21 chamados carregavam uma prioridade
+ * que contradiz o risco atual do trecho.
+ */
 const SISTEMA_COPILOTO =
   "Você responde perguntas de gestores da Motiva sobre o planejamento de roçada. " +
   "Use apenas os dados fornecidos. Seja direto, cite rodovia e km. " +
-  "Se o dado não estiver na lista, diga que não tem.";
+  "Se o dado não estiver na lista, diga que não tem. " +
+  "A prioridade é função pura de `dias_ate_limite`, nunca de opinião: " +
+  `${PRIORIDADE.critica.rotulo} até 7 dias ou já acima do limite; ` +
+  `${PRIORIDADE.alta.rotulo} de 8 a 20; ` +
+  `${PRIORIDADE.media.rotulo} de 21 a 45; ` +
+  `${PRIORIDADE.baixa.rotulo} acima de 45 ou sem crescimento. ` +
+  "Prazos relativos (hoje, esta semana, próximos 7 dias) contam a partir de `data_de_hoje`.";
 
 /**
  * Pergunta em portugues sobre a malha.
@@ -596,16 +610,50 @@ export async function perguntarAoCopiloto(texto: string): Promise<Resultado<{ re
     };
   }
 
-  const { data, error } = await db
-    .from("agendamentos")
-    .select("*, trechos(rodovia, km_inicio, km_fim, uf, tipo_pista)")
-    .order("criado_em", { ascending: false })
-    .limit(AGENDAMENTOS_NO_CONTEXTO);
+  /* `id` como desempate, e não só `criado_em`: as linhas semeadas têm
+     `criado_em` sintético que pode estar À FRENTE do relógio real, então uma
+     roçada criada agora ficava "mais antiga" que uma semeada do mesmo dia e
+     caía fora dos 60 do contexto. Mesmo critério da view. */
+  const [{ data, error }, trechos] = await Promise.all([
+    db
+      .from("agendamentos")
+      .select("*, trechos(rodovia, km_inicio, km_fim, uf, tipo_pista)")
+      .order("criado_em", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(AGENDAMENTOS_NO_CONTEXTO),
+    listarTrechos(),
+  ]);
 
   if (error) return { ok: false, erro: `Não foi possível ler os agendamentos: ${error.message}` };
   if (!data || data.length === 0) {
     return { ok: true, dados: { resposta: "Ainda não há análises. Rode a análise em lote primeiro." } };
   }
+
+  /* O contexto vai em snake_case português, como o do lote, e a `prioridade`
+     que a LLM recebe é a DERIVADA DO PRAZO — não a coluna do agendamento, que é
+     a palavra da outra LLM e envelhece. `dias_ate_limite` vai junto para ela
+     poder conferir em vez de só repetir, e `data_de_hoje` porque o copiloto não
+     tinha como responder "próximos 7 dias" — uma das sugestões que a própria
+     tela oferece — sem saber que dia é hoje. */
+  const prazoPorTrecho = new Map(trechos.map((t) => [t.id, t.dias_ate_limite]));
+  const contexto = {
+    data_de_hoje: isoHoje(),
+    agendamentos: (data as unknown as Record<string, unknown>[]).map((a) => {
+      const dias = prazoPorTrecho.get(a.trecho_id as number) ?? null;
+      const leitura = prioridadeExibida(
+        dias,
+        a.prioridade as Parameters<typeof prioridadeExibida>[1],
+        a.origem as Parameters<typeof prioridadeExibida>[2],
+      );
+      return {
+        ...a,
+        dias_ate_limite: dias,
+        prazo: rotuloPrazo(dias),
+        prioridade: leitura.risco,
+        prioridade_registrada_pela_ia: leitura.divergente,
+      };
+    }),
+  };
 
   let resposta: Response;
   try {
@@ -619,7 +667,7 @@ export async function perguntarAoCopiloto(texto: string): Promise<Resultado<{ re
         model: process.env.OPENAI_MODEL ?? "gpt-5.4-mini",
         messages: [
           { role: "system", content: SISTEMA_COPILOTO },
-          { role: "user", content: `Dados:\n${JSON.stringify(data)}\n\nPergunta: ${pergunta}` },
+          { role: "user", content: `Dados:\n${JSON.stringify(contexto)}\n\nPergunta: ${pergunta}` },
         ],
       }),
       signal: AbortSignal.timeout(120_000),
