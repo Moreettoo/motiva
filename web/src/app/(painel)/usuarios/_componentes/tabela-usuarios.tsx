@@ -18,6 +18,7 @@ import { CARGO } from "@/lib/dominio";
 import { relativoEmDias } from "@/lib/format";
 
 import type { Eu, PerfilNaTela } from "./gestao-usuarios";
+import { IconeCargo } from "./icone-cargo";
 
 export function TabelaUsuarios({
   perfis,
@@ -90,7 +91,7 @@ export function TabelaUsuarios({
               </TabelaCelula>
 
               <TabelaCelula>
-                <Chip icone={<IconeDominio nome={cargo.icone} />}>{cargo.rotulo}</Chip>
+                <Chip icone={<IconeCargo cargo={p.cargo} />}>{cargo.rotulo}</Chip>
               </TabelaCelula>
 
               <TabelaCelula>
