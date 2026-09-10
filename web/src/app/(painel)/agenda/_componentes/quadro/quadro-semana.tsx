@@ -523,7 +523,7 @@ export function QuadroSemana({
           total={grade.fila.length}
           expandido={filaExpandida}
           aoExpandir={() => setFilaExpandida(true)}
-          janelaFim={grade.janela.fim}
+          hoje={hoje}
           realcado={alvoAtual === "fila" && !recusaAtual}
           idEmVoo={emVoo}
           idAtivo={idAtivoTrilho}
