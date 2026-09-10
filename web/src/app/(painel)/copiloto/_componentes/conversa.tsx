@@ -152,7 +152,13 @@ export function Conversa({ sugestoes, escopo }: { sugestoes: string[]; escopo: n
               </p>
               <p className="mt-1.5 text-base break-words text-ink">{turno.pergunta}</p>
 
-              <div className="mt-3 border-l-2 border-accent-line pl-4">
+              <div
+                className="mt-3 border-l-2 pl-4"
+                /* A unica marca que separa a resposta da pergunta. `border-accent-line`
+                   e morta: `* { border-color }` sem camada em `globals.css` vence a
+                   utility, e o filete saia cinza igual a qualquer outra borda. */
+                style={{ borderColor: "var(--accent-line)" }}
+              >
                 {turno.erro ? (
                   <Aviso tom="critical" titulo="O copiloto não respondeu">
                     <p>{turno.erro}</p>
@@ -192,11 +198,12 @@ export function Conversa({ sugestoes, escopo }: { sugestoes: string[]; escopo: n
                     type="button"
                     onClick={() => enviar(sugestao)}
                     disabled={pendente}
+                    style={{ borderColor: "var(--borda, var(--border))" }}
                     className={cn(
                       "inline-flex max-w-full cursor-pointer items-center gap-1.5 rounded-full border border-border",
                       "bg-surface-2 px-3 py-1.5 text-xs text-ink-2",
                       "transition-[background-color,border-color,color] duration-150 ease-[var(--ease-out-quint)]",
-                      "hover:border-border-strong hover:bg-surface-3 hover:text-ink",
+                      "hover:bg-surface-3 hover:[--borda:var(--border-strong)] hover:text-ink",
                       "disabled:pointer-events-none disabled:opacity-50",
                     )}
                   >

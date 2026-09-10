@@ -57,7 +57,8 @@ function Foto({
       <button
         type="button"
         onClick={aoAmpliar}
-        className="block w-full overflow-hidden rounded-md border border-border bg-surface-3 hover:border-border-strong"
+        style={{ borderColor: "var(--borda, var(--border))" }}
+        className="block w-full overflow-hidden rounded-md border border-border bg-surface-3 hover:[--borda:var(--border-strong)]"
       >
         {/* `/api/fotos/<id>` redireciona para uma URL assinada de 60 s. Montar
             a URL do Storage aqui exporia o bucket, que é privado de propósito. */}

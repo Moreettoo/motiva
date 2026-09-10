@@ -117,7 +117,10 @@ export function HistoricoTrecho({
                 <li key={agendamento.id} className="relative min-w-0">
                   <span
                     aria-hidden="true"
-                    className="absolute top-1.5 -left-[21px] size-2 rounded-full border-2 border-surface bg-border-strong"
+                    className="absolute top-1.5 -left-[21px] size-2 rounded-full border-2 bg-border-strong"
+                    // Recorta o ponto do fio. `border-surface` do Tailwind e
+                    // morta: ver `BORDA_INVISIVEL` em chamados/_componentes/icones.
+                    style={{ borderColor: "var(--surface)" }}
                   />
 
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">

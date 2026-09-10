@@ -18,6 +18,10 @@ import type { Risco } from "@/lib/types";
  * saber de onde ela veio.
  */
 
+/** `border-border-strong` do Tailwind e morta: `* { border-color: var(--border) }`
+ *  fora de camada em `globals.css` vence as utilities. Inline vence os dois. */
+const BORDA_FORTE = { borderColor: "var(--border-strong)" } as const;
+
 /** As 20 entradas do modelo, com o nome que aparece no `.pkl` e no log.
  *  Espelha `CAMPOS_ENTRADA` em `lib/modelo/campos.ts`, que e a ordem em que o
  *  vetor e montado. `uf` e `mes` sumiram na v3.1: a geografia e a estacao ja
@@ -95,7 +99,7 @@ export function FichaModelo({ modeloLlm }: { modeloLlm: string | null }) {
           <h3 className="text-2xs tracking-widest text-ink-3 uppercase">Divisão de trabalho</h3>
 
           <ol className="mt-3 space-y-4">
-            <li className="border-l-2 border-border-strong pl-3">
+            <li className="border-l-2 pl-3" style={BORDA_FORTE}>
               <p className="tnum font-mono text-2xs text-ink-3">IA 1 · regressão</p>
               <p className="mt-1 text-sm font-medium text-ink">Quanto a vegetação cresce</p>
               <p className="mt-1 text-xs text-ink-2">
@@ -107,7 +111,7 @@ export function FichaModelo({ modeloLlm }: { modeloLlm: string | null }) {
               </p>
             </li>
 
-            <li className="border-l-2 border-border-strong pl-3">
+            <li className="border-l-2 pl-3" style={BORDA_FORTE}>
               <p className="tnum font-mono text-2xs text-ink-3">IA 2 · linguagem</p>
               <p className="mt-1 text-sm font-medium text-ink">Quando roçar, e por quê</p>
               <p className="mt-1 text-xs text-ink-2">

@@ -69,13 +69,19 @@ export function CartaoChamado({
       type="button"
       onClick={aoAbrir}
       aria-current={selecionado || undefined}
+      /* A cor da borda VAI POR INLINE: `globals.css` tem
+         `* { border-color: var(--border) }` fora de camada, e CSS sem camada
+         vence as utilities do Tailwind -- `border-accent` resolvia para o
+         cinza neutro e a ficha selecionada nao fechava a moldura. As classes
+         abaixo so trocam a variavel, que e custom property e nao sofre disso. */
+      style={{ borderColor: "var(--borda, var(--border))" }}
       className={cn(
         "w-full min-w-0 rounded-md border px-2.5 py-2 text-left",
         "transition-[background-color,border-color,transform] duration-150 ease-[var(--ease-out-quint)]",
         "active:translate-y-px",
         selecionado
-          ? "border-accent bg-accent-soft"
-          : "border-border bg-surface-2 hover:border-border-strong hover:bg-surface-3",
+          ? "bg-accent-soft [--borda:var(--accent)]"
+          : "bg-surface-2 hover:bg-surface-3 hover:[--borda:var(--border-strong)]",
       )}
     >
       <span className="tnum block truncate font-mono text-2xs text-ink-3">{chamado.numero}</span>

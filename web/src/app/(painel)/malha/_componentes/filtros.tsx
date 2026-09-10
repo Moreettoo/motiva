@@ -181,14 +181,16 @@ function ChipFiltro({
     <button
       type="button"
       aria-pressed={ativo}
+      /* Inline: `border-accent` e morta sob `* { border-color }` sem camada. */
+      style={{ borderColor: "var(--borda, var(--border))" }}
       onClick={aoAlternar}
       className={cn(
         "inline-flex h-7 max-w-full shrink-0 items-center gap-1.5 rounded-full border px-2.5",
         "text-xs font-medium whitespace-nowrap",
         "transition-[background-color,border-color,color] duration-150 ease-[var(--ease-out-quint)]",
         ativo
-          ? "border-accent bg-accent-soft text-accent"
-          : "border-border bg-surface-2 text-ink-2 hover:border-border-strong hover:text-ink",
+          ? "bg-accent-soft text-accent [--borda:var(--accent)]"
+          : "bg-surface-2 text-ink-2 hover:text-ink hover:[--borda:var(--border-strong)]",
       )}
     >
       {marca ? (

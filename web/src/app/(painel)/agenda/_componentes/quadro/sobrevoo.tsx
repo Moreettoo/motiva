@@ -61,7 +61,7 @@ export function Sobrevoo({ estado, item }: { estado: EstadoArrasto; item: ItemAg
           </motion.div>
 
           {voando.recusa ? (
-            <p className="mt-1 rounded-sm border border-border-strong bg-surface-2 px-2 py-1 text-2xs text-ink-2 shadow-md">
+            <p style={{ borderColor: "var(--border-strong)" }} className="mt-1 rounded-sm border bg-surface-2 px-2 py-1 text-2xs text-ink-2 shadow-md">
               {voando.recusa}
             </p>
           ) : null}

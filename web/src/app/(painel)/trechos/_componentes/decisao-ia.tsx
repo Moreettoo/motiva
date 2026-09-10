@@ -180,7 +180,10 @@ export function DecisaoIa({
                 <Quote aria-hidden="true" className="size-3 shrink-0" />
                 Observações do trecho
               </h3>
-              <blockquote className="mt-2 border-l-2 border-border-strong pl-3 text-sm leading-relaxed break-words text-ink-2 italic">
+              <blockquote
+                className="mt-2 border-l-2 pl-3 text-sm leading-relaxed break-words text-ink-2 italic"
+                style={{ borderColor: "var(--border-strong)" }}
+              >
                 “{observacoes}”
               </blockquote>
               <figcaption className="mt-1.5 text-2xs text-ink-3">

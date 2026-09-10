@@ -142,10 +142,11 @@ export function QualidadeDados({
                 ) : (
                   <Link
                     href={grupo.href}
+                    style={{ borderColor: "var(--borda, var(--border))" }}
                     className={cn(
                       "group relative block overflow-hidden rounded-md border border-border bg-surface-2 p-3",
                       "transition-[background-color,border-color] duration-200 ease-[var(--ease-out-quint)]",
-                      "hover:border-border-strong hover:bg-surface-3",
+                      "hover:bg-surface-3 hover:[--borda:var(--border-strong)]",
                     )}
                   >
                     {conteudo}

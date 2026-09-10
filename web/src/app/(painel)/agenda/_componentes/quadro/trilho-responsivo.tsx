@@ -142,7 +142,7 @@ export function TrilhoResponsivo({
         className={cn(
           "pointer-events-auto mt-2 min-h-0 overflow-hidden rounded-lg border border-border shadow-lg",
           "transition-[max-height] duration-200 ease-[var(--ease-out-quint)]",
-          docaAberta ? "max-h-[60vh] overflow-y-auto scroll-thin" : "max-h-0 border-transparent",
+          docaAberta ? "max-h-[60vh] overflow-y-auto scroll-thin" : "max-h-0",
         )}
       >
         <TrilhoFila {...props} />
