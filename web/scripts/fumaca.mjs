@@ -66,7 +66,7 @@ console.log("\nTeste de fumaça — camada de dados do painel Solo\n");
 await checar(
   "vw_trecho_status",
   () => db.from("vw_trecho_status").select("*").limit(5),
-  precisaTer(["id", "rodovia", "km_inicio", "risco", "ocupacao_pct", "dias_ate_limite", "extensao_km"]),
+  precisaTer(["id", "rodovia", "km_inicio", "risco", "ocupacao_pct", "dias_ate_limite", "extensao_km", "chamado_id", "chamado_numero", "chamado_status"]),
 );
 
 await checar("trechos", () => db.from("trechos").select("*").limit(5), precisaTer(["id", "rodovia", "especie"]));
