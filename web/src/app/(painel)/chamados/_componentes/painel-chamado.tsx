@@ -271,7 +271,16 @@ function CorpoChamado({
           <Dado rotulo="Final">
             <span className="tnum">{fmt.cm(detalhe.altura_final_cm)}</span>
             <span className="block text-2xs text-ink-3">
-              {detalhe.altura_final_cm == null ? "a equipe ainda não mediu" : "medida no fechamento"}
+              {/* "medida no fechamento" e falso quando o gestor digitou a
+                  altura no encerramento administrativo -- e o cartao dizia
+                  isso a dois centimetros do aviso "Concluido sem evidencia de
+                  campo", na mesma tela. Mesma regra da altura inicial logo
+                  acima: a legenda nomeia quem produziu o numero. */}
+              {detalhe.altura_final_cm == null
+                ? "a equipe ainda não mediu"
+                : detalhe.sem_evidencia
+                  ? "informada no encerramento"
+                  : "medida no fechamento"}
             </span>
           </Dado>
 
@@ -340,7 +349,7 @@ function CorpoChamado({
       </Secao>
 
       <Secao titulo="Fotos">
-        <FotosAntesDepois fotos={detalhe.fotos} trecho={trecho} />
+        <FotosAntesDepois fotos={detalhe.fotos} trecho={trecho} encerradoSemCampo={detalhe.sem_evidencia} />
       </Secao>
 
       {adiamento ? (
