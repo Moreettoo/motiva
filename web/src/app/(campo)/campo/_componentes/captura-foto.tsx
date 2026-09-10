@@ -103,7 +103,10 @@ export function CapturaFoto({
             type="button"
             onClick={aoRemover}
             aria-label={`Tirar o quadro ${quadro.titulo}`}
-            className="inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-md text-ink-3 active:bg-surface-3"
+            /* 56 px como todo alvo do campo, e nao os 36 que estavam aqui:
+               medido em 36x36, e um dedo com luva erra. O `-m` devolve o peso
+               visual de um icone pequeno sem encolher o alvo. */
+            className={`${ALVO} -mt-1 -mr-2 inline-flex w-14 shrink-0 cursor-pointer items-center justify-center rounded-md text-ink-3 active:bg-surface-3`}
           >
             <X aria-hidden="true" className="size-5" />
           </button>

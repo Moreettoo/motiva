@@ -124,7 +124,7 @@ function ListaAvisos({ avisos, aoFechar }: { avisos: EstadoCampo["notificacoes"]
           type="button"
           onClick={aoFechar}
           aria-label="Fechar avisos"
-          className="inline-flex size-9 cursor-pointer items-center justify-center rounded-md text-ink-3 active:bg-surface-3"
+          className={`${ALVO} -my-2 -mr-2 inline-flex w-14 cursor-pointer items-center justify-center rounded-md text-ink-3 active:bg-surface-3`}
         >
           <X aria-hidden="true" className="size-5" />
         </button>
