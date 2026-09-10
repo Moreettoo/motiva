@@ -5,13 +5,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronRight, Search } from "lucide-react";
 
-import type { Cargo } from "@/lib/types";
+import type { Cargo, Notificacao } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 import { Marca } from "./marca";
 import { MenuUsuario } from "./menu-usuario";
 import { itensDeNavegacao, type ItemNavegacao } from "./navegacao";
 import { PaletaComandos, type TrechoNaPaleta } from "./paleta-comandos";
+import { Sino } from "./sino";
 
 /* Espaço não-separável: o atalho nunca pode quebrar em duas linhas. */
 const ATALHO_MAC = "⌘\u00a0K";
@@ -62,10 +63,17 @@ function montarTrilha(pathname: string, itens: ItemNavegacao[]): Migalha[] {
 export function BarraSuperior({
   trechos,
   cargo,
+  naoLidas,
+  notificacoes,
   usuario,
 }: {
   trechos: TrechoNaPaleta[];
   cargo: Cargo;
+  /** Contagem e lista das notificações DESTA sessão. Já vêm filtradas por
+   *  destinatário do servidor (`contarNaoLidas`/`listarNotificacoes`), então a
+   *  barra não decide nada sobre quem vê o quê. */
+  naoLidas: number;
+  notificacoes: Notificacao[];
   usuario: { nome: string; cargo: Cargo };
 }) {
   const pathname = usePathname();
@@ -143,6 +151,10 @@ export function BarraSuperior({
             {atalho || ATALHO_MAC}
           </kbd>
         </button>
+
+        {/* Antes do menu de usuário: o sino é o que MUDA sozinho nesta barra, e
+            fica do lado de dentro, mais perto do conteúdo que o identifica. */}
+        <Sino naoLidas={naoLidas} notificacoes={notificacoes} />
 
         <MenuUsuario usuario={usuario} />
       </div>
