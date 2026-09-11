@@ -251,20 +251,52 @@ export const trechosPorRodovia = cache(async () => {
 });
 
 /**
+ * Tamanho da pagina do PostgREST.
+ *
+ * O `db-max-rows` do projeto corta a resposta em mil linhas e avisa APENAS no
+ * cabecalho `content-range` (`0-999/1490`). `error` volta nulo: para o cliente,
+ * uma consulta truncada e indistinguivel de uma consulta que acabou. Por isso
+ * uma leitura que pode passar de mil linhas tem que PAGINAR, e nao so confiar
+ * no `error`.
+ */
+const PAGINA_POSTGREST = 1000;
+
+/**
  * Serie diaria de crescimento medio da malha nos ultimos N dias.
  * Uma linha por especie: sao 3, dentro do limite de series validado.
  */
 export const serieCrescimentoPorEspecie = cache(async (dias = 45) => {
   const desde = diasAtras(dias);
-  const { data, error } = await db
-    .from("previsoes")
-    .select("data_previsao, crescimento_cm_dia, trecho_id, trechos!inner ( especie )")
-    .gte("data_previsao", desde)
-    .order("data_previsao");
-  if (error) erro("a serie de crescimento", error);
 
   type Linha = { data_previsao: string; crescimento_cm_dia: number; trechos: { especie: string } };
-  const linhas = data as unknown as Linha[];
+  const linhas: Linha[] = [];
+
+  /* `ia.previsoes` ACUMULA: uma linha por trecho por execucao do lote, ~50 por
+     dia. A janela de 45 dias passou de mil linhas ha tempo, e o corte nao caia
+     numa fronteira de dia -- ele caia DENTRO de um dia, entregando 3 das 28
+     previsoes de 26/08. O grafico entao terminava dezesseis dias no passado, e
+     o ultimo ponto era a media de tres trechos apresentada como a media da
+     malha. Pior: `page.tsx` tira a variacao de 7 dias desse mesmo ultimo ponto,
+     entao o cartao "Crescimento medio" anunciava uma QUEDA -- com a seta verde
+     de "isso e bom" -- que nunca aconteceu.
+
+     O teto de paginas e guarda-corpo, nao regra: 45 dias × 50 trechos cabe em
+     tres paginas, e parar em vinte evita um laco infinito se o servidor passar
+     a devolver pagina cheia para sempre. */
+  for (let pagina = 0; pagina < 20; pagina += 1) {
+    const de = pagina * PAGINA_POSTGREST;
+    const { data, error } = await db
+      .from("previsoes")
+      .select("data_previsao, crescimento_cm_dia, trecho_id, trechos!inner ( especie )")
+      .gte("data_previsao", desde)
+      .order("data_previsao")
+      .order("id")
+      .range(de, de + PAGINA_POSTGREST - 1);
+    if (error) erro("a serie de crescimento", error);
+    const lote = (data ?? []) as unknown as Linha[];
+    linhas.push(...lote);
+    if (lote.length < PAGINA_POSTGREST) break;
+  }
 
   const porData = groupBy(linhas, (l) => l.data_previsao);
   const especies = [...new Set(linhas.map((l) => l.trechos.especie))].sort();
