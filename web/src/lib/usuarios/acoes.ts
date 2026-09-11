@@ -149,6 +149,14 @@ export async function reenviarConvite(
   if (!convite || convite.aceito_em || convite.revogado_em) {
     return { ok: false, erro: "Este convite não está mais pendente." };
   }
+  // A mesma trava de `convidarUsuario`, e pelo mesmo motivo: reenviar EMITE UM
+  // TOKEN NOVO e devolve o link a quem clicou. Sem isto um Admin reenvia o
+  // convite pendente de um Super Admin, copia o link da propria tela e aceita
+  // no lugar dele -- virando Super Admin sem passar por nenhuma das travas de
+  // `motivoParaNaoAlterar`.
+  if (!podeConvidar(sessao.dados.cargo, convite.cargo as Cargo)) {
+    return { ok: false, erro: "Só um Super Admin reenvia o convite de outro Super Admin." };
+  }
 
   const equipe = convite.equipe as unknown as { nome: string } | { nome: string }[] | null;
   const emissao = await emitirConvite(convite.id as string, {
@@ -166,6 +174,12 @@ export async function reenviarConvite(
 export async function revogarConvite(id: string): Promise<Resultado> {
   const sessao = await permitir("super_admin", "admin");
   if (!sessao.ok) return sessao;
+
+  const { data: convite } = await db.from("convites").select("cargo").eq("id", id).maybeSingle();
+  if (!convite) return { ok: false, erro: "Este convite não está mais pendente." };
+  if (!podeConvidar(sessao.dados.cargo, convite.cargo as Cargo)) {
+    return { ok: false, erro: "Só um Super Admin revoga o convite de outro Super Admin." };
+  }
 
   const { error } = await db
     .from("convites")
