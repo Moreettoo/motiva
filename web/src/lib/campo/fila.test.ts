@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { StatusChamado } from "@/lib/types";
 
 import type { ChamadoCampo, ItemFila, TipoEventoCampo, TrechoCampo } from "./contratos";
-import { agruparChamados, aplicarPendencias, esperaAntesDaTentativa, ordenarFila, podeTentarAgora, resumoPendencias } from "./fila";
+import { agruparChamados, aplicarPendencias, esperaAntesDaTentativa, ordenarFila, podeTentarAgora, recusaPermanente, resumoPendencias } from "./fila";
 
 const TRECHO: TrechoCampo = {
   id: 1, rodovia: "BR-101", km_inicio: 10, km_fim: 14, uf: "SP", sentido: "norte",
@@ -211,5 +211,30 @@ describe("agruparChamados", () => {
 
   it("lista vazia devolve os cinco grupos vazios", () => {
     expect(agruparChamados([], hoje)).toEqual({ hoje: [], atrasados: [], proximos: [], aguardando: [], recentes: [] });
+  });
+});
+
+describe("recusaPermanente", () => {
+  it("4xx de regra e definitivo: reenviar nao muda a resposta", () => {
+    for (const status of [400, 403, 404, 409, 413, 415, 422]) {
+      expect(recusaPermanente(status)).toBe(true);
+    }
+  });
+
+  it("408 e 429 sao 4xx que pedem paciencia, nao correcao", () => {
+    expect(recusaPermanente(408)).toBe(false);
+    expect(recusaPermanente(429)).toBe(false);
+  });
+
+  it("5xx e transitorio: o servidor e que esta mal", () => {
+    for (const status of [500, 502, 503, 504]) {
+      expect(recusaPermanente(status)).toBe(false);
+    }
+  });
+
+  it("nada abaixo de 400 e recusa", () => {
+    for (const status of [200, 201, 204, 304]) {
+      expect(recusaPermanente(status)).toBe(false);
+    }
   });
 });
