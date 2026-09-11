@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Bell, LogOut, X } from "lucide-react";
 
 import { sair } from "@/lib/auth/acoes";
-import { limparTudo } from "@/lib/campo/banco-local";
+import { apagarCachesDeResposta, limparTudo } from "@/lib/campo/banco-local";
 import type { EstadoCampo, ItemFila } from "@/lib/campo/contratos";
 import { fmt } from "@/lib/format";
 
@@ -26,17 +26,32 @@ export function CabecalhoCampo({ estado, fila }: { estado: EstadoCampo | null; f
   const avisos = estado?.notificacoes ?? [];
 
   /**
-   * Sair APAGA o aparelho: IndexedDB e os caches do service worker. Um celular
-   * de equipe passa de mao em mao, e a foto de campo tem placa, rosto e
-   * coordenada — nao pode sobrar para o proximo que abrir o app.
+   * Sair APAGA o aparelho: IndexedDB e os caches de RESPOSTA do service worker.
+   * Um celular de equipe passa de mao em mao, e a foto de campo tem placa,
+   * rosto e coordenada — nao pode sobrar para o proximo que abrir o app.
+   *
+   * O PRECACHE NAO PODE SER APAGADO, e isso foi medido. `caches.keys()` devolve
+   * tambem `serwist-precache-*`, que e onde moram a casca de /campo e os ~50
+   * chunks de JS. O Serwist so preenche o precache no INSTALL do worker: apagado
+   * o cache, o worker continua `active` com os metadados dele intactos e nunca
+   * mais reenche. Resultado, num ciclo tao banal quanto sair e entrar de novo no
+   * mesmo aparelho: /campo ainda ABRIA sem sinal (a casca vinha do cache de
+   * runtime `pages-rsc`), mas os chunks vinham de lugar nenhum — 13 `ERR_FAILED`
+   * — e a pagina ficava PARA SEMPRE em "Carregando os chamados da sua equipe…".
+   * O app perdia o offline em silencio, parecendo ter aberto.
+   *
+   * O precache nao guarda dado de ninguem: e saida de build, a mesma para todas
+   * as equipes, e a casca de /campo e estatica (nao le cookie — e por isso que
+   * ela e ○ Static no build). O que guarda dado de sessao sao os caches de
+   * resposta do `defaultCache` (`apis`, `pages-rsc`, `pages-rsc-prefetch`,
+   * `others`), e esses vao todos.
    *
    * A ordem importa: limpar ANTES de `sair()`, que redireciona e nunca volta.
    */
   async function encerrar() {
     setSaindo(true);
     await limparTudo();
-    const chaves = await caches.keys();
-    await Promise.all(chaves.map((k) => caches.delete(k)));
+    await apagarCachesDeResposta();
     await sair();
   }
 
@@ -79,7 +94,9 @@ export function CabecalhoCampo({ estado, fila }: { estado: EstadoCampo | null; f
         <div className="mx-auto max-w-lg space-y-3 border-t border-border px-4 py-4">
           {fila.length > 0 ? (
             <p role="alert" className={`${ESCALA.corpo} rounded-lg bg-critical-soft p-3 text-critical-ink`}>
-              Há {fmt.contar(fila.length, "registro")} ainda não enviados. Se sair agora eles serão apagados.
+              {fila.length === 1
+                ? "Há 1 registro ainda não enviado. Se sair agora ele será apagado."
+                : `Há ${fmt.contar(fila.length, "registro")} ainda não enviados. Se sair agora eles serão apagados.`}
             </p>
           ) : (
             <p className={`${ESCALA.corpo} text-ink-2`}>Sair apaga do aparelho os chamados e as fotos guardadas.</p>
@@ -107,7 +124,7 @@ function ListaAvisos({ avisos, aoFechar }: { avisos: EstadoCampo["notificacoes"]
           type="button"
           onClick={aoFechar}
           aria-label="Fechar avisos"
-          className="inline-flex size-9 cursor-pointer items-center justify-center rounded-md text-ink-3 active:bg-surface-3"
+          className={`${ALVO} -my-2 -mr-2 inline-flex w-14 cursor-pointer items-center justify-center rounded-md text-ink-3 active:bg-surface-3`}
         >
           <X aria-hidden="true" className="size-5" />
         </button>

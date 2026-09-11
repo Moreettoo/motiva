@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { StatusChamado } from "@/lib/types";
 
 import type { ChamadoCampo, ItemFila, TipoEventoCampo, TrechoCampo } from "./contratos";
-import { agruparChamados, aplicarPendencias, esperaAntesDaTentativa, ordenarFila, resumoPendencias } from "./fila";
+import { agruparChamados, aplicarPendencias, esperaAntesDaTentativa, ordenarFila, podeTentarAgora, resumoPendencias } from "./fila";
 
 const TRECHO: TrechoCampo = {
   id: 1, rodovia: "BR-101", km_inicio: 10, km_fim: 14, uf: "SP", sentido: "norte",
@@ -116,6 +116,40 @@ describe("esperaAntesDaTentativa", () => {
   });
 });
 
+describe("podeTentarAgora", () => {
+  const criado = "2026-09-10T08:00:00.000Z";
+  const t = (iso: string) => new Date(iso).getTime();
+
+  it("item que nunca foi tentado sai na hora", () => {
+    expect(podeTentarAgora(item("a", 1, "iniciado", criado), t("2026-09-10T08:00:00.000Z"))).toBe(true);
+  });
+
+  it("conta da ultima tentativa, nao da criacao", () => {
+    /* Este e o defeito que existia: com `criado_em` como base, um item criado
+       ha uma hora tinha `criado_em + 120 s` sempre no passado e era liberado na
+       hora, por mais que acabasse de falhar — a espera exponencial nao existia. */
+    const i = item("a", 1, "iniciado", criado, { tentativas: 4, ultima_tentativa_em: "2026-09-10T09:00:00.000Z" });
+    expect(podeTentarAgora(i, t("2026-09-10T09:01:00.000Z"))).toBe(false);
+    expect(podeTentarAgora(i, t("2026-09-10T09:02:00.000Z"))).toBe(true);
+  });
+
+  it("respeita a espera de cada degrau", () => {
+    const i = (tentativas: number) => item("a", 1, "iniciado", criado, { tentativas, ultima_tentativa_em: criado });
+    expect(podeTentarAgora(i(1), t("2026-09-10T08:00:01.000Z"))).toBe(false);
+    expect(podeTentarAgora(i(1), t("2026-09-10T08:00:02.000Z"))).toBe(true);
+    expect(podeTentarAgora(i(3), t("2026-09-10T08:00:29.000Z"))).toBe(false);
+    expect(podeTentarAgora(i(3), t("2026-09-10T08:00:30.000Z"))).toBe(true);
+  });
+
+  /* Item enfileirado por uma versao anterior do app nao tem o campo. Tentar
+     cedo demais e o erro seguro; travar a fila do dia seria o inseguro. */
+  it("item antigo, sem ultima_tentativa_em, cai em criado_em", () => {
+    const i = item("a", 1, "iniciado", criado, { tentativas: 1 });
+    expect(podeTentarAgora(i, t("2026-09-10T08:00:01.000Z"))).toBe(false);
+    expect(podeTentarAgora(i, t("2026-09-10T08:00:05.000Z"))).toBe(true);
+  });
+});
+
 describe("agruparChamados", () => {
   const hoje = "2026-09-10";
   const chamados = [
@@ -131,11 +165,26 @@ describe("agruparChamados", () => {
 
   it("separa por data e por status", () => {
     const g = agruparChamados(chamados, hoje);
-    expect(g.hoje.map((c) => c.id)).toEqual([1, 8]);
+    expect(g.hoje.map((c) => c.id)).toEqual([1]);
     expect(g.atrasados.map((c) => c.id)).toEqual([2]);
     expect(g.proximos.map((c) => c.id)).toEqual([3]);
-    expect(g.aguardando.map((c) => c.id)).toEqual([5, 4]);
+    // 8 e `adiamento_solicitado`: a bola esta com o gestor, nao com a equipe.
+    expect(g.aguardando.map((c) => c.id)).toEqual([5, 4, 8]);
     expect(g.recentes.map((c) => c.id)).toEqual([6, 7]);
+  });
+
+  /* Medido na malha de demonstracao: CH-2026-0008 (adiamento_solicitado, data
+     vencida) saia em "Atrasados" com o chip "Crítica", lido como servico urgente
+     largado. Nao ha o que a equipe faca — `acoesDisponiveis` devolve lista vazia
+     para este status — e a tela de detalhe ja diz "Nada a fazer por enquanto". */
+  it("adiamento pedido nao e trabalho da equipe, nem hoje nem atrasado", () => {
+    const g = agruparChamados(
+      [chamado(10, "adiamento_solicitado", hoje), chamado(11, "adiamento_solicitado", "2026-08-19")],
+      hoje,
+    );
+    expect(g.hoje).toEqual([]);
+    expect(g.atrasados).toEqual([]);
+    expect(g.aguardando.map((c) => c.id)).toEqual([11, 10]);
   });
 
   it("status de espera manda sobre a data: aguardando de hoje nao cai em hoje", () => {

@@ -1,14 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CircleCheck, RefreshCw } from "lucide-react";
+import { CircleCheck, OctagonAlert, RefreshCw, X } from "lucide-react";
 
-import type { EventoCampo, FotoLocal } from "@/lib/campo/contratos";
+import type { EventoCampo, ForaDeOrdem, FotoLocal } from "@/lib/campo/contratos";
 import { aplicarPendencias } from "@/lib/campo/fila";
-import { hojeNoFusoDoPainel } from "@/lib/format";
+import { SESSAO_EXPIRADA } from "@/lib/campo/sincronizar";
+import { fmt, hojeNoFusoDoPainel } from "@/lib/format";
 import type { MotivoAdiamento } from "@/lib/types";
 
-import { borda, BotaoCampo, ESCALA, Rotulo } from "./base";
+import { ALVO, borda, BotaoCampo, ESCALA, Rotulo } from "./base";
 import { CabecalhoCampo } from "./cabecalho-campo";
 import { DetalheChamado } from "./detalhe-chamado";
 import { FluxoAdiar } from "./fluxo-adiar";
@@ -81,7 +82,8 @@ export function AppCampo() {
   const equipeId = urlEquipe.id;
   const vista = pilha[pilha.length - 1];
 
-  const { estado, fila, rede, sincronizando, ultimoRelatorio, recarregar, enviarAgora, registrar } = useSincronizacao(equipeId);
+  const { estado, fila, foraDeOrdem, carregado, rede, sincronizando, ultimoRelatorio, recarregar, enviarAgora, registrar, dispensarForaDeOrdem } =
+    useSincronizacao(equipeId);
 
   /**
    * O voltar, do Android e do navegador.
@@ -185,6 +187,7 @@ export function AppCampo() {
   );
 
   const chamados = aplicarPendencias(estado?.chamados ?? [], fila);
+  const numeroDoChamado = (id: number) => chamados.find((c) => c.id === id)?.numero ?? `chamado ${id}`;
   const chamadoDaVista = vista.nome === "lista" ? null : (chamados.find((c) => c.id === vista.chamadoId) ?? null);
   const naFila = new Set(fila.map((i) => i.chamado_id));
 
@@ -193,6 +196,7 @@ export function AppCampo() {
       <IndicadorSincronizacao
         estado={estado}
         fila={fila}
+        carregado={carregado}
         rede={rede}
         sincronizando={sincronizando}
         aoEnviar={() => void enviarAgora()}
@@ -207,10 +211,18 @@ export function AppCampo() {
       {casca}
 
       <main className="mx-auto max-w-lg px-4 py-4">
-        {ultimoRelatorio?.erro === "sessao_expirada" ? (
+        {foraDeOrdem.map((f) => (
+          <AvisoForaDeOrdem key={f.evento_id} fora={f} numero={numeroDoChamado(f.chamado_id)} aoFechar={() => void dispensarForaDeOrdem(f.evento_id)} />
+        ))}
+
+        {ultimoRelatorio?.erro === SESSAO_EXPIRADA ? (
           <SessaoVencida pendentes={fila.length} />
         ) : equipesOferecidas != null && equipeId == null ? (
           <SeletorEquipe equipes={equipesOferecidas} aoEscolher={escolherEquipe} />
+        ) : estado == null && !carregado ? (
+          /* Ainda lendo o aparelho. O esqueleto vem ANTES da pergunta "tem
+             sinal?", senao a tela responde uma pergunta que ainda nao sabe. */
+          <Esqueleto />
         ) : estado == null && rede === "offline" ? (
           <SemDadoSemRede aoTentar={() => void recarregar()} />
         ) : estado == null ? (
@@ -288,6 +300,52 @@ function Confirmacao({ texto }: { texto: string }) {
   );
 }
 
+const O_QUE_ERA: Record<ForaDeOrdem["tipo"], string> = {
+  iniciado: "o início da roçada",
+  finalizado: "o fim da roçada",
+  adiamento_solicitado: "o pedido de adiamento",
+};
+
+/**
+ * "Chegou, mas o chamado ja tinha terminado."
+ *
+ * Este aviso existe porque o caso e REAL e era silencioso: o gestor cancela ou
+ * encerra o chamado enquanto a equipe esta sem sinal no trecho. Quando o sinal
+ * volta, o registro sobe, o servidor o guarda como fora de ordem, avisa os
+ * gestores — e o app, antes, apenas somava 1 num contador que nenhuma tela lia.
+ * A equipe via o cartao virar "Cancelado" sozinho, sem uma palavra sobre o
+ * trabalho que ela acabou de registrar.
+ *
+ * Quem fecha e a PESSOA, e nao um relogio de quatro segundos como o
+ * "Guardado no aparelho": este aviso e sobre trabalho que virou historico, e
+ * merece ser lido com a mao na tela, no proprio tempo.
+ */
+function AvisoForaDeOrdem({ fora, numero, aoFechar }: { fora: ForaDeOrdem; numero: string; aoFechar: () => void }) {
+  return (
+    <div role="alert" style={borda("var(--serious)")} className="mb-4 rounded-lg border-l-2 bg-serious-soft p-4">
+      <div className="flex items-start gap-2">
+        <OctagonAlert aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-serious-ink" />
+        <div className="min-w-0 flex-1">
+          <p className={`${ESCALA.corpo} font-medium text-serious-ink`}>Registrado fora de ordem</p>
+          <p className={`${ESCALA.corpo} mt-1 text-serious-ink`}>
+            {numero}: {O_QUE_ERA[fora.tipo]} foi enviado, mas o chamado já havia terminado. O gestor foi avisado e o
+            registro ficou no histórico.
+          </p>
+          <p className={`${ESCALA.meta} mt-1 text-serious-ink/80`}>{fora.motivo}</p>
+        </div>
+        <button
+          type="button"
+          onClick={aoFechar}
+          aria-label="Fechar o aviso"
+          className={`${ALVO} -my-2 -mr-2 inline-flex w-14 shrink-0 cursor-pointer items-center justify-center rounded-md text-serious-ink active:bg-surface-3`}
+        >
+          <X aria-hidden="true" className="size-5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function SessaoVencida({ pendentes }: { pendentes: number }) {
   return (
     <div className="space-y-4 rounded-lg border border-border bg-surface p-5">
@@ -295,7 +353,10 @@ function SessaoVencida({ pendentes }: { pendentes: number }) {
         <h1 className={ESCALA.tela}>Sua sessão venceu</h1>
         <p className={`${ESCALA.corpo} mt-2 text-ink-2`}>
           Entre de novo para enviar o que está guardado.
-          {pendentes > 0 ? ` Os ${pendentes} registros no aparelho continuam aqui; nada foi perdido.` : ""}
+          {/* `fmt.contar` e nao interpolacao crua: com uma pendencia a frase saia
+              "Os 1 registros no aparelho continuam aqui", e essa e a tela que o
+              gestor vai olhar por cima do ombro do rocador. */}
+          {pendentes > 0 ? ` ${fmt.contar(pendentes, "registro")} no aparelho ${pendentes === 1 ? "continua" : "continuam"} aqui; nada foi perdido.` : ""}
         </p>
       </div>
       {/* Ancora de verdade, e nao `router.push`: a rota de destino esta fora do
