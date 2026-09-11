@@ -5,7 +5,7 @@
  *   node scripts/semear-demonstracao.mjs --limpar   # desfaz tudo o que semeou
  *
  * Le web/.env.local como o teste de fumaça. A senha unica sai de SEED_SENHA
- * (padrao "Demo-2026-solo") e e impressa no fim.
+ * (obrigatoria, sem valor de reserva) e e impressa no fim.
  *
  * ------------------------------------------------------------------------
  * POR QUE ELE PRECISA DESFAZER DE VERDADE
@@ -51,7 +51,20 @@ const db = createClient(
 
 const LIMPAR = process.argv.includes("--limpar");
 const DOMINIO = "demo.highwai.com.br";
-const SENHA = process.env.SEED_SENHA || env.SEED_SENHA || "Demo-2026-solo";
+/* Sem valor de reserva, e isto e deliberado. O literal que ficava aqui era a
+   senha de `super.demo@demo.highwai.com.br`, que nasce `super_admin` com
+   `senha_provisoria: false`, NO MESMO BANCO da demonstracao e de producao: quem
+   lesse este arquivo abria a URL da Vercel e entrava como Super Admin. Pior,
+   `garantirUsuario` redefine a senha a cada execucao, entao troca-la a mao no
+   painel nao grudava. Agora ela vem de SEED_SENHA (no `.env.local`, que e
+   gitignored) e falhar aqui e melhor que o silencio. */
+const SENHA = process.env.SEED_SENHA || env.SEED_SENHA;
+if (!SENHA || SENHA.length < 10) {
+  console.error("SEED_SENHA nao definida, ou com menos de 10 caracteres.");
+  console.error('Defina-a em web/.env.local, e ela nao pode ser commitada:  SEED_SENHA="..."');
+  process.exit(1);
+}
+
 const MARCA = "Demonstração:"; // prefixo da justificativa: e a marca que --limpar procura
 const BALDE = "chamados";
 

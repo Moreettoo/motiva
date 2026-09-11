@@ -3,7 +3,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { obterSessao } from "@/lib/auth/sessao";
 import type { ChamadoCampo, EstadoCampo, EventoRecente, NotificacaoCampo, TrechoCampo } from "@/lib/campo/contratos";
 import { equipeDaBusca, equipeDaSessao, recusou } from "@/lib/campo/servidor";
-import { contarNaoLidas, listarChamados, listarNotificacoes } from "@/lib/chamados/queries";
+import { contarNaoLidas, listarChamados, listarNotificacoes, type ChamadoNaTela } from "@/lib/chamados/queries";
+import { prioridadeExibida } from "@/lib/dominio";
 import { db } from "@/lib/supabase";
 import type { ChamadoAdiamento, ChamadoDetalhado, Especie, MotivoAdiamento, TipoEventoChamado } from "@/lib/types";
 
@@ -93,7 +94,7 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const paraCampo = (c: ChamadoDetalhado): ChamadoCampo => {
+  const paraCampo = (c: ChamadoNaTela): ChamadoCampo => {
     const adiamento = adiamentoPorChamado.get(c.id);
     return {
       id: c.id,
@@ -101,7 +102,13 @@ export async function GET(request: NextRequest) {
       status: c.status,
       trecho: trechoDoCampo(c.trecho, especiePorTrecho.get(c.trecho.id) ?? "braquiaria"),
       data_sugerida: c.agendamento.data_sugerida,
-      prioridade: c.agendamento.prioridade,
+      /* O prazo manda, nunca a palavra da LLM — a mesma invariante da view, de
+         `criarRocadaManual` e de toda superficie do painel, que passa por
+         `prioridadeExibida`. Cru, este campo pintava o cartao do celular com a
+         classificacao registrada: medido em 11/09, 14 de 22 chamados divergiam,
+         e o CH-2026-0011, a 2 dias do limite, aparecia "Baixa" e sem selo de
+         urgencia na tela da equipe enquanto o painel o pintava "Critica". */
+      prioridade: prioridadeExibida(c.prazo_dias, c.agendamento.prioridade, c.agendamento.origem).risco,
       justificativa: c.agendamento.justificativa,
       altura_inicial_cm: c.altura_inicial_cm == null ? null : Number(c.altura_inicial_cm),
       altura_inicial_origem: c.altura_inicial_origem,

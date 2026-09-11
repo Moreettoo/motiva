@@ -195,8 +195,10 @@ existir, ele não faz nada.
 
 **As contas de demonstração** vêm de `npm run semear:demonstracao` e usam o domínio
 `demo.highwai.com.br`: `super.demo@`, `admin.demo@`, `analista.demo@` e um `lider.<id>.demo@`
-para cada equipe ativa. Todas com a mesma senha (`Demo-2026-solo`, ou o que estiver em
-`SEED_SENHA`), impressa no fim da execução.
+para cada equipe ativa. Todas com a mesma senha, a de `SEED_SENHA` em `web/.env.local`,
+impressa no fim da execução. **`SEED_SENHA` é obrigatória e não tem valor de reserva**: o
+literal que existia no script até 11/09/2026 era a senha de `super.demo@`, que nasce
+`super_admin` no mesmo banco de produção — quem lesse o repositório entrava como Super Admin.
 
 Duas cautelas com o seed:
 

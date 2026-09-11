@@ -82,7 +82,13 @@ export function PainelAgendamento({
 
   return (
     <Gaveta
-      key={item.id}
+      /* A data entra na `key` porque a gaveta NUNCA desmonta ao fechar (`ultimo`
+         é mantido de propósito, para o conteúdo não sumir no meio da animação) e
+         `novaData`/`confirmando` sobreviveriam. Três cliques bastavam: abrir o
+         cartão, Esc, arrastar para outro dia, reabrir — o `<dl>` mostrava a data
+         nova, o input a antiga, e "Remarcar" acordava habilitado devolvendo o
+         serviço para trás. */
+      key={`${item.id}:${item.data}`}
       item={item}
       aberta={agendamento != null}
       trecho={trecho}
@@ -405,15 +411,22 @@ function Gaveta({
           Leitura do modelo
         </h3>
 
+        {/* A previsão do TRECHO manda, e a do agendamento é o reserva — a mesma
+            precedência de `riscoDoItem` e de `dispensavel` em `dados.tsx`, pelo
+            mesmo motivo: a view carrega a previsão MAIS RECENTE, e `ag.previsao`
+            é a de quando o agendamento nasceu, congelada por `previsao_id`.
+            Invertida, esta gaveta contradizia o cartão que a abriu: medido em
+            11/09, o agendamento 159 (SP-348) dizia "2 dias / 29,44 cm" no cartão
+            e "110 dias / 9,8 cm" aqui, sem nada marcando qual estava velho. */}
         <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
           <dt className="text-ink-3">Crescimento</dt>
           <dd className="tnum text-right font-mono text-ink">
-            {fmt.cmDia(previsao?.crescimento_cm_dia ?? trecho?.crescimento_cm_dia)}
+            {fmt.cmDia(trecho?.crescimento_cm_dia ?? previsao?.crescimento_cm_dia)}
           </dd>
 
           <dt className="text-ink-3">Altura atual</dt>
           <dd className="tnum text-right font-mono text-ink">
-            {fmt.cm(previsao?.altura_atual_cm ?? trecho?.altura_atual_cm)}
+            {fmt.cm(trecho?.altura_atual_cm ?? previsao?.altura_atual_cm)}
           </dd>
 
           <dt className="text-ink-3">Limite do trecho</dt>
@@ -421,7 +434,7 @@ function Gaveta({
 
           <dt className="text-ink-3">Prazo até o limite</dt>
           <dd className="tnum text-right font-mono text-ink">
-            {rotuloPrazo(previsao?.dias_ate_limite ?? trecho?.dias_ate_limite)}
+            {rotuloPrazo(trecho?.dias_ate_limite ?? previsao?.dias_ate_limite)}
           </dd>
         </dl>
 

@@ -189,7 +189,17 @@ function CorpoChamado({
   const kmDoTrecho = Math.max(0, Number(trecho.km_fim) - Number(trecho.km_inicio));
 
   function confirmarAltura() {
-    const valor = Number(altura.trim().replace(",", "."));
+    /* O campo vazio precisa sair ANTES da conta: `Number("")` e 0, `Number.isFinite(0)`
+       e true e 0 passa na faixa — o gestor que abrisse so para VER quanto era e
+       apertasse Enter gravava "0,0 cm - informada pelo gestor", que na aprovacao vira
+       `altura_antes_cm = 0` em `ia.execucoes`. O irmao no mesmo recurso ja separa os
+       dois casos: `paraNumero`, em `formularios-decisao.tsx`. */
+    const texto = altura.trim().replace(",", ".");
+    if (texto === "") {
+      setErroAltura("Informe a altura medida.");
+      return;
+    }
+    const valor = Number(texto);
     if (!Number.isFinite(valor) || valor < 0 || valor > 300) {
       setErroAltura("Altura fora da faixa (0 a 300 cm).");
       return;

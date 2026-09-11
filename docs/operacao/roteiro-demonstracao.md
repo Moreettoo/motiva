@@ -275,7 +275,9 @@ ter linha estranha no passo 9.
 
 ### Passo 1 — Entrar · 0:30
 
-**[clique]** `/entrar`, `admin.demo@demo.highwai.com.br` / `Demo-2026-solo`.
+**[clique]** `/entrar`, `admin.demo@demo.highwai.com.br` / a senha de `SEED_SENHA`
+(`web/.env.local`; o seed a imprime no fim). **Ela deixou de ser `Demo-2026-solo`** em
+11/09 — o literal era a senha de um `super_admin` e estava no repositório.
 
 *"Isto é o painel de quem decide a roçada. Eu entrei como Administrador. Reparem na lateral: Painel,
 Malha, Agenda, Chamados, Campo, Usuários. Daqui a pouco eu entro com outro cargo e essa lista vai ser
