@@ -16,6 +16,10 @@ const CABECALHOS_SEGURANCA = [
 ];
 
 const nextConfig: NextConfig = {
+  /* `X-Powered-By: Next.js` saia de toda resposta. Medido em 11/09/2026 numa resposta real de
+     `npm run start`: o cabecalho vinha no HTML e nas rotas de API. Nao e vulnerabilidade — e
+     entrega de graca qual framework atacar, e some com uma linha. */
+  poweredByHeader: false,
   async headers() {
     return [{ source: "/(.*)", headers: CABECALHOS_SEGURANCA }];
   },
