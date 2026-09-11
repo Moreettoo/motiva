@@ -144,14 +144,69 @@ await checar(
   },
 );
 
+/* A chave publishavel nao le NENHUMA tabela de `ia`, e a lista e explicita em vez de uma amostra:
+   `trechos` sozinho provava o RLS de `trechos`, e as nove tabelas da semana de acesso e chamados
+   entraram DEPOIS desse teste — cada uma delas e um lugar novo onde uma politica permissiva
+   passaria despercebida. As mais sensiveis da lista nao sao as de vegetacao: `perfis` diz quem
+   trabalha aqui, `convites` e `redefinicoes_senha` guardam hash de token, `chamado_fotos` carrega
+   GPS e caminho de arquivo, e `notificacoes` e o que cada pessoa recebeu.
+
+   O teste exige o errcode 42501 (permission denied) e NAO aceita "voltou vazio sem erro". Os dois
+   sao seguros hoje, mas significam coisas diferentes: 42501 e a ausencia de GRANT, que e o desenho
+   atual (`revoke all from anon, authenticated`); vazio-sem-erro seria grant concedido com RLS
+   filtrando, ou seja, alguem mexeu. Medido em 11/09/2026: as 15 respondem 42501.
+
+   Se este teste falhar porque o projeto passou a ler do navegador com a chave publishavel, a
+   correcao e reescrever ESTE teste de proposito — nao afrouxa-lo para "qualquer erro serve". */
+const FECHADAS_PARA_O_PUBLICO = [
+  "trechos", "agendamentos", "previsoes", "medicoes", "execucoes", "equipes", "zonas_clima",
+  "perfis", "convites", "redefinicoes_senha",
+  "chamados", "chamado_eventos", "chamado_fotos", "chamado_adiamentos", "notificacoes",
+];
+
 await checar(
-  "publishavel nao le ia.trechos",
+  "publishavel nao le nenhuma tabela de ia",
   async () => {
-    const { data, error } = await publico.from("trechos").select("id").limit(1);
-    if (error) return { data: [{ bloqueado: true }], error: null }; // erro de permissao e o esperado
-    return { data, error: null };
+    const abertas = [];
+    for (const tabela of FECHADAS_PARA_O_PUBLICO) {
+      const { data, error } = await publico.from(tabela).select("*").limit(1);
+      if (!error) abertas.push(`${tabela}: LEU (${data?.length ?? 0} linha(s), sem erro)`);
+      else if (error.code !== "42501") abertas.push(`${tabela}: recusou com ${error.code}, esperado 42501`);
+    }
+    return { data: abertas.length ? null : [{ bloqueado: FECHADAS_PARA_O_PUBLICO.length }], error: abertas.length ? { message: abertas.join(" | ") } : null };
   },
-  (data) => (Array.isArray(data) && data.length === 0) || data?.[0]?.bloqueado ? null : "a chave publishavel conseguiu ler trechos",
+);
+
+/* Ler e so metade: a migracao revogou tambem insert/update/delete. Um grant de escrita sem grant de
+   leitura e improvavel por acidente e devastador de proposito — `notificacoes` e `chamado_eventos`
+   sao append-only e alimentam o historico que ninguem confere linha a linha. */
+await checar(
+  "publishavel nao ESCREVE em ia",
+  async () => {
+    const tentativas = [
+      ["notificacoes", () => publico.from("notificacoes").insert({ tipo: "fumaca" })],
+      ["chamado_eventos", () => publico.from("chamado_eventos").insert({ chamado_id: -1, tipo: "comentario" })],
+      ["perfis", () => publico.from("perfis").update({ cargo: "super_admin" }).eq("usuario_id", "00000000-0000-0000-0000-000000000000")],
+      ["trechos", () => publico.from("trechos").delete().eq("id", -1)],
+    ];
+    const passaram = [];
+    for (const [nome, fn] of tentativas) {
+      const { error } = await fn();
+      if (!error) passaram.push(`${nome}: ESCREVEU`);
+      else if (error.code !== "42501") passaram.push(`${nome}: recusou com ${error.code}, esperado 42501`);
+    }
+    return { data: passaram.length ? null : [{ bloqueado: tentativas.length }], error: passaram.length ? { message: passaram.join(" | ") } : null };
+  },
+);
+
+/* A view tambem: ela e `security_invoker = on` desde 10/09/2026, entao ler por ela passa pelo RLS
+   das tabelas. Antes disso era `SECURITY DEFINER` e a view era o furo que contornava tudo. */
+await checar(
+  "publishavel nao le a view vw_trecho_status",
+  async () => {
+    const { error } = await publico.from("vw_trecho_status").select("id").limit(1);
+    return { data: error ? [{ bloqueado: true }] : null, error: error ? null : { message: "a chave publishavel leu a view" } };
+  },
 );
 await checar("perfis", () => db.from("perfis").select("usuario_id, cargo, ativo").limit(5), (d) => (Array.isArray(d) ? null : "forma inesperada"));
 await checar("convites", () => db.from("convites").select("id, email, expira_em").limit(5), (d) => (Array.isArray(d) ? null : "forma inesperada"));
@@ -258,18 +313,44 @@ await checar(
   },
 );
 
-/* A chave publishavel nao pode nem ler chamado nem executar decisao. */
+/* A chave publishavel nao executa NENHUMA das quatro decisoes. A leitura de `ia.chamados` ja esta
+   coberta acima; o que sobra aqui e o EXECUTE, que e grant separado e foi revogado separado. */
 await checar(
-  "publishavel nao le nem decide chamado",
+  "publishavel nao decide chamado",
   async () => {
-    const leitura = await publico.from("chamados").select("id").limit(1);
-    const decisao = await publico.rpc("aprovar_chamado", { p_chamado_id: 1, p_autor: null, p_km_rocados: 1, p_custo_reais: null, p_observacao: null });
-    const problemas = [];
-    if (!leitura.error && leitura.data?.length) problemas.push("leu ia.chamados");
-    if (!decisao.error) problemas.push("EXECUTOU aprovar_chamado");
-    return { data: problemas.length ? null : [{ bloqueado: true }], error: problemas.length ? { message: problemas.join(" e ") } : null };
+    const chamadas = [
+      ["aprovar_chamado", { p_chamado_id: 1, p_autor: null, p_km_rocados: 1, p_custo_reais: null, p_observacao: null }],
+      ["encerrar_chamado_admin", { p_chamado_id: 1, p_autor: null, p_data_execucao: "2026-01-01", p_altura_depois_cm: null, p_observacao: "x" }],
+      ["decidir_adiamento", { p_adiamento_id: 1, p_autor: null, p_aceito: true, p_nova_data: null, p_resposta: null }],
+      ["registrar_evento_chamado", { p_chamado_id: 1, p_evento_id: crypto.randomUUID(), p_tipo: "comentario", p_autor: null, p_origem: "painel", p_payload: {}, p_ocorrido_em: new Date().toISOString() }],
+    ];
+    /* Exige 42501 (sem EXECUTE), pelo mesmo motivo das tabelas: "deu erro" tambem acontece quando a
+       funcao RODA e recusa o argumento (P0001..P0004), e ai o grant ja teria sido concedido.
+       Medido em 11/09/2026: as quatro respondem "permission denied for function". */
+    const passaram = [];
+    for (const [nome, params] of chamadas) {
+      const { error } = await publico.rpc(nome, params);
+      if (!error) passaram.push(`${nome}: EXECUTOU`);
+      else if (error.code !== "42501") passaram.push(`${nome}: recusou com ${error.code}, esperado 42501 — a funcao RODOU`);
+    }
+    return { data: passaram.length ? null : [{ bloqueado: chamadas.length }], error: passaram.length ? { message: passaram.join(" | ") } : null };
   },
 );
+
+/* O bucket `chamados` guarda foto de faixa de dominio: placa, rosto e coordenada. O teste mira o
+   que vaza de verdade — BAIXAR um arquivo cujo caminho o atacante ja tenha, e ASSINAR um link novo.
+   `list()` nao entra como falha: com RLS ligada e zero politica ele volta `[]` sem erro (medido em
+   11/09/2026), o que revela a existencia do bucket e nenhum nome de arquivo. */
+await checar("publishavel nao baixa nem assina foto do bucket", async () => {
+  const { data: foto } = await db.from("chamado_fotos").select("caminho").limit(1).maybeSingle();
+  if (!foto) return { data: [{ vazio: true }], error: null }; // sem foto no banco, nada a provar
+  const baixou = await publico.storage.from("chamados").download(foto.caminho);
+  const assinou = await publico.storage.from("chamados").createSignedUrl(foto.caminho, 60);
+  const problemas = [];
+  if (!baixou.error) problemas.push("BAIXOU o arquivo");
+  if (!assinou.error) problemas.push("ASSINOU uma URL");
+  return { data: problemas.length ? null : [{ bloqueado: true }], error: problemas.length ? { message: problemas.join(" e ") } : null };
+});
 
 console.log(falhas ? `\n${falhas} verificação(ões) falharam.\n` : "\nTudo certo.\n");
 process.exit(falhas ? 1 : 0);
