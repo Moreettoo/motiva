@@ -20,7 +20,14 @@ const SECOES = [
   { chave: "hoje", titulo: "Hoje", destaque: true },
   { chave: "atrasados", titulo: "Atrasados", destaque: false },
   { chave: "proximos", titulo: "Próximos", destaque: false },
-  { chave: "aguardando", titulo: "Aguardando aprovação", destaque: false },
+  /* "Ja enviados", e nao "Aguardando aprovacao": o grupo `aguardando` de
+     `agruparChamados` junta TRES situacoes — `aguardando_aprovacao`,
+     `adiamento_solicitado` e `devolvido` —, e so a primeira espera aprovacao.
+     No ensaio do roteiro o cartao de um adiamento pedido aparecia com o selo
+     "Adiamento pedido" debaixo do titulo "Aguardando aprovacao", duas frases
+     que se contradizem na mesma tela. O que as tres tem em comum e ter saido
+     do aparelho. */
+  { chave: "aguardando", titulo: "Já enviados", destaque: false },
   { chave: "recentes", titulo: "Concluídos recentes", destaque: false },
 ] as const;
 
