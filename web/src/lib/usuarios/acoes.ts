@@ -8,7 +8,7 @@ import { EmailConvite } from "@/emails/convite";
 import { urlDoApp } from "../auth/links";
 import { motivoParaNaoAlterar, podeConvidar } from "../auth/permissoes";
 import { permitir } from "../auth/sessao";
-import { gerarToken, hashToken, prazo } from "../auth/tokens";
+import { diasDeValidade, gerarToken, hashToken, prazo } from "../auth/tokens";
 import { CARGO } from "../dominio";
 import { enviarEmail } from "../email/enviar";
 import { fmt } from "../format";
@@ -18,7 +18,7 @@ import { CARGOS, type Cargo } from "../types";
 import { contarSuperAdminsAtivos } from "./queries";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const VALIDADE_HORAS = Number(process.env.CONVITE_VALIDADE_DIAS ?? "7") * 24;
+const VALIDADE_HORAS = diasDeValidade(process.env.CONVITE_VALIDADE_DIAS) * 24;
 
 function revalidarUsuarios() {
   revalidatePath("/usuarios");
