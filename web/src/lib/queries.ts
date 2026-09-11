@@ -81,6 +81,14 @@ function diasAtras(dias: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+/*
+ * O `.order("id")` que acompanha cada ordenacao daqui e o mesmo desempate da
+ * `ia.vw_trecho_status`, e existe pelo mesmo motivo: as linhas semeadas tem
+ * `criado_em` sintetico -- varias com o mesmo horario literal --, e num empate
+ * o Postgres devolve na ordem fisica, que nao e ordem nenhuma. Sem ele a
+ * "ultima" previsao da pagina do trecho podia ser outra linha que a "ultima"
+ * previsao da view, na mesma tela. O id e monotonico e nao depende de relogio.
+ */
 export const medicoesDoTrecho = cache(async (trechoId: number, dias = 240): Promise<Medicao[]> => {
   const desde = diasAtras(dias);
   const { data, error } = await db
@@ -88,7 +96,8 @@ export const medicoesDoTrecho = cache(async (trechoId: number, dias = 240): Prom
     .select("id, trecho_id, data, altura_cm")
     .eq("trecho_id", trechoId)
     .gte("data", desde)
-    .order("data");
+    .order("data")
+    .order("id");
   if (error) erro(`as medicoes do trecho ${trechoId}`, error);
   return data as Medicao[];
 });
@@ -99,6 +108,7 @@ export const previsoesDoTrecho = cache(async (trechoId: number, limite = 60): Pr
     .select("*")
     .eq("trecho_id", trechoId)
     .order("criado_em", { ascending: false })
+    .order("id", { ascending: false })
     .limit(limite);
   if (error) erro(`as previsoes do trecho ${trechoId}`, error);
   return (data as Previsao[]).reverse();
@@ -109,7 +119,8 @@ export const execucoesDoTrecho = cache(async (trechoId: number): Promise<Execuca
     .from("execucoes")
     .select("*")
     .eq("trecho_id", trechoId)
-    .order("data_execucao", { ascending: false });
+    .order("data_execucao", { ascending: false })
+    .order("id", { ascending: false });
   if (error) erro(`as execucoes do trecho ${trechoId}`, error);
   return data as Execucao[];
 });
@@ -143,7 +154,8 @@ export const agendamentosDoTrecho = cache(async (trechoId: number): Promise<Agen
     .from("agendamentos")
     .select(SELECT_AGENDAMENTO)
     .eq("trecho_id", trechoId)
-    .order("criado_em", { ascending: false });
+    .order("criado_em", { ascending: false })
+    .order("id", { ascending: false });
   if (error) erro(`os agendamentos do trecho ${trechoId}`, error);
   return data as unknown as AgendamentoDetalhado[];
 });

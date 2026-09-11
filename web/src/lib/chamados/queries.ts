@@ -128,8 +128,12 @@ export const contarNaoLidas = cache(async (usuarioId: string): Promise<number> =
   return count ?? 0;
 });
 
+/* O `.order("id")` desempata: um `registrar_evento_chamado` escreve varias
+   notificacoes na MESMA transacao, entao elas dividem o `criado_em` ao
+   microssegundo, e sem ele quais 20 o sino mostra -- e qual e a 21a que ele
+   corta -- sai por acaso. */
 export const listarNotificacoes = cache(async (usuarioId: string, limite = 20): Promise<Notificacao[]> => {
-  const { data, error } = await db.from("notificacoes").select("*").eq("destinatario_id", usuarioId).order("criado_em", { ascending: false }).limit(limite);
+  const { data, error } = await db.from("notificacoes").select("*").eq("destinatario_id", usuarioId).order("criado_em", { ascending: false }).order("id", { ascending: false }).limit(limite);
   if (error) erro("as notificações", error);
   return (data ?? []) as unknown as Notificacao[];
 });
