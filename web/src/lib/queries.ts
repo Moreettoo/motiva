@@ -4,7 +4,7 @@ import { cache } from "react";
 
 import { db } from "./supabase";
 import { diasEntre, isoHoje, somarDias } from "./format";
-import { ordemRisco } from "./dominio";
+import { ordemRisco, prioridadeExibida } from "./dominio";
 import { distanciaKm, groupBy, sum } from "./utils";
 import type {
   AgendamentoDetalhado,
@@ -143,8 +143,17 @@ export const listarAgendamentos = cache(
     const { data, error } = await q.order("data_sugerida");
     if (error) erro("os agendamentos", error);
 
-    return (data as unknown as AgendamentoDetalhado[]).sort(
-      (a, b) => a.data_sugerida.localeCompare(b.data_sugerida) || ordemRisco(a.prioridade) - ordemRisco(b.prioridade),
+    /* O desempate sai do PRAZO, nao da palavra que a LLM gravou na coluna --
+       a mesma invariante da view e de `criarRocadaManual`. `chamados/queries.ts`
+       ja tinha corrigido isto na fila de decisao, com o motivo escrito la:
+       ordenar pela palavra registrada e pintar o prazo poe o vermelho no meio
+       da lista. Aqui a lista alimenta a gaveta de nova rocada, o painel e o
+       contexto do copiloto. */
+    const lista = data as unknown as AgendamentoDetalhado[];
+    const risco = (a: AgendamentoDetalhado) =>
+      prioridadeExibida(a.previsao?.dias_ate_limite, a.prioridade, a.origem).risco;
+    return lista.sort(
+      (a, b) => a.data_sugerida.localeCompare(b.data_sugerida) || ordemRisco(risco(a)) - ordemRisco(risco(b)),
     );
   },
 );
