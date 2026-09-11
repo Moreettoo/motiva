@@ -407,7 +407,16 @@ def main():
 
     zonas, ambiente = montar_zonas(trechos, hoje)
 
-    gravados, pulados, descartados, erros = 0, 0, 0, []
+    # `pulados` era UM numero, e ele juntava coisas que nao sao a mesma: trecho
+    # folgado (nao precisa mesmo), trecho na banda de histerese, trecho que JA TEM
+    # roçada aprovada — esse precisa, e muito, so nao e o lote quem decide — e
+    # trecho que o lote NAO CONSEGUIU analisar. O ultimo e o que doi: zona que
+    # falhou no Open-Meteo ou no SoilGrids, ou trecho sem medicao, saia da rodada
+    # contado como "sem necessidade", com `erros` em zero e o workflow VERDE. Um
+    # terco da malha podia envelhecer em silencio e a linha final dizia que estava
+    # tudo bem. Contados em separado, "sem dados" aparece.
+    gravados, descartados, erros = 0, 0, []
+    motivos = {"sem_dados": 0, "folgado": 0, "na_banda": 0, "ja_aprovado": 0}
 
     for t in trechos:
         nome = f'{t["rodovia"]} km {t["km_inicio"]}-{t["km_fim"]}'
@@ -415,14 +424,14 @@ def main():
             amb = ambiente.get(zona_do_trecho(t, zonas)[0])
             if amb is None:
                 print(f"  [sem ambiente] {nome}")
-                pulados += 1
+                motivos["sem_dados"] += 1
                 continue
 
             try:
                 r = analise.analisar_trecho(sb, t, amb[0], amb[1], hoje)
             except LookupError as e:
                 print(f"  [{e}]  {nome}")
-                pulados += 1
+                motivos["sem_dados"] += 1
                 continue
 
             dias, taxa, limite = r["dias"], r["taxa"], r["limite"]
@@ -455,7 +464,7 @@ def main():
                 extra = f"  ->  {fechados} agendamento(s) fechado(s)" if fechados else ""
                 print(f"  [ok, sem LLM]  {nome:44s} {taxa:.3f} cm/dia  "
                       f"{prazo}{extra}")
-                pulados += 1
+                motivos["folgado"] += 1
                 continue
 
             # Banda de histerese (46-55 dias): nao cria e nao fecha. O trecho
@@ -464,7 +473,7 @@ def main():
             if not precisa:
                 print(f"  [ok, na banda] {nome:44s} {taxa:.3f} cm/dia  "
                       f"{dias}d ate o limite")
-                pulados += 1
+                motivos["na_banda"] += 1
                 continue
 
             # UM agendamento aberto por trecho. Antes o lote inseria uma linha
@@ -491,7 +500,7 @@ def main():
             if aberto and aberto[0]["status"] == "aprovado":
                 print(f"  [aprovado]     {nome:44s} {taxa:.3f} cm/dia  "
                       f"{dias}d ate o limite  ->  data mantida")
-                pulados += 1
+                motivos["ja_aprovado"] += 1
                 continue
 
             dec = decidir(analise.contexto_para_llm(t, r, hoje))
@@ -536,8 +545,25 @@ def main():
             erros.append((nome, f"{type(e).__name__}: {e}"))
             print(f"  [ERRO]     {nome}: {type(e).__name__}: {e}")
 
-    print(f"\nAgendamentos gravados: {gravados} | sem necessidade: {pulados} "
+    analisados = gravados + sum(motivos.values())
+    print(f"\nAgendamentos gravados: {gravados} "
+          f"| folgados: {motivos['folgado']} "
+          f"| na banda: {motivos['na_banda']} "
+          f"| ja aprovados: {motivos['ja_aprovado']} "
           f"| fechados por folga: {descartados} | erros: {len(erros)}")
+
+    # Linha propria, e com a palavra SEM PREVISAO: e a unica do resumo que
+    # significa "a malha ficou velha", e ela nao pode dividir espaco com as
+    # outras. Nao mexe no codigo de saida — uma zona que o Open-Meteo recusou
+    # hoje costuma responder amanha, e derrubar a rodada inteira por isso seria
+    # pior do que a agenda de um trecho ficar um dia velha. Mas agora da para VER.
+    if motivos["sem_dados"]:
+        print(f"ATENCAO: {motivos['sem_dados']} trecho(s) SEM PREVISAO NOVA "
+              f"(zona sem clima/solo, ou trecho sem medicao) - a agenda deles "
+              f"esta velha")
+    if analisados + len(erros) != len(trechos):
+        print(f"ATENCAO: {analisados} contabilizado(s) + {len(erros)} com erro "
+              f"!= {len(trechos)} trecho(s) pedidos")
     print(f"Consultas externas: {len(ambiente)} ao Open-Meteo e {len(ambiente)} ao "
           f"SoilGrids (uma de cada por zona, para {len(trechos)} trechos)")
     if erros:
