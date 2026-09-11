@@ -110,6 +110,24 @@ export async function definirSenha(entrada: { senha: string; confirmacao: string
   const { error } = await supabase.auth.updateUser({ password: entrada.senha });
   if (error) return { ok: false, erro: `Não foi possível gravar a senha: ${error.message}` };
 
-  await db.from("perfis").update({ senha_provisoria: false }).eq("usuario_id", sessao.usuarioId);
+  /* A senha ja mudou; se a baixa da marca falhar, o `ok` seria uma mentira com
+     consequencia visivel: `exigirSessao` le `senha_provisoria` a cada
+     requisicao, entao o `/` para onde o formulario redireciona devolve a pessoa
+     a /definir-senha, que a manda para `/` de novo. Ciclo fechado, sem uma
+     mensagem, na PRIMEIRA tela de quem acabou de receber a conta --
+     `semear-super-admin.mjs` cria o primeiro Super Admin com a marca ligada.
+     Dizer que a senha trocou (trocou) e que a marca nao caiu da a saida: sair e
+     entrar de novo com a senha NOVA passa por aqui outra vez. */
+  const { error: erroMarca } = await db
+    .from("perfis")
+    .update({ senha_provisoria: false })
+    .eq("usuario_id", sessao.usuarioId);
+  if (erroMarca) {
+    return {
+      ok: false,
+      erro: "Sua senha foi trocada, mas não foi possível concluir o primeiro acesso. Saia e entre de novo com a senha nova.",
+    };
+  }
+
   return { ok: true, dados: { destino: rotaInicial(sessao.cargo) } };
 }
