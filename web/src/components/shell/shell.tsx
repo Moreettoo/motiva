@@ -61,9 +61,15 @@ async function carregarCasco(usuarioId: string): Promise<DadosDoCasco> {
       naoLidas,
       notificacoes,
     };
-  } catch {
+  } catch (e) {
     // O casco envolve TODAS as telas: se o banco tropeça, a moldura continua de
     // pé e quem reporta o erro é a página, que sabe o que estava tentando ler.
+    //
+    // Mas o silêncio era completo: o sino passava a dizer "0 não lidas" — que é
+    // uma afirmação, não uma ausência — e a paleta ficava vazia, sem deixar
+    // rastro em lugar nenhum. A moldura continua de pé; o log é para quem
+    // depois pergunta por que o sino zerou.
+    console.error("[casco] falha ao carregar a moldura do painel", e);
     return CASCO_VAZIO;
   }
 }

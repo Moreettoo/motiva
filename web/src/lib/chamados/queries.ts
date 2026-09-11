@@ -98,6 +98,12 @@ export const obterChamado = cache(async (id: number) => {
   if (!data) return null;
   if (eventos.error) erro(`os eventos do chamado ${id}`, eventos.error);
   if (fotos.error) erro(`as fotos do chamado ${id}`, fotos.error);
+  /* O `adiamento` estava sem esta linha, sozinho entre os quatro. E a ausencia
+     dele nao e neutra: `acoesDisponiveis` continua oferecendo "Decidir
+     adiamento" (o botao vem do STATUS, nao desta leitura), e o clique cai num
+     `formulario === "decidir_adiamento" && adiamento` que e falso -- botao que
+     abre uma secao vazia. */
+  if (adiamento.error) erro(`o adiamento do chamado ${id}`, adiamento.error);
   const base = normalizar(data as unknown as Bruto);
   return {
     ...base,
@@ -110,7 +116,13 @@ export const obterChamado = cache(async (id: number) => {
 
 export const filaDeDecisao = cache(async (hoje: string) => {
   const abertos = await listarChamados({ status: ["aguardando_aprovacao", "adiamento_solicitado", "aberto"] });
-  const { data: pendentes } = await db.from("chamado_adiamentos").select("*").is("decisao", null);
+  /* Sem conferir o `error`, uma leitura que FALHOU e uma leitura que nao achou
+     nada davam a mesma tela: "Nada esperando voce" na fila de decisao, e um
+     numero menor no cabecalho de /chamados, enquanto a lista logo abaixo segue
+     mostrando os chamados em "Adiamento pedido". Afirmar que nao ha nada para
+     decidir e uma afirmacao; ela nao pode sair de graca de um erro. */
+  const { data: pendentes, error: erroPendentes } = await db.from("chamado_adiamentos").select("*").is("decisao", null);
+  if (erroPendentes) erro("os adiamentos pendentes", erroPendentes);
   const porChamado = new Map(((pendentes ?? []) as unknown as ChamadoAdiamento[]).map((a) => [a.chamado_id, a]));
   return {
     aguardando: abertos.filter((c) => c.status === "aguardando_aprovacao").sort((a, b) => (a.finalizado_em ?? "").localeCompare(b.finalizado_em ?? "")),
@@ -124,7 +136,10 @@ export const filaDeDecisao = cache(async (hoje: string) => {
 });
 
 export const contarNaoLidas = cache(async (usuarioId: string): Promise<number> => {
-  const { count } = await db.from("notificacoes").select("id", { count: "exact", head: true }).eq("destinatario_id", usuarioId).is("lida_em", null);
+  const { count, error } = await db.from("notificacoes").select("id", { count: "exact", head: true }).eq("destinatario_id", usuarioId).is("lida_em", null);
+  /* "Zero nao lidas" e o sino dizendo "nao ha nada para voce ver". Com o `error`
+     descartado, essa frase saia de graca de uma falha de leitura. */
+  if (error) erro("as notificações não lidas", error);
   return count ?? 0;
 });
 
