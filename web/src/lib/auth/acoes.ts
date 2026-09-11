@@ -12,10 +12,44 @@ import { erroDaSenha } from "./tokens";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** So caminho interno que o cargo pode ver; qualquer outra coisa cai na rota inicial. */
+/**
+ * So caminho interno que o cargo pode ver; qualquer outra coisa cai na rota
+ * inicial.
+ *
+ * A checagem por TEXTO -- comeca com "/" e nao com "//" -- parecia bastar e nao
+ * bastava. O parser de URL do navegador normaliza a barra invertida em barra e
+ * ignora tabulacao e quebra de linha no comeco da autoridade, entao dois
+ * caminhos passavam pela guarda antiga e saiam do dominio:
+ *
+ *     "/" + "\\" + "evil.com"     -> origem https://evil.com
+ *     "/" + TAB + "/evil.com"    -> origem https://evil.com
+ *
+ * `podeVerRota` nao segura: para quem nao e rocador, rota desconhecida devolve
+ * `true` de proposito. Entao bastava mandar ao gestor um link
+ * `/entrar?proximo=/\evil.com`: ele digitava a senha no dominio VERDADEIRO, o
+ * login funcionava, e o navegador o entregava numa pagina do atacante pedindo a
+ * senha de novo -- sem nenhum motivo para desconfiar, porque ele acabou de
+ * entrar com sucesso no endereco certo.
+ *
+ * Quem decide se e caminho interno agora e o mesmo parser que o navegador usa:
+ * resolvemos contra uma origem de mentira e so aceitamos se a origem
+ * sobreviveu. O que volta e o caminho ja normalizado.
+ */
 function destinoSeguro(proximo: string | null | undefined, cargo: Cargo): string {
-  if (proximo && proximo.startsWith("/") && !proximo.startsWith("//") && podeVerRota(cargo, proximo)) return proximo;
-  return rotaInicial(cargo);
+  const padrao = rotaInicial(cargo);
+  if (!proximo) return padrao;
+
+  const BASE = "https://interno.invalid";
+  let url: URL;
+  try {
+    url = new URL(proximo, BASE);
+  } catch {
+    return padrao;
+  }
+  if (url.origin !== BASE) return padrao;
+
+  const caminho = url.pathname + url.search + url.hash;
+  return podeVerRota(cargo, url.pathname) ? caminho : padrao;
 }
 
 export async function entrar(entrada: {
