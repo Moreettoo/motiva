@@ -3,7 +3,7 @@ import "server-only";
 import { cache } from "react";
 
 import { db } from "../supabase";
-import type { Convite, Perfil } from "../types";
+import { COLUNAS_CONVITE, type Convite, type Perfil } from "../types";
 
 /* Leitura lança (o `error.tsx` da rota trata); escrita devolve `Resultado`. */
 function erro(contexto: string, e: { message: string } | null): never {
@@ -32,7 +32,9 @@ export const listarConvitesPendentes = cache(
   async (): Promise<(Convite & { convidador_nome: string; equipe_nome: string | null })[]> => {
     const { data, error } = await db
       .from("convites")
-      .select("*, convidador:perfis!convites_criado_por_fkey ( nome ), equipe:equipes ( nome )")
+      .select(
+        `${COLUNAS_CONVITE}, convidador:perfis!convites_criado_por_fkey ( nome ), equipe:equipes ( nome )`,
+      )
       .is("aceito_em", null)
       .is("revogado_em", null)
       .order("criado_em", { ascending: false });

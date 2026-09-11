@@ -67,6 +67,19 @@ export type Perfil = {
   desativado_em: string | null;
 };
 
+/**
+ * As colunas do convite que podem sair do servidor.
+ *
+ * `ia.convites` tem uma coluna a mais, `token_hash`, e ela NAO esta aqui de
+ * proposito: a linha inteira do convite atravessa para componentes de cliente
+ * (a lista de convites pendentes) e a pagina publica /convite/[token] tambem a
+ * le. Um `select("*")` embarcava o hash no payload do RSC sem que o TypeScript
+ * pudesse reclamar -- o tipo nao declara a coluna, entao ninguem via. Toda
+ * leitura de convite passa por `COLUNAS_CONVITE`.
+ */
+export const COLUNAS_CONVITE =
+  "id, email, cargo, equipe_id, expira_em, criado_por, criado_em, enviado_em, aceito_em, revogado_em";
+
 export type Convite = {
   id: string;
   email: string;

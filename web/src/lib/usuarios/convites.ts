@@ -2,7 +2,7 @@ import "server-only";
 
 import { expirado, hashToken } from "../auth/tokens";
 import { db } from "../supabase";
-import type { Convite } from "../types";
+import { COLUNAS_CONVITE, type Convite } from "../types";
 
 export type SituacaoConvite = "valido" | "expirado" | "revogado" | "aceito" | "inexistente";
 
@@ -19,7 +19,9 @@ export async function buscarConvitePorToken(token: string): Promise<{
 
   const { data } = await db
     .from("convites")
-    .select("*, equipe:equipes ( nome ), convidador:perfis!convites_criado_por_fkey ( nome )")
+    .select(
+      `${COLUNAS_CONVITE}, equipe:equipes ( nome ), convidador:perfis!convites_criado_por_fkey ( nome )`,
+    )
     .eq("token_hash", await hashToken(token))
     .maybeSingle();
 
