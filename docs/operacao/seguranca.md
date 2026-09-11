@@ -65,8 +65,8 @@ qualquer coisa com cara de JWT: `eyJ…`).
 | `SUPABASE_SERVICE_KEY` (219 chars) | limpo |
 | `OPENAI_API_KEY` (164 chars) | limpo |
 | `RESEND_API_KEY` (36 chars) | limpo |
-| `GITHUB_TOKEN` | **não está no `.env.local` desta máquina** — não testável por valor; coberto pela prova estrutural abaixo |
-| `SUPABASE_SECRET_KEY` | idem (o painel ainda usa a `SERVICE_KEY`) |
+| `GITHUB_TOKEN` (93 chars) | limpo — testado com valor **real**, depois de o token ter sido posto no `.env.local` para o teste do workflow, com `npm run build` refeito com ele presente |
+| `SUPABASE_SECRET_KEY` | **não está no `.env.local`** (o painel ainda usa a `SERVICE_KEY`) — coberto só pela prova estrutural abaixo |
 
 Nenhum `eyJ…` no pacote do cliente, e nenhum dos padrões genéricos.
 
@@ -274,6 +274,23 @@ nunca o `curl` de quem alcança a porta.
 | 4 | `btree_gist` no schema `public` | Baixo. Mexer no schema da extensão antes da demonstração é pior que o aviso. |
 | 5 | 24 chaves estrangeiras sem índice | Nenhum nesta escala. |
 | 6 | Sessão de conta desativada não medida | Baixo. O código relê `ia.perfis` a cada requisição; falta a prova de campo. |
+| 7 | `SUPABASE_SECRET_KEY` sem valor local | Baixo. O painel cai na `SERVICE_KEY`, que foi varrida e está limpa; o dia em que a secreta for adotada, refazer (b). |
+
+## O `GITHUB_TOKEN` no `.env.local`
+
+Para testar o disparo da reanálise pela tela do trecho (o botão "Reanalisar"), um token foi posto
+em `web/.env.local` em 11/09/2026. Duas notas que importam:
+
+- o arquivo é **gitignored** (`web/.gitignore:47`, `.env*`), foi conferido com `git check-ignore`, e
+  nenhum commit desta onda o inclui;
+- o token foi **removido** ao fim do teste. Se o botão voltar a responder "a reanálise sob demanda
+  precisa da variável GITHUB_TOKEN", é porque ele não está no ambiente — o que é o estado normal
+  deste repositório, e **não** um defeito do painel.
+
+**Onde isso importa de verdade:** o botão só funciona onde `GITHUB_TOKEN` existe. Em nenhum dos seis
+checkouts locais ele existia. Se a Vercel também não o tiver, o botão está quebrado **em produção** —
+vale conferir nas variáveis de ambiente do projeto antes de 13/09, porque a falha só aparece no
+clique.
 
 ---
 
