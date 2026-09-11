@@ -8,7 +8,7 @@ import { EmailConvite } from "@/emails/convite";
 import { urlDoApp } from "../auth/links";
 import { motivoParaNaoAlterar, podeConvidar } from "../auth/permissoes";
 import { permitir } from "../auth/sessao";
-import { gerarToken, hashToken, prazo } from "../auth/tokens";
+import { diasDeValidade, gerarToken, hashToken, prazo } from "../auth/tokens";
 import { CARGO } from "../dominio";
 import { enviarEmail } from "../email/enviar";
 import { fmt } from "../format";
@@ -18,7 +18,7 @@ import { CARGOS, type Cargo } from "../types";
 import { contarSuperAdminsAtivos } from "./queries";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const VALIDADE_HORAS = Number(process.env.CONVITE_VALIDADE_DIAS ?? "7") * 24;
+const VALIDADE_HORAS = diasDeValidade(process.env.CONVITE_VALIDADE_DIAS) * 24;
 
 function revalidarUsuarios() {
   revalidatePath("/usuarios");
@@ -149,6 +149,14 @@ export async function reenviarConvite(
   if (!convite || convite.aceito_em || convite.revogado_em) {
     return { ok: false, erro: "Este convite não está mais pendente." };
   }
+  // A mesma trava de `convidarUsuario`, e pelo mesmo motivo: reenviar EMITE UM
+  // TOKEN NOVO e devolve o link a quem clicou. Sem isto um Admin reenvia o
+  // convite pendente de um Super Admin, copia o link da propria tela e aceita
+  // no lugar dele -- virando Super Admin sem passar por nenhuma das travas de
+  // `motivoParaNaoAlterar`.
+  if (!podeConvidar(sessao.dados.cargo, convite.cargo as Cargo)) {
+    return { ok: false, erro: "Só um Super Admin reenvia o convite de outro Super Admin." };
+  }
 
   const equipe = convite.equipe as unknown as { nome: string } | { nome: string }[] | null;
   const emissao = await emitirConvite(convite.id as string, {
@@ -166,6 +174,12 @@ export async function reenviarConvite(
 export async function revogarConvite(id: string): Promise<Resultado> {
   const sessao = await permitir("super_admin", "admin");
   if (!sessao.ok) return sessao;
+
+  const { data: convite } = await db.from("convites").select("cargo").eq("id", id).maybeSingle();
+  if (!convite) return { ok: false, erro: "Este convite não está mais pendente." };
+  if (!podeConvidar(sessao.dados.cargo, convite.cargo as Cargo)) {
+    return { ok: false, erro: "Só um Super Admin revoga o convite de outro Super Admin." };
+  }
 
   const { error } = await db
     .from("convites")
@@ -207,13 +221,25 @@ export async function alterarCargo(usuarioId: string, cargo: Cargo): Promise<Res
   });
   if (motivo) return { ok: false, erro: motivo };
 
-  // Quem deixa de ser Rocador deixa a equipe sem lider: um Admin nao lidera turma.
-  if (alvo.cargo === "rocador" && cargo !== "rocador") {
-    await db.from("equipes").update({ lider_id: null }).eq("lider_id", usuarioId);
-  }
-
+  /* O cargo PRIMEIRO, e a equipe depois.
+     Na ordem inversa, uma falha na troca do cargo deixava o estado partido e o
+     erro na tela mentia sobre ele: a pessoa continuava Rocador -- porque o
+     `perfis` nao mudou -- mas ja nao liderava nada. O Admin lia "Nao foi
+     possivel alterar o cargo", concluia que nada aconteceu, e so descobria pelo
+     rocador, cujo app abre vazio no dia seguinte.
+     Nesta ordem a falha do primeiro passo nao toca a equipe, e a falha do
+     segundo deixa um estado que a propria tela mostra e o Admin conserta: cargo
+     novo com a equipe ainda apontando para ele. */
   const { error } = await db.from("perfis").update({ cargo }).eq("usuario_id", usuarioId);
   if (error) return { ok: false, erro: `Não foi possível alterar o cargo: ${error.message}` };
+
+  // Quem deixa de ser Rocador deixa a equipe sem lider: um Admin nao lidera turma.
+  if (alvo.cargo === "rocador" && cargo !== "rocador") {
+    const { error: erroEquipe } = await db.from("equipes").update({ lider_id: null }).eq("lider_id", usuarioId);
+    if (erroEquipe) {
+      return { ok: false, erro: `O cargo mudou, mas a equipe continua com esta pessoa como líder: ${erroEquipe.message}. Tente de novo.` };
+    }
+  }
   const { error: erroAuth } = await db.auth.admin.updateUserById(usuarioId, { app_metadata: { cargo } });
   if (erroAuth) return { ok: false, erro: `O perfil mudou, mas o token não: ${erroAuth.message}. Tente de novo.` };
 

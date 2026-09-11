@@ -34,11 +34,24 @@ export const obterSessao = cache(async (): Promise<Sessao | null> => {
 
   // O cargo autoritativo e o do perfil, nao o do token: desativar alguem tem
   // que valer na proxima requisicao, e o token vive ate uma hora.
-  const { data: perfil } = await db
+  const { data: perfil, error: erroPerfil } = await db
     .from("perfis")
     .select("email, nome, cargo, ativo, senha_provisoria, equipes!equipes_lider_id_fkey ( id )")
     .eq("usuario_id", usuarioId)
     .maybeSingle();
+
+  /* Falha de LEITURA nao e "nao autorizado", e o `error` estava sendo
+     descartado -- as duas situacoes caiam no mesmo `return null`. E `null` aqui
+     significa "esta pessoa nao pode entrar": um soluco de cinco segundos no
+     Supabase deslogava TODO MUNDO, em toda rota, e mandava cada um para
+     /entrar sem uma palavra sobre o que houve.
+     Levantar segue a convencao de leitura do projeto (`queries.ts`: "leitura
+     lanca, o error.tsx da rota trata"). Nas rotas de /api/campo o 500 tambem e
+     a resposta certa: a fila do aparelho trata 5xx como transitorio e reenvia,
+     enquanto o 401 de antes fazia o app anunciar sessao expirada e parar. */
+  if (erroPerfil) {
+    throw new Error(`Falha ao ler o perfil da sessão: ${erroPerfil.message}`);
+  }
 
   if (!perfil || !perfil.ativo) return null;
 

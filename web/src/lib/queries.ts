@@ -4,7 +4,7 @@ import { cache } from "react";
 
 import { db } from "./supabase";
 import { diasEntre, isoHoje, somarDias } from "./format";
-import { ordemRisco } from "./dominio";
+import { ordemRisco, prioridadeExibida } from "./dominio";
 import { distanciaKm, groupBy, sum } from "./utils";
 import type {
   AgendamentoDetalhado,
@@ -81,6 +81,14 @@ function diasAtras(dias: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+/*
+ * O `.order("id")` que acompanha cada ordenacao daqui e o mesmo desempate da
+ * `ia.vw_trecho_status`, e existe pelo mesmo motivo: as linhas semeadas tem
+ * `criado_em` sintetico -- varias com o mesmo horario literal --, e num empate
+ * o Postgres devolve na ordem fisica, que nao e ordem nenhuma. Sem ele a
+ * "ultima" previsao da pagina do trecho podia ser outra linha que a "ultima"
+ * previsao da view, na mesma tela. O id e monotonico e nao depende de relogio.
+ */
 export const medicoesDoTrecho = cache(async (trechoId: number, dias = 240): Promise<Medicao[]> => {
   const desde = diasAtras(dias);
   const { data, error } = await db
@@ -88,7 +96,8 @@ export const medicoesDoTrecho = cache(async (trechoId: number, dias = 240): Prom
     .select("id, trecho_id, data, altura_cm")
     .eq("trecho_id", trechoId)
     .gte("data", desde)
-    .order("data");
+    .order("data")
+    .order("id");
   if (error) erro(`as medicoes do trecho ${trechoId}`, error);
   return data as Medicao[];
 });
@@ -99,6 +108,7 @@ export const previsoesDoTrecho = cache(async (trechoId: number, limite = 60): Pr
     .select("*")
     .eq("trecho_id", trechoId)
     .order("criado_em", { ascending: false })
+    .order("id", { ascending: false })
     .limit(limite);
   if (error) erro(`as previsoes do trecho ${trechoId}`, error);
   return (data as Previsao[]).reverse();
@@ -109,7 +119,8 @@ export const execucoesDoTrecho = cache(async (trechoId: number): Promise<Execuca
     .from("execucoes")
     .select("*")
     .eq("trecho_id", trechoId)
-    .order("data_execucao", { ascending: false });
+    .order("data_execucao", { ascending: false })
+    .order("id", { ascending: false });
   if (error) erro(`as execucoes do trecho ${trechoId}`, error);
   return data as Execucao[];
 });
@@ -132,8 +143,17 @@ export const listarAgendamentos = cache(
     const { data, error } = await q.order("data_sugerida");
     if (error) erro("os agendamentos", error);
 
-    return (data as unknown as AgendamentoDetalhado[]).sort(
-      (a, b) => a.data_sugerida.localeCompare(b.data_sugerida) || ordemRisco(a.prioridade) - ordemRisco(b.prioridade),
+    /* O desempate sai do PRAZO, nao da palavra que a LLM gravou na coluna --
+       a mesma invariante da view e de `criarRocadaManual`. `chamados/queries.ts`
+       ja tinha corrigido isto na fila de decisao, com o motivo escrito la:
+       ordenar pela palavra registrada e pintar o prazo poe o vermelho no meio
+       da lista. Aqui a lista alimenta a gaveta de nova rocada, o painel e o
+       contexto do copiloto. */
+    const lista = data as unknown as AgendamentoDetalhado[];
+    const risco = (a: AgendamentoDetalhado) =>
+      prioridadeExibida(a.previsao?.dias_ate_limite, a.prioridade, a.origem).risco;
+    return lista.sort(
+      (a, b) => a.data_sugerida.localeCompare(b.data_sugerida) || ordemRisco(risco(a)) - ordemRisco(risco(b)),
     );
   },
 );
@@ -143,7 +163,8 @@ export const agendamentosDoTrecho = cache(async (trechoId: number): Promise<Agen
     .from("agendamentos")
     .select(SELECT_AGENDAMENTO)
     .eq("trecho_id", trechoId)
-    .order("criado_em", { ascending: false });
+    .order("criado_em", { ascending: false })
+    .order("id", { ascending: false });
   if (error) erro(`os agendamentos do trecho ${trechoId}`, error);
   return data as unknown as AgendamentoDetalhado[];
 });
@@ -230,20 +251,52 @@ export const trechosPorRodovia = cache(async () => {
 });
 
 /**
+ * Tamanho da pagina do PostgREST.
+ *
+ * O `db-max-rows` do projeto corta a resposta em mil linhas e avisa APENAS no
+ * cabecalho `content-range` (`0-999/1490`). `error` volta nulo: para o cliente,
+ * uma consulta truncada e indistinguivel de uma consulta que acabou. Por isso
+ * uma leitura que pode passar de mil linhas tem que PAGINAR, e nao so confiar
+ * no `error`.
+ */
+const PAGINA_POSTGREST = 1000;
+
+/**
  * Serie diaria de crescimento medio da malha nos ultimos N dias.
  * Uma linha por especie: sao 3, dentro do limite de series validado.
  */
 export const serieCrescimentoPorEspecie = cache(async (dias = 45) => {
   const desde = diasAtras(dias);
-  const { data, error } = await db
-    .from("previsoes")
-    .select("data_previsao, crescimento_cm_dia, trecho_id, trechos!inner ( especie )")
-    .gte("data_previsao", desde)
-    .order("data_previsao");
-  if (error) erro("a serie de crescimento", error);
 
   type Linha = { data_previsao: string; crescimento_cm_dia: number; trechos: { especie: string } };
-  const linhas = data as unknown as Linha[];
+  const linhas: Linha[] = [];
+
+  /* `ia.previsoes` ACUMULA: uma linha por trecho por execucao do lote, ~50 por
+     dia. A janela de 45 dias passou de mil linhas ha tempo, e o corte nao caia
+     numa fronteira de dia -- ele caia DENTRO de um dia, entregando 3 das 28
+     previsoes de 26/08. O grafico entao terminava dezesseis dias no passado, e
+     o ultimo ponto era a media de tres trechos apresentada como a media da
+     malha. Pior: `page.tsx` tira a variacao de 7 dias desse mesmo ultimo ponto,
+     entao o cartao "Crescimento medio" anunciava uma QUEDA -- com a seta verde
+     de "isso e bom" -- que nunca aconteceu.
+
+     O teto de paginas e guarda-corpo, nao regra: 45 dias × 50 trechos cabe em
+     tres paginas, e parar em vinte evita um laco infinito se o servidor passar
+     a devolver pagina cheia para sempre. */
+  for (let pagina = 0; pagina < 20; pagina += 1) {
+    const de = pagina * PAGINA_POSTGREST;
+    const { data, error } = await db
+      .from("previsoes")
+      .select("data_previsao, crescimento_cm_dia, trecho_id, trechos!inner ( especie )")
+      .gte("data_previsao", desde)
+      .order("data_previsao")
+      .order("id")
+      .range(de, de + PAGINA_POSTGREST - 1);
+    if (error) erro("a serie de crescimento", error);
+    const lote = (data ?? []) as unknown as Linha[];
+    linhas.push(...lote);
+    if (lote.length < PAGINA_POSTGREST) break;
+  }
 
   const porData = groupBy(linhas, (l) => l.data_previsao);
   const especies = [...new Set(linhas.map((l) => l.trechos.especie))].sort();

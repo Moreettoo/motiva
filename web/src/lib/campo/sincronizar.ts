@@ -1,6 +1,6 @@
 import { apagarFotosDoEvento, atualizarItem, fotosDoEvento, gravarEstado, listarFila, marcarForaDeOrdem, marcarFotoEnviada, removerDaFila } from "./banco-local";
 import type { EstadoCampo, ItemFila, ResultadoEvento } from "./contratos";
-import { ordenarFila, podeTentarAgora } from "./fila";
+import { ordenarFila, podeTentarAgora, recusaPermanente } from "./fila";
 
 /**
  * O UNICO caminho de saida do aparelho para o servidor. Roda na pagina e no
@@ -31,13 +31,22 @@ export const SESSAO_EXPIRADA = "sessao_expirada";
  * para isso. O resto (o `403`, as chaves, o nome do campo) e diagnostico de
  * quem escreveu o app, e nao ajuda quem esta de luva no meio do trecho.
  */
-class RecusaDoServidor extends Error {}
+class RecusaDoServidor extends Error {
+  /** Reenviar isto muda alguma coisa? Ver `recusaPermanente`, em `fila.ts`. */
+  readonly permanente: boolean;
+  constructor(mensagem: string, permanente: boolean) {
+    super(mensagem);
+    this.permanente = permanente;
+  }
+}
 
 async function recusa(resposta: Response): Promise<RecusaDoServidor> {
   const bruto = await resposta.text().catch(() => "");
   try {
     const corpo = JSON.parse(bruto) as { erro?: unknown };
-    if (typeof corpo.erro === "string" && corpo.erro.trim()) return new RecusaDoServidor(corpo.erro.trim());
+    if (typeof corpo.erro === "string" && corpo.erro.trim()) {
+      return new RecusaDoServidor(corpo.erro.trim(), recusaPermanente(resposta.status));
+    }
   } catch {
     // corpo que nao e JSON (proxy, HTML de erro): cai na frase generica abaixo
   }
@@ -45,6 +54,7 @@ async function recusa(resposta: Response): Promise<RecusaDoServidor> {
     resposta.status >= 500
       ? "O servidor não respondeu agora. O registro continua guardado e vai sair sozinho."
       : "O servidor não aceitou este registro. Fale com o gestor.",
+    recusaPermanente(resposta.status),
   );
 }
 
@@ -102,7 +112,14 @@ export async function sincronizarFila(opcoes: { origem: "pagina" | "worker"; equ
   const fila = ordenarFila(await listarFila());
   const agora = Date.now();
 
+  /* Chamados cujo item da vez foi recusado de vez (ver o `catch`). A ordem so
+     precisa ser respeitada DENTRO de um chamado — e o servidor quem recusa
+     `iniciado` depois de `finalizado`, e ele nao se importa com o chamado do
+     vizinho. Entao um item travado segura o proprio chamado e solta os outros. */
+  const travados = new Set<number>();
+
   for (const item of fila) {
+    if (travados.has(item.chamado_id)) continue;
     /* `break` e nao `continue`: pular um item e enviar o proximo quebraria a
        ordem, e `iniciado` depois de `finalizado` do mesmo chamado e recusado
        pelo servidor. Quem esta recuando segura a fila inteira, do mesmo jeito
@@ -156,6 +173,22 @@ export async function sincronizarFila(opcoes: { origem: "pagina" | "worker"; equ
       }
       await atualizarItem({ ...item, tentativas: item.tentativas + 1, ultima_tentativa_em: new Date().toISOString(), ultimo_erro: mensagem });
       relatorio.erro = mensagem;
+
+      /* Recusa definitiva (um 4xx de regra) nao pode parar a fila: reenviar nao
+         muda a resposta, e com o `break` os OUTROS chamados que a equipe fechou
+         no mesmo dia nunca subiam — a cada 120 s o item travado falhava de novo
+         e derrubava a passada inteira. Isto so acontecia no caminho das FOTOS e
+         do 4xx do POST do evento; a recusa por regra que volta em 200, com
+         `situacao: "recusado"`, sempre seguiu em frente (linha 146).
+
+         O item fica na fila com o motivo escrito, que e o contrato de sempre:
+         quem perde trabalho da equipe em silencio e o que este arquivo existe
+         para nao fazer. O que muda e so o alcance do travamento. */
+      if (e instanceof RecusaDoServidor && e.permanente) {
+        relatorio.recusados += 1;
+        travados.add(item.chamado_id);
+        continue;
+      }
       break; // sem rede: parar e tentar de novo depois, mantendo a ordem
     }
   }

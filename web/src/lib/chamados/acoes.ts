@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { permitir } from "../auth/sessao";
+import { isoHoje } from "../format";
 import { enfileirarAnalise } from "../github";
 import type { Resultado } from "../resultado";
 import { db } from "../supabase";
@@ -95,8 +96,22 @@ export async function encerrarAdministrativamente(e: {
   const s = await permitir("super_admin", "admin");
   if (!s.ok) return s;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(e.dataExecucao)) return { ok: false, erro: "Informe a data em que a roçada aconteceu." };
+  /* A mesma recusa de `registrarMedicao`, e pelo mesmo motivo. O formulario ja
+     a tinha, e o cabecalho de `formularios-decisao.tsx` declara que as duas
+     validacoes precisam ser iguais -- mas num arquivo "use server" toda action
+     e um POST alcancavel, e a tela nao guarda nada. `encerrar_chamado_admin`
+     escreve em `ia.execucoes(data_execucao)` E em `ia.medicoes(data)`, que sao
+     entrada do modelo: uma data futura vira a medicao mais recente do trecho,
+     `dias_desde_rocada_inicio` fica negativo e a janela [ultima medicao, hoje)
+     de onde sai `altura_atual_cm` inverte. Numero plausivel e errado, em
+     silencio. */
+  if (e.dataExecucao > isoHoje()) return { ok: false, erro: "A data da roçada não pode estar no futuro." };
   if (e.observacao.trim().length < 5) return { ok: false, erro: "A observação é obrigatória: por que está encerrando sem a evidência de campo?" };
-  if (e.alturaDepoisCm != null && (e.alturaDepoisCm < 0 || e.alturaDepoisCm > 300)) return { ok: false, erro: "Altura fora da faixa (0 a 300 cm)." };
+  /* `Number.isFinite` junto com a faixa, como em `aprovarChamado`: sem ele, NaN
+     passa -- `NaN < 0` e `NaN > 300` sao ambos falsos -- e chega ao banco. */
+  if (e.alturaDepoisCm != null && (!Number.isFinite(e.alturaDepoisCm) || e.alturaDepoisCm < 0 || e.alturaDepoisCm > 300)) {
+    return { ok: false, erro: "Altura fora da faixa (0 a 300 cm)." };
+  }
   const { error } = await db.rpc("encerrar_chamado_admin", {
     p_chamado_id: e.chamadoId,
     p_autor: s.dados.usuarioId,

@@ -66,6 +66,30 @@ export function podeTentarAgora(item: ItemFila, agora: number): boolean {
   return agora >= base + esperaAntesDaTentativa(item.tentativas);
 }
 
+/**
+ * Esta recusa e DEFINITIVA, ou vale a pena tentar de novo?
+ *
+ * A rota de eventos ja responde 200 com `situacao` justamente para o app saber
+ * a diferenca (ver `/api/campo/eventos`). A rota de FOTOS nao: ela responde
+ * 400, 403, 404, 413, 415 ou 502 no status, e do lado de ca todos chegavam
+ * indistinguiveis de "a rede caiu" — e "a rede caiu" e o unico caso em que
+ * parar a fila inteira e a resposta certa.
+ *
+ * O caso concreto que isto conserta: o gestor troca a equipe do agendamento. A
+ * foto que a equipe anterior tinha na fila passa a levar 403 ("Este chamado nao
+ * e da sua equipe"), a fila para naquele item, e os outros servicos que aquela
+ * equipe fechou na mesma tarde NUNCA sobem — o item volta a falhar a cada 120 s
+ * e o `break` derruba a passada inteira de novo.
+ *
+ * 408 e 429 sao 4xx que pedem paciencia, nao correcao: sao os unicos da faixa
+ * que continuam valendo como transitorios. 5xx idem, e a mensagem de `recusa`
+ * ja diz isso a quem le ("o registro continua guardado").
+ */
+export function recusaPermanente(status: number): boolean {
+  if (status === 408 || status === 429) return false;
+  return status >= 400 && status < 500;
+}
+
 export type GruposDeChamados = {
   hoje: ChamadoCampo[];
   atrasados: ChamadoCampo[];

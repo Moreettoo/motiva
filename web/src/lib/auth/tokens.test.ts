@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { erroDaSenha, expirado, gerarToken, hashToken, prazo } from "./tokens";
+import { diasDeValidade, erroDaSenha, expirado, gerarToken, hashToken, prazo } from "./tokens";
 
 describe("gerarToken", () => {
   it("tem 43 caracteres seguros para URL e não repete", () => {
@@ -37,5 +37,26 @@ describe("erroDaSenha", () => {
     expect(erroDaSenha("semnumeroaqui")).toMatch(/letras e números/);
     expect(erroDaSenha("1234567890")).toMatch(/letras e números/);
     expect(erroDaSenha("rodovia-2026")).toBeNull();
+  });
+});
+
+describe("diasDeValidade", () => {
+  it("um numero positivo vale, inclusive como texto", () => {
+    expect(diasDeValidade("7")).toBe(7);
+    expect(diasDeValidade("1")).toBe(1);
+    expect(diasDeValidade("30")).toBe(30);
+  });
+
+  it("variavel presente e VAZIA cai no padrao, e nao em zero", () => {
+    // `Number("")` e 0, e com zero todo convite nasce vencido.
+    expect(diasDeValidade("")).toBe(7);
+    expect(diasDeValidade("   ")).toBe(7);
+  });
+
+  it("ausente, texto, zero e negativo caem no padrao", () => {
+    expect(diasDeValidade(undefined)).toBe(7);
+    expect(diasDeValidade("sete")).toBe(7);
+    expect(diasDeValidade("0")).toBe(7);
+    expect(diasDeValidade("-3")).toBe(7);
   });
 });

@@ -15,22 +15,33 @@ import type { Cargo } from "@/lib/types";
 export async function proxy(request: NextRequest) {
   let resposta = NextResponse.next({ request });
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(paraGravar) {
-          paraGravar.forEach(({ name, value }) => request.cookies.set(name, value));
-          resposta = NextResponse.next({ request });
-          paraGravar.forEach(({ name, value, options }) => resposta.cookies.set(name, value, options));
-        },
+  /* Sem as duas variaveis nao ha sessao para refrescar, e o `!` que estava aqui
+     transformava isso num 500 de dentro do `@supabase/ssr` -- em TODA URL, o
+     matcher pega tudo, entao nem /entrar abria para dizer o que faltava. E o
+     `.env.example` distribui as duas VAZIAS, de modo que um deploy novo cai
+     nesse estado sem nada de errado no codigo.
+
+     Seguir em frente e a resposta certa porque este arquivo e conveniencia de
+     navegacao e nao camada de seguranca: quem precisa de sessao chama
+     `exigirCargo`/`permitir` na propria pagina ou action, e la `configPublica()`
+     levanta com a mensagem que diz qual variavel falta. A falha continua
+     fechada, e passa a ser legivel. */
+  const urlSupabase = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const chaveSupabase = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (!urlSupabase || !chaveSupabase) return resposta;
+
+  const supabase = createServerClient(urlSupabase, chaveSupabase, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
+      },
+      setAll(paraGravar) {
+        paraGravar.forEach(({ name, value }) => request.cookies.set(name, value));
+        resposta = NextResponse.next({ request });
+        paraGravar.forEach(({ name, value, options }) => resposta.cookies.set(name, value, options));
       },
     },
-  );
+  });
 
   // Nada entre criar o cliente e `getClaims()`: a doc do Supabase avisa que
   // codigo no meio pode deixar a sessao sem refrescar.
