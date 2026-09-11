@@ -3,6 +3,7 @@ import { Bot, CalendarClock, Cpu, Pencil, Quote, Sparkles, Users } from "lucide-
 import { Cartao, CartaoCabecalho, CartaoCorpo, CartaoRodape } from "@/components/ui/cartao";
 import { Chip, ChipRisco, ChipStatus } from "@/components/ui/chip";
 import { EstadoVazio } from "@/components/ui/vazio";
+import { prioridadeExibida, textoDivergencia } from "@/lib/dominio";
 import { fmt, parseData, relativoEmDias } from "@/lib/format";
 import type { AgendamentoDetalhado, TrechoStatus } from "@/lib/types";
 
@@ -25,10 +26,13 @@ export function DecisaoIa({
   agendamento,
   trecho,
   hojeIso,
+  podeEscrever,
 }: {
   agendamento: AgendamentoDetalhado | null;
   trecho: TrechoStatus;
   hojeIso: string;
+  /** O botão de reanalisar só existe com permissão de escrita. */
+  podeEscrever: boolean;
 }) {
   const crescimento = trecho.crescimento_cm_dia == null ? null : Number(trecho.crescimento_cm_dia);
   const observacoes = trecho.observacoes?.trim() || null;
@@ -46,9 +50,15 @@ export function DecisaoIa({
           <EstadoVazio
             icone={<Bot />}
             titulo="Nenhuma decisão para este trecho"
+            /* O botão se chama "Reanalisar trecho" (ver `acoes-trecho.tsx`), e
+               ele NAO existe para o Analista: `AcoesTrecho` devolve `null` sem
+               permissão de escrita. Mandar procurar um botão com outro nome,
+               que pode nem estar na tela, é pior do que não mandar. */
             descricao={
               "A análise em lote só chama o modelo de linguagem para trechos a menos de 45 dias do limite. " +
-              "Use “Analisar Trecho” no topo da página para forçar uma decisão agora."
+              (podeEscrever
+                ? "Use “Reanalisar trecho”, no topo da página, para forçar uma decisão agora."
+                : "Peça a um gestor para reanalisar o trecho se precisar de uma decisão agora.")
             }
           />
         </CartaoCorpo>
@@ -58,6 +68,12 @@ export function DecisaoIa({
 
   const fatores = (agendamento.fatores ?? []).filter((f) => f.trim().length > 0);
   const manual = agendamento.origem === "manual";
+  /* Do PRAZO, nunca de `agendamento.prioridade`. Sem isto o cartao imprimia
+     "Prioridade: Alta" a duzentos pixels do cabecalho da mesma pagina, que
+     dizia "Baixa" e "mais de 1 ano" -- a coluna guarda a classificacao do dia
+     em que o agendamento nasceu, e ela envelhece. Ver `prioridadeExibida`. */
+  const prioridade = prioridadeExibida(trecho.dias_ate_limite, agendamento.prioridade, agendamento.origem);
+  const divergencia = textoDivergencia(prioridade);
 
   return (
     <Cartao>
@@ -94,8 +110,10 @@ export function DecisaoIa({
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <span className="text-xs text-ink-3">Prioridade</span>
-            <ChipRisco risco={agendamento.prioridade} />
+            <ChipRisco risco={prioridade.risco} />
           </div>
+
+          {divergencia ? <p className="mt-2 text-xs text-ink-3">{divergencia}</p> : null}
 
           {agendamento.equipe ? (
             <p className="mt-3 flex items-center gap-1.5 text-xs text-ink-2">
@@ -148,7 +166,8 @@ export function DecisaoIa({
               ) : (
                 <span className="tnum font-mono text-ink">{fmt.cmDia(crescimento)}</span>
               )}{" "}
-              veio do modelo de regressão treinado no histórico do trecho: clima, espécie, UF e mês.{" "}
+              veio das três regressões de quantil treinadas em janelas de clima real: clima diário,
+              espécie, latitude, altura inicial, fase da rebrota e água no solo.{" "}
               {manual ? (
                 <>
                   A data foi escolhida por uma pessoa, no painel, e a prioridade acompanha o prazo
@@ -170,7 +189,10 @@ export function DecisaoIa({
                 <Quote aria-hidden="true" className="size-3 shrink-0" />
                 Observações do trecho
               </h3>
-              <blockquote className="mt-2 border-l-2 border-border-strong pl-3 text-sm leading-relaxed break-words text-ink-2 italic">
+              <blockquote
+                className="mt-2 border-l-2 pl-3 text-sm leading-relaxed break-words text-ink-2 italic"
+                style={{ borderColor: "var(--border-strong)" }}
+              >
                 “{observacoes}”
               </blockquote>
               <figcaption className="mt-1.5 text-2xs text-ink-3">

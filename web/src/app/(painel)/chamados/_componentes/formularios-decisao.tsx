@@ -347,8 +347,10 @@ export function FormularioAdiamento({
       <div className="min-w-0">
         <h4 className="text-sm font-medium text-ink">Decidir o adiamento</h4>
         <p className="mt-1 text-xs text-ink-3">
+          {/* `fmt.dataCurta` ja termina em ponto ("13 de set."), entao o ponto
+              final da frase produzia "sugeriu 13 de set..". */}
           A equipe pediu por {MOTIVO_ADIAMENTO[adiamento.motivo].toLowerCase()}
-          {adiamento.data_sugerida ? ` e sugeriu ${fmt.dataCurta(adiamento.data_sugerida)}` : ""}.
+          {adiamento.data_sugerida ? ` e sugeriu ${fmt.dataCurta(adiamento.data_sugerida)}` : "."}{" "}
           Aceitar remarca a roçada na agenda.
         </p>
       </div>

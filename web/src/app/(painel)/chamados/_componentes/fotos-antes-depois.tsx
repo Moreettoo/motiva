@@ -57,7 +57,8 @@ function Foto({
       <button
         type="button"
         onClick={aoAmpliar}
-        className="block w-full overflow-hidden rounded-md border border-border bg-surface-3 hover:border-border-strong"
+        style={{ borderColor: "var(--borda, var(--border))" }}
+        className="block w-full overflow-hidden rounded-md border border-border bg-surface-3 hover:[--borda:var(--border-strong)]"
       >
         {/* `/api/fotos/<id>` redireciona para uma URL assinada de 60 s. Montar
             a URL do Storage aqui exporia o bucket, que é privado de propósito. */}
@@ -125,9 +126,15 @@ function Coluna({
 export function FotosAntesDepois({
   fotos,
   trecho,
+  encerradoSemCampo,
 }: {
   fotos: ChamadoFoto[];
   trecho: PontoTrecho;
+  /** O chamado terminou sem passar pelo app (encerramento administrativo ou
+   *  cancelamento). Sem isto as duas colunas diziam "a equipe ainda nao
+   *  iniciou" num chamado ja CONCLUIDO -- "ainda nao" prometendo uma foto que
+   *  nunca vai chegar. */
+  encerradoSemCampo?: boolean;
 }) {
   const [ampliada, setAmpliada] = useState<ChamadoFoto | null>(null);
 
@@ -139,14 +146,14 @@ export function FotosAntesDepois({
       <div className="grid min-w-0 gap-4 sm:grid-cols-2">
         <Coluna
           titulo="Antes"
-          vazio="A equipe ainda não iniciou"
+          vazio={encerradoSemCampo ? "Sem foto: o chamado não passou pelo app" : "A equipe ainda não iniciou"}
           fotos={inicio}
           trecho={trecho}
           aoAmpliar={setAmpliada}
         />
         <Coluna
           titulo="Depois"
-          vazio="A equipe ainda não finalizou"
+          vazio={encerradoSemCampo ? "Sem foto: o chamado não passou pelo app" : "A equipe ainda não finalizou"}
           fotos={fim}
           trecho={trecho}
           aoAmpliar={setAmpliada}

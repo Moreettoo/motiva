@@ -1,12 +1,14 @@
 "use client";
 
+import { Eraser } from "lucide-react";
+
 import { Botao } from "@/components/ui/botao";
 import { EstadoVazio } from "@/components/ui/vazio";
 import { IconeDominio } from "@/components/viz/legenda";
-import { fmt } from "@/lib/format";
+import { fmt, somarDias } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-import type { ItemAgenda } from "../dados";
+import { chaveDia, type ItemAgenda } from "../dados";
 import { CartaoServico } from "./cartao-servico";
 import type { CargaArrasto } from "./usar-arrasto";
 
@@ -15,7 +17,7 @@ export function TrilhoFila({
   total,
   expandido,
   aoExpandir,
-  janelaFim,
+  hoje,
   realcado,
   idEmVoo,
   idAtivo,
@@ -29,6 +31,7 @@ export function TrilhoFila({
   engolirClique,
   refCartao,
   aoFocar,
+  aoRestaurar,
 }: {
   /** Já cortado por quem chama (`TETO_TRILHO`, em `quadro-semana.tsx`), o
    *  corte subiu pra lá porque o roving tabindex da grade inteira
@@ -42,7 +45,8 @@ export function TrilhoFila({
   total: number;
   expandido: boolean;
   aoExpandir: () => void;
-  janelaFim: string;
+  /** Hoje, do servidor (`isoHoje()`), como o resto da agenda. */
+  hoje: string;
   realcado: boolean;
   idEmVoo: number | null;
   /** Roving tabindex da GRADE INTEIRA (trilho + calha), não só deste trilho:
@@ -57,6 +61,11 @@ export function TrilhoFila({
   aoPegar: (e: React.PointerEvent<HTMLElement>, carga: CargaArrasto) => void;
   /** Analista: o trilho continua legivel, os cartoes nao arrastam. */
   somenteLeitura: boolean;
+  /** O MESMO "Restaurar padrão" do cabeçalho. Sem ele o vazio desta coluna era
+   *  um beco: dois cliques no menu de status escondem a fila inteira e a única
+   *  saída ficava lá em cima, no controle que a pessoa não associa ao que
+   *  acabou de sumir. O quadro ao lado já oferece o botão no vazio dele. */
+  aoRestaurar: () => void;
   aoTeclar: (e: React.KeyboardEvent<HTMLElement>, carga: CargaArrasto) => void;
   aoAbrir: (id: number) => void;
   engolirClique: (e: React.MouseEvent) => void;
@@ -71,8 +80,19 @@ export function TrilhoFila({
   // menor mas dentro da semana para debaixo do cabeçalho "Depois". Filtrar
   // preserva a ordem de urgência dentro de cada grupo, porque `itens` já
   // vem ordenada (e já vem cortada por quem chama, ver o comentário da prop).
-  const destaSemana = itens.filter((item) => item.data <= janelaFim);
-  const depois = itens.filter((item) => item.data > janelaFim);
+  /* O corte sai de HOJE, e nao de `janelaFim`.
+     O trilho e declaradamente independente da semana visivel ("um backlog que
+     encolhe quando voce olha para outra semana nao e um backlog", em
+     `dados.tsx`), mas o cabecalho de grupo saia de `grade.janela.fim`, que
+     muda a cada clique em ‹ ou ›: seis semanas a frente, TODO o backlog --
+     inclusive os vencidos de agosto -- passava a viver sob "Vence nesta
+     semana". E mesmo na semana de hoje o rotulo cobria datas passadas, dizendo
+     "vence" sobre o que ja venceu. Sao tres grupos porque sao tres decisoes
+     diferentes, e juntar as duas primeiras era o que produzia a frase falsa. */
+  const fimDaSemanaCorrente = chaveDia(somarDias(hoje, 6));
+  const vencidos = itens.filter((item) => item.data < hoje);
+  const destaSemana = itens.filter((item) => item.data >= hoje && item.data <= fimDaSemanaCorrente);
+  const depois = itens.filter((item) => item.data > fimDaSemanaCorrente);
 
   // Fábrica de elemento, não componente: devolve `<CartaoServico>` direto, com
   // o mesmo `type` de sempre: o `memo` compara por `type` do elemento, não
@@ -127,8 +147,13 @@ export function TrilhoFila({
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-medium text-ink">Fila de decisão</h3>
           <p className="mt-0.5 text-2xs text-ink-3">
+            {/* Nao "Sugestoes da IA": a fila e `em aberto && sem equipe`, sem
+                filtro de origem, e uma rocada manual cai aqui por dois caminhos
+                desta mesma tela (arrastar o cartao para o trilho, ou escolher
+                "Sem equipe" na gaveta). O resto da tela ja acerta isso -- o
+                chip "Agendada na mao" e o titulo "Motivo do agendamento". */}
             {somenteLeitura
-              ? "Sugestões da IA ainda sem dia e sem equipe."
+              ? "Roçadas em aberto que ainda não têm equipe."
               : "Arraste para um dia e uma equipe. Soltar decide as duas coisas de uma vez."}
           </p>
         </div>
@@ -152,15 +177,27 @@ export function TrilhoFila({
             icone={<IconeDominio nome="CircleCheck" />}
             titulo="Nada esperando decisão"
             descricao="Nenhuma roçada sem equipe nos status escolhidos agora."
+            acao={
+              <Botao variante="secundario" iconeEsquerda={<Eraser />} onClick={aoRestaurar}>
+                Restaurar padrão
+              </Botao>
+            }
           />
         </div>
       ) : (
         <ul className="flex min-w-0 flex-col gap-1.5 p-2">
           {/* Cabeçalho órfão: um grupo vazio (fila inteira "desta semana", ou
               inteira "depois") não mostra o rótulo do grupo que não tem item. */}
+          {vencidos.length > 0 ? (
+            <li className="px-1 pt-1 text-2xs tracking-widest text-critical-ink uppercase">
+              Já venceu
+            </li>
+          ) : null}
+          {vencidos.map(cartao)}
+
           {destaSemana.length > 0 ? (
-            <li className="px-1 pt-1 text-2xs tracking-widest text-ink-3 uppercase">
-              Vence nesta semana
+            <li className="px-1 pt-2 text-2xs tracking-widest text-ink-3 uppercase">
+              Vence nos próximos 7 dias
             </li>
           ) : null}
           {destaSemana.map(cartao)}

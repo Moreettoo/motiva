@@ -354,13 +354,15 @@ export function BlocoAgrupamento({
                               type="button"
                               aria-pressed={ativo}
                               onClick={() => aoSelecionar(t.id)}
+                              /* Inline: `border-accent` e morta sob `* { border-color }` sem camada. */
+                              style={{ borderColor: "var(--borda, var(--border))" }}
                               className={cn(
                                 "inline-flex h-7 max-w-full items-center gap-1.5 rounded-full border px-2.5",
                                 "tnum font-mono text-2xs whitespace-nowrap",
                                 "transition-[background-color,border-color,color] duration-150 ease-[var(--ease-out-quint)]",
                                 ativo
-                                  ? "border-accent bg-accent-soft text-accent"
-                                  : "border-border bg-surface-2 text-ink-2 hover:border-border-strong hover:text-ink",
+                                  ? "bg-accent-soft text-accent [--borda:var(--accent)]"
+                                  : "bg-surface-2 text-ink-2 hover:text-ink hover:[--borda:var(--border-strong)]",
                               )}
                             >
                               <span

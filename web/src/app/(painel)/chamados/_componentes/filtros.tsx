@@ -110,11 +110,11 @@ export function montarIndiceBusca(chamados: ChamadoDetalhado[]): Map<number, str
   return indice;
 }
 
-export function filtrarChamados(
-  chamados: ChamadoDetalhado[],
+export function filtrarChamados<T extends ChamadoDetalhado>(
+  chamados: T[],
   f: FiltrosChamados,
   indice: Map<number, string>,
-): ChamadoDetalhado[] {
+): T[] {
   const termo = normalizar(f.busca);
 
   return chamados.filter((c) => {
@@ -159,14 +159,16 @@ function ChipStatusFiltro({
       type="button"
       aria-pressed={ativo}
       onClick={aoAlternar}
+      /* Inline: `border-accent` e morta sob `* { border-color }` sem camada. */
+      style={{ borderColor: "var(--borda, var(--border))" }}
       title={token.descricao}
       className={cn(
         "inline-flex h-7 max-w-full shrink-0 items-center gap-1.5 rounded-full border px-2.5",
         "text-xs font-medium whitespace-nowrap",
         "transition-[background-color,border-color,color] duration-150 ease-[var(--ease-out-quint)]",
         ativo
-          ? "border-accent bg-accent-soft text-accent"
-          : "border-border bg-surface-2 text-ink-2 hover:border-border-strong hover:text-ink",
+          ? "bg-accent-soft text-accent [--borda:var(--accent)]"
+          : "bg-surface-2 text-ink-2 hover:text-ink hover:[--borda:var(--border-strong)]",
       )}
     >
       <IconeChamado nome={token.icone} className="size-3" />

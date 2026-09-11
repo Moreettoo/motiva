@@ -2,9 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 
-import { erroFaltaEquipe } from "./dominio";
+import { erroFaltaEquipe, PRIORIDADE, prioridadeExibida, rotuloPrazo } from "./dominio";
 import { fmt, isoHoje } from "./format";
 import { enfileirarAnalise, situacaoDaExecucao } from "./github";
+import { listarTrechos } from "./queries";
 import { db } from "./supabase";
 import type { ExecucaoAnalise, StatusAgendamento } from "./types";
 
@@ -366,7 +367,7 @@ async function gravarAlturaInformada(
   // Sem chamado não é falha: o gatilho só o cria com equipe, e um dia a roçada
   // manual pode nascer sem ela. Hoje a equipe é obrigatória, então isto é a
   // rede, não o caminho.
-  if (erroChamado) return naoGravou;
+  if (erroChamado) return `${naoGravou} (${erroChamado.message})`;
   if (!chamado) return null;
 
   const { error } = await db.rpc("registrar_evento_chamado", {
@@ -379,7 +380,7 @@ async function gravarAlturaInformada(
     p_ocorrido_em: new Date().toISOString(),
   });
 
-  return error ? naoGravou : null;
+  return error ? `${naoGravou} (${error.message})` : null;
 }
 
 /**
@@ -483,15 +484,25 @@ export async function remarcarAgendamento(agendamentoId: number, novaData: strin
     return { ok: false, erro: "Data inválida. Use o formato AAAA-MM-DD." };
   }
 
+  /* As duas travas que `gravarAlocacao` e `devolverParaFila` ja tinham e esta
+     nao: num arquivo `"use server"` todo export e endpoint alcançavel pela
+     rede. Sem `.in(status)` dava para remarcar um servico ja `executado` ou
+     `descartado`, e sem a guarda de passado dava para joga-lo num dia que ja
+     passou -- ele reaparecia na regua da agenda naquele dia. */
+  if (novaData < isoHoje()) {
+    return { ok: false, erro: "A nova data não pode estar no passado." };
+  }
+
   const { data, error } = await db
     .from("agendamentos")
     .update({ data_sugerida: novaData, atualizado_em: new Date().toISOString() })
     .eq("id", agendamentoId)
+    .in("status", ["sugerido", "aprovado"])
     .select("id")
     .maybeSingle();
 
   if (error) return { ok: false, erro: `Não foi possível remarcar: ${error.message}` };
-  if (!data) return { ok: false, erro: "Agendamento não encontrado. Recarregue a página." };
+  if (!data) return { ok: false, erro: "Agendamento não encontrado ou já encerrado. Recarregue a página." };
 
   revalidarTudo();
   return { ok: true, dados: undefined };
@@ -503,6 +514,19 @@ export async function registrarMedicao(trechoId: number, alturaCm: number, data?
   void sessao;
   if (!Number.isFinite(alturaCm) || alturaCm < 0 || alturaCm > 300) {
     return { ok: false, erro: "Altura fora da faixa esperada (0 a 300 cm)." };
+  }
+  /* A data ia direto para o insert, sem formato e sem teto. Uma medicao com
+     data futura inverte a janela [ultima medicao, hoje) de que
+     `altura_atual_cm` sai, e envenena o prazo e o risco do trecho em silencio
+     -- o pior modo de falha que este projeto tem. Todas as outras acoes que
+     recebem data ja aplicavam esta mesma expressao. */
+  if (data != null) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) {
+      return { ok: false, erro: "Data inválida. Use o formato AAAA-MM-DD." };
+    }
+    if (data > isoHoje()) {
+      return { ok: false, erro: "A medição não pode ter data futura." };
+    }
   }
 
   const { error } = await db.from("medicoes").insert({
@@ -567,10 +591,23 @@ function dentroDoLimite(usuarioId: string, agora = Date.now()): boolean {
 /** Teto de contexto do copiloto: os agendamentos mais recentes cabem no prompt. */
 const AGENDAMENTOS_NO_CONTEXTO = 60;
 
+/**
+ * A tabela de prioridade vai nas instrucoes como FUNCAO PURA do numero, igual
+ * ao contexto do lote em `leitura-ia.ts`. Sem ela o copiloto so podia repetir a
+ * palavra que a outra LLM escreveu no dia em que o agendamento nasceu -- e essa
+ * palavra envelhece: nesta base, 14 dos 21 chamados carregavam uma prioridade
+ * que contradiz o risco atual do trecho.
+ */
 const SISTEMA_COPILOTO =
   "Você responde perguntas de gestores da Motiva sobre o planejamento de roçada. " +
   "Use apenas os dados fornecidos. Seja direto, cite rodovia e km. " +
-  "Se o dado não estiver na lista, diga que não tem.";
+  "Se o dado não estiver na lista, diga que não tem. " +
+  "A prioridade é função pura de `dias_ate_limite`, nunca de opinião: " +
+  `${PRIORIDADE.critica.rotulo} até 7 dias ou já acima do limite; ` +
+  `${PRIORIDADE.alta.rotulo} de 8 a 20; ` +
+  `${PRIORIDADE.media.rotulo} de 21 a 45; ` +
+  `${PRIORIDADE.baixa.rotulo} acima de 45 ou sem crescimento. ` +
+  "Prazos relativos (hoje, esta semana, próximos 7 dias) contam a partir de `data_de_hoje`.";
 
 /**
  * Pergunta em portugues sobre a malha.
@@ -596,16 +633,50 @@ export async function perguntarAoCopiloto(texto: string): Promise<Resultado<{ re
     };
   }
 
-  const { data, error } = await db
-    .from("agendamentos")
-    .select("*, trechos(rodovia, km_inicio, km_fim, uf, tipo_pista)")
-    .order("criado_em", { ascending: false })
-    .limit(AGENDAMENTOS_NO_CONTEXTO);
+  /* `id` como desempate, e não só `criado_em`: as linhas semeadas têm
+     `criado_em` sintético que pode estar À FRENTE do relógio real, então uma
+     roçada criada agora ficava "mais antiga" que uma semeada do mesmo dia e
+     caía fora dos 60 do contexto. Mesmo critério da view. */
+  const [{ data, error }, trechos] = await Promise.all([
+    db
+      .from("agendamentos")
+      .select("*, trechos(rodovia, km_inicio, km_fim, uf, tipo_pista)")
+      .order("criado_em", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(AGENDAMENTOS_NO_CONTEXTO),
+    listarTrechos(),
+  ]);
 
   if (error) return { ok: false, erro: `Não foi possível ler os agendamentos: ${error.message}` };
   if (!data || data.length === 0) {
     return { ok: true, dados: { resposta: "Ainda não há análises. Rode a análise em lote primeiro." } };
   }
+
+  /* O contexto vai em snake_case português, como o do lote, e a `prioridade`
+     que a LLM recebe é a DERIVADA DO PRAZO — não a coluna do agendamento, que é
+     a palavra da outra LLM e envelhece. `dias_ate_limite` vai junto para ela
+     poder conferir em vez de só repetir, e `data_de_hoje` porque o copiloto não
+     tinha como responder "próximos 7 dias" — uma das sugestões que a própria
+     tela oferece — sem saber que dia é hoje. */
+  const prazoPorTrecho = new Map(trechos.map((t) => [t.id, t.dias_ate_limite]));
+  const contexto = {
+    data_de_hoje: isoHoje(),
+    agendamentos: (data as unknown as Record<string, unknown>[]).map((a) => {
+      const dias = prazoPorTrecho.get(a.trecho_id as number) ?? null;
+      const leitura = prioridadeExibida(
+        dias,
+        a.prioridade as Parameters<typeof prioridadeExibida>[1],
+        a.origem as Parameters<typeof prioridadeExibida>[2],
+      );
+      return {
+        ...a,
+        dias_ate_limite: dias,
+        prazo: rotuloPrazo(dias),
+        prioridade: leitura.risco,
+        prioridade_registrada_pela_ia: leitura.divergente,
+      };
+    }),
+  };
 
   let resposta: Response;
   try {
@@ -619,7 +690,7 @@ export async function perguntarAoCopiloto(texto: string): Promise<Resultado<{ re
         model: process.env.OPENAI_MODEL ?? "gpt-5.4-mini",
         messages: [
           { role: "system", content: SISTEMA_COPILOTO },
-          { role: "user", content: `Dados:\n${JSON.stringify(data)}\n\nPergunta: ${pergunta}` },
+          { role: "user", content: `Dados:\n${JSON.stringify(contexto)}\n\nPergunta: ${pergunta}` },
         ],
       }),
       signal: AbortSignal.timeout(120_000),

@@ -4,6 +4,7 @@ import { Waypoints } from "lucide-react";
 import { FaixaRodovia } from "@/components/malha/faixa-rodovia";
 import { Cartao, CartaoCabecalho, CartaoCorpo } from "@/components/ui/cartao";
 import { EstadoVazio } from "@/components/ui/vazio";
+import { fmt } from "@/lib/format";
 import type { TrechosPorRodovia } from "@/lib/queries";
 
 import { LinkAcao } from "./link-acao";
@@ -32,7 +33,7 @@ export function MalhaEmRelance({
         titulo="Malha em relance"
         descricao={
           restantes > 0
-            ? `As ${rodovias.length} rodovias de pior risco. Outras ${restantes} estão na malha completa.`
+            ? `As ${fmt.contar(rodovias.length, "rodovia")} de pior risco. Outras ${fmt.contar(restantes, "está", "estão")} na malha completa.`
             : "Todas as rodovias monitoradas, da mais apertada para a mais folgada."
         }
         acoes={<LinkAcao href="/malha">Ver malha completa</LinkAcao>}

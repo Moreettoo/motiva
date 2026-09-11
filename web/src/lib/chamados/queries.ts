@@ -2,9 +2,27 @@ import "server-only";
 
 import { cache } from "react";
 
-import { ordemRisco } from "../dominio";
+import { ordemRisco, prioridadeExibida } from "../dominio";
+import { listarTrechos } from "../queries";
 import { db } from "../supabase";
 import type { ChamadoAdiamento, ChamadoDetalhado, ChamadoEvento, ChamadoFoto, Notificacao, StatusChamado } from "../types";
+
+/**
+ * O chamado com o PRAZO VIVO do trecho pendurado.
+ *
+ * `ia.agendamentos.prioridade` é a palavra que a LLM escreveu no dia em que o
+ * agendamento nasceu (ou, em roçada manual, o `risco` copiado naquele dia). Ela
+ * envelhece: nesta base, 14 dos 21 chamados carregam uma prioridade que
+ * contradiz o risco atual do trecho — inclusive três chamados marcados `baixa`
+ * sobre trechos que já passaram do limite. A tela de chamados é a fila em que
+ * o gestor decide o que fazer primeiro, então ela precisa do prazo de hoje, e
+ * não da opinião de ontem. Ver `prioridadeExibida`.
+ *
+ * O prazo sai de `listarTrechos()`, que é a mesma view que o resto do painel lê
+ * e vem embrulhada em `cache()` do React: numa página que já lista trechos,
+ * isto não custa uma consulta a mais.
+ */
+export type ChamadoNaTela = ChamadoDetalhado & { prazo_dias: number | null };
 
 function erro(contexto: string, e: { message: string } | null): never {
   throw new Error(`Falha ao ler ${contexto}: ${e?.message ?? "erro desconhecido"}`);
@@ -30,8 +48,13 @@ function normalizar(linha: Bruto): ChamadoDetalhado {
 
 const ORDEM_STATUS: StatusChamado[] = ["aguardando_aprovacao", "adiamento_solicitado", "devolvido", "em_andamento", "aberto", "concluido", "cancelado"];
 
+/** `trecho_id` → `dias_ate_limite` de hoje, da mesma view que o painel usa. */
+async function prazoPorTrecho(): Promise<Map<number, number | null>> {
+  return new Map((await listarTrechos()).map((t) => [t.id, t.dias_ate_limite]));
+}
+
 export const listarChamados = cache(
-  async (f?: { status?: StatusChamado[]; equipeId?: number; rodovia?: string; de?: string; ate?: string; busca?: string }): Promise<ChamadoDetalhado[]> => {
+  async (f?: { status?: StatusChamado[]; equipeId?: number; rodovia?: string; de?: string; ate?: string; busca?: string }): Promise<ChamadoNaTela[]> => {
     let q = db.from("chamados").select(SELECT_CHAMADO);
     if (f?.status?.length) q = q.in("status", f.status);
     if (f?.equipeId) q = q.eq("agendamento.equipe_id", f.equipeId);
@@ -39,30 +62,46 @@ export const listarChamados = cache(
     if (f?.de) q = q.gte("agendamento.data_sugerida", f.de);
     if (f?.ate) q = q.lte("agendamento.data_sugerida", f.ate);
     if (f?.busca) q = q.ilike("numero", `%${f.busca.trim()}%`);
-    const { data, error } = await q.order("atualizado_em", { ascending: false });
+    const [{ data, error }, prazos] = await Promise.all([
+      q.order("atualizado_em", { ascending: false }),
+      prazoPorTrecho(),
+    ]);
     if (error) erro("os chamados", error);
-    return (data as unknown as Bruto[]).map(normalizar).sort(
-      (a, b) =>
-        ORDEM_STATUS.indexOf(a.status) - ORDEM_STATUS.indexOf(b.status) ||
-        ordemRisco(a.agendamento.prioridade) - ordemRisco(b.agendamento.prioridade) ||
-        a.agendamento.data_sugerida.localeCompare(b.agendamento.data_sugerida),
-    );
+    return (data as unknown as Bruto[])
+      .map(normalizar)
+      .map((c) => ({ ...c, prazo_dias: prazos.get(c.trecho_id) ?? null }))
+      .sort(
+        (a, b) =>
+          ORDEM_STATUS.indexOf(a.status) - ORDEM_STATUS.indexOf(b.status) ||
+          // A fila ordena pelo mesmo risco que ela PINTA. Ordenar pela palavra
+          // registrada e pintar o prazo poria o vermelho no meio da lista.
+          ordemRisco(riscoDoChamado(a)) - ordemRisco(riscoDoChamado(b)) ||
+          a.agendamento.data_sugerida.localeCompare(b.agendamento.data_sugerida),
+      );
   },
 );
 
+/** O risco que a tela mostra para este chamado. Único ponto que resolve a regra. */
+export function riscoDoChamado(c: ChamadoNaTela) {
+  return prioridadeExibida(c.prazo_dias, c.agendamento.prioridade, c.agendamento.origem).risco;
+}
+
 export const obterChamado = cache(async (id: number) => {
-  const [{ data, error }, eventos, fotos, adiamento] = await Promise.all([
+  const [{ data, error }, eventos, fotos, adiamento, prazos] = await Promise.all([
     db.from("chamados").select(SELECT_CHAMADO).eq("id", id).maybeSingle(),
     db.from("chamado_eventos").select("*").eq("chamado_id", id).order("registrado_em"),
     db.from("chamado_fotos").select("*").eq("chamado_id", id).order("capturada_em"),
     db.from("chamado_adiamentos").select("*").eq("chamado_id", id).is("decisao", null).maybeSingle(),
+    prazoPorTrecho(),
   ]);
   if (error) erro(`o chamado ${id}`, error);
   if (!data) return null;
   if (eventos.error) erro(`os eventos do chamado ${id}`, eventos.error);
   if (fotos.error) erro(`as fotos do chamado ${id}`, fotos.error);
+  const base = normalizar(data as unknown as Bruto);
   return {
-    ...normalizar(data as unknown as Bruto),
+    ...base,
+    prazo_dias: prazos.get(base.trecho_id) ?? null,
     eventos: (eventos.data ?? []) as unknown as ChamadoEvento[],
     fotos: (fotos.data ?? []) as unknown as ChamadoFoto[],
     adiamento_pendente: (adiamento.data as unknown as ChamadoAdiamento | null) ?? null,

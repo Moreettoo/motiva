@@ -137,8 +137,13 @@ export const CelulaEquipe = memo(function CelulaEquipe({
          silencioso. */
       data-celula={celula.aceitaSolta ? celula.chave : undefined}
       data-celula-recusada={celula.aceitaSolta ? undefined : celula.chave}
+      /* `--grid` e um tom PROPRIO, mais leve que a moldura externa: e o que
+         cria a hierarquia entre "moldura" e "grade" nas 70 linhas internas.
+         `border-grid` do Tailwind resolvia para `--border` sob a regra
+         `* { border-color }` sem camada, e a grade pesava igual a moldura. */
+      style={{ borderColor: "var(--grid)" }}
       className={cn(
-        "quadro-celula relative flex min-w-0 flex-col gap-1 border-b border-l border-grid p-1.5",
+        "quadro-celula relative flex min-w-0 flex-col gap-1 border-b border-l p-1.5",
         /* O realce da equipe em destaque: um tom de MARCA na célula, e não uma
            veladura nas outras. Aqui está o que a versão anterior errava.
 

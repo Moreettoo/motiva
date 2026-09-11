@@ -36,7 +36,8 @@ export default function ErroTrecho({
             </Botao>
             <Link
               href="/malha"
-              className="inline-flex h-9 items-center rounded-md border border-border bg-surface-2 px-4 text-sm font-medium text-ink hover:border-border-strong hover:bg-surface-3"
+              style={{ borderColor: "var(--borda, var(--border))" }}
+              className="inline-flex h-9 items-center rounded-md border border-border bg-surface-2 px-4 text-sm font-medium text-ink hover:bg-surface-3 hover:[--borda:var(--border-strong)]"
             >
               Voltar para a malha
             </Link>

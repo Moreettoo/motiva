@@ -66,6 +66,22 @@ export function EstadoAtual({
   const hoje = parseData(hojeIso);
   const alturaMedida = trecho.altura_medida_cm == null ? null : Number(trecho.altura_medida_cm);
 
+  /* A previsao e mais VELHA que a ultima medicao: o modelo projetou a partir de
+     uma medicao anterior e nunca viu esta. Acontece toda vez que se aprova um
+     chamado ou se registra medicao no painel, porque a reanalise roda no
+     GitHub Actions e leva minutos -- e nao roda de jeito nenhum se o ambiente
+     nao tiver GITHUB_TOKEN. Sem este aviso o cartao mostrava "20,1 cm - Dentro
+     do limite" a poucos centimetros de "ULTIMA MEDICAO hoje - 6,0 cm", no
+     mesmo cartao, depois de uma rocada que o proprio painel acabou de aprovar.
+
+     Nao trocamos o numero: `dias_ate_limite` e `crescimento_cm_dia` saem da
+     MESMA previsao e so o modelo pode refaze-los. Trocar so a altura deixaria
+     tres numeros do mesmo cartao vindo de duas epocas sem dizer. */
+  const medicaoMaisNovaQuePrevisao =
+    trecho.medido_em != null &&
+    trecho.previsto_em != null &&
+    trecho.medido_em >= trecho.previsto_em.slice(0, 10);
+
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
       <Cartao>
@@ -73,7 +89,7 @@ export function EstadoAtual({
           como="h2"
           icone={<Gauge />}
           titulo="Altura contra o limite"
-          descricao="Altura extrapolada da última medição pela taxa do modelo."
+          descricao="Previsão do modelo sobre o clima observado desde a última medição."
         />
         <CartaoCorpo className="flex justify-center pt-1 pb-6">
           {altura == null ? (
@@ -87,6 +103,16 @@ export function EstadoAtual({
             <Medidor valor={altura} limite={limite} rotulo="Altura" tamanho={168} />
           )}
         </CartaoCorpo>
+
+        {altura != null && medicaoMaisNovaQuePrevisao ? (
+          <CartaoRodape>
+            <span className="min-w-0">
+              Previsão anterior à medição de {fmt.dataMedia(trecho.medido_em!)}
+              {alturaMedida == null ? "" : ` (${fmt.cm(alturaMedida)})`}. Vale até a próxima
+              análise; reanalise o trecho para atualizar.
+            </span>
+          </CartaoRodape>
+        ) : null}
       </Cartao>
 
       <Cartao>

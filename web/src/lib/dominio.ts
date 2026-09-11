@@ -241,6 +241,61 @@ export function riscoPorPrazo(diasAteLimite: number | null | undefined): Risco {
 }
 
 /**
+ * O que a tela pinta como prioridade, e a palavra da LLM quando ela discorda.
+ *
+ * A invariante: prioridade EXIBIDA sai do prazo, nunca da coluna
+ * `ia.agendamentos.prioridade`. Esta função é a única implementação dela, e
+ * existe porque a regra estava escrita quatro vezes com quatro respostas: o
+ * painel, a página do trecho e a tela de chamados pintavam `ag.prioridade` cru
+ * enquanto a agenda já derivava do prazo, e o MESMO chamado saía verde numa
+ * tela e vermelho na outra.
+ *
+ * Dois casos que não podem ser tratados como um só:
+ *
+ * `dias == null` — não existe prazo, e `riscoPorPrazo` responderia `baixa` para
+ * a AUSÊNCIA de previsão, que é a armadilha que `dispensaAgendamento` já
+ * documenta. Aqui a palavra registrada é a única informação que existe, então
+ * ela vale, e `semPrazo` avisa a tela de que nenhum número a sustenta.
+ *
+ * `origem === "manual"` — a coluna nunca foi opinião de LLM nenhuma: nasceu
+ * cópia do `risco` da view no dia da criação (ver `criarRocadaManual`) e só
+ * envelheceu. Chamar isso de "a IA classificou como Alta" seria a mesma
+ * atribuição errada, ao contrário. Por isso `divergente` fica nulo.
+ */
+export type LeituraPrioridade = {
+  /** O que a tela pinta. */
+  risco: Risco;
+  /** A palavra da LLM, só quando ela difere do prazo. */
+  divergente: Risco | null;
+  /** Não há `dias_ate_limite`: o chip não está apoiado em prazo nenhum. */
+  semPrazo: boolean;
+};
+
+export function prioridadeExibida(
+  diasAteLimite: number | null | undefined,
+  registrada: Risco | null | undefined,
+  origem?: "ia" | "manual" | null,
+): LeituraPrioridade {
+  if (diasAteLimite == null) {
+    return { risco: registrada ?? "baixa", divergente: null, semPrazo: true };
+  }
+  const risco = riscoPorPrazo(diasAteLimite);
+  const discordou = origem !== "manual" && registrada != null && registrada !== risco;
+  return { risco, divergente: discordou ? registrada : null, semPrazo: false };
+}
+
+/**
+ * A frase que a tela usa quando a LLM discordou do prazo. Fica aqui para as
+ * quatro superfícies dizerem a mesma coisa, e para dizerem qual prevaleceu.
+ */
+export function textoDivergencia(leitura: LeituraPrioridade): string | null {
+  if (!leitura.divergente) return null;
+  return `A IA classificou como ${PRIORIDADE[leitura.divergente].rotulo}. Vale o prazo: ${
+    PRIORIDADE[leitura.risco].rotulo
+  }.`;
+}
+
+/**
  * A partir de quantos dias de folga um agendamento em aberto deixa de fazer
  * sentido. Espelha `LIMIAR_FECHAR_DIAS` em `analisar_lote.py`, e as duas
  * precisam continuar iguais, como a regra de risco entre a view e este arquivo.

@@ -159,7 +159,21 @@ function Gaveta({
       descricao={`${fmt.faixaKm(Number(t.km_inicio), Number(t.km_fim))} · ${t.uf}${t.sentido ? ` · ${t.sentido}` : ""}`}
       rodape={
         podeEscrever ? (
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex min-w-0 flex-col gap-2">
+            {/* O motivo do bloqueio em TEXTO, e nao so no `title`. Botao
+                `disabled` nao recebe foco e, na maioria dos navegadores, nem
+                dispara tooltip no hover: "Aprovar rocada" aparecia apagado e
+                nada explicava por que ate a pessoa rolar a gaveta inteira ate
+                a secao "Ajustar plano", que e onde a mesma frase ja aparecia
+                como dica do campo Equipe. */}
+            {(item.status === "sugerido" && bloqueioAprovacao) ||
+            (item.status === "aprovado" && !encerrando && bloqueioEncerramento) ? (
+              <p className="min-w-0 text-xs text-ink-3">
+                {item.status === "sugerido" ? bloqueioAprovacao : bloqueioEncerramento}
+              </p>
+            ) : null}
+
+            <div className="flex flex-wrap items-center gap-2">
             {item.status === "sugerido" ? (
               <Botao
                 variante="primario"
@@ -240,6 +254,7 @@ function Gaveta({
                 </Botao>
               )
             ) : null}
+            </div>
           </div>
         ) : (
           <AvisoSomenteLeitura podeEscrever={false} />
@@ -271,6 +286,15 @@ function Gaveta({
           </Chip>
         ) : null}
       </div>
+
+      {/* A LLM discordou do prazo. O chip acima ja saiu do prazo; esta linha e
+          a outra metade da regra, "a tela mostra as duas e diz qual
+          prevaleceu". Sem ela a gaveta punha o chip "Media" no topo e, quinze
+          centimetros abaixo, a justificativa da propria IA dizendo
+          "prioridade critica" -- as duas na mesma tela, nenhuma explicada. */}
+      {item.divergencia ? (
+        <p className="mt-3 text-xs text-ink-3">{item.divergencia}</p>
+      ) : null}
 
       {/* A explicação de por que o selo apareceu, com o botão logo abaixo no
           rodapé. O lote descarta sozinho o que ele mesmo sugeriu e o que já

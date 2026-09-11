@@ -373,6 +373,15 @@ export const CartaoServico = memo(function CartaoServico({
           <button
             ref={refCartao}
             type="button"
+            /* O anel de foco para DENTRO da caixa. O cartão é
+               `overflow-hidden` (o filete de risco e a barra de carga precisam
+               do recorte arredondado), e o anel do projeto é um `outline` com
+               `outline-offset: 2px`, desenhado FORA da caixa -- num quadro com
+               ~130 cartões navegados por roving tabindex, dar Tab mostrava só
+               dois filetes verticais nas laterais, o resto comido pelo recorte.
+               O offset vai inline porque a regra de foco em `globals.css` está
+               fora de camada e vence qualquer utility; a custom property, não. */
+            style={{ outlineOffset: "var(--foco-offset, 2px)" }}
             /* O que a alça ainda é, agora que o cartão inteiro arrasta: a pega
                do TOQUE (é ela que carrega `touch-none`, e por isso o
                `pointerdown` de dedo só vira arrasto quando começa aqui, ver
@@ -434,7 +443,7 @@ export const CartaoServico = memo(function CartaoServico({
                dura uma ida ao servidor e tem outro canal: o `animate-pulse` do
                ícone. */
             className={cn(
-              "flex w-5 shrink-0 touch-none items-center justify-center text-current",
+              "flex w-5 shrink-0 touch-none items-center justify-center text-current focus-visible:[--foco-offset:-2px]",
               salvando ? "cursor-wait opacity-30" : "cursor-grab opacity-70 group-hover:opacity-100",
             )}
           >
@@ -445,6 +454,8 @@ export const CartaoServico = memo(function CartaoServico({
         <button
           ref={semAlca ? refCartao : undefined}
           type="button"
+          /* Mesmo motivo da alça acima: anel para dentro. */
+          style={{ outlineOffset: "var(--foco-offset, 2px)" }}
           /* Onde `pegarNoCartao` repõe o foco quando o ponteiro desce sobre uma
              parte do cartão que não é botão (o filete de risco, o selo "2 d"). */
           data-detalhe=""
@@ -461,7 +472,7 @@ export const CartaoServico = memo(function CartaoServico({
              4px e no selo "2 d", a descoberta do arrasto continuaria presa a
              alvos minúsculos, que é o que esta mudança existe para acabar. */
           className={cn(
-            "min-w-0 flex-1 py-1.5 pr-2 text-left",
+            "min-w-0 flex-1 py-1.5 pr-2 text-left focus-visible:[--foco-offset:-2px]",
             arrastavel && "cursor-grab",
             salvando && "cursor-wait",
           )}

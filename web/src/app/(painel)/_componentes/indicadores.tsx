@@ -54,7 +54,11 @@ export function Indicadores({
           valor={fmt.n(painel.rocadas_proximos_7d)}
           icone={<CalendarClock />}
           href="/agenda"
-          nota={`${fmt.n(painel.pendentes)} sugestões aguardando decisão · ${fmt.n(painel.aprovados)} já aprovadas`}
+          /* "Na malha" e obrigatorio, nao enfeite: `pendentes` e `aprovados`
+             contam a malha INTEIRA e o numero grande conta 7 dias. Sem o
+             escopo escrito, a nota era lida como decomposicao do numero de
+             cima e nao fechava a conta -- "18 + 16" embaixo de um "20". */
+          nota={`Na malha: ${fmt.contar(painel.pendentes, "sugestão aguardando decisão", "sugestões aguardando decisão")} · ${fmt.contar(painel.aprovados, "aprovada", "aprovadas")}`}
         />
 
         <Indicador
@@ -64,7 +68,7 @@ export function Indicadores({
           unidade="km"
           icone={<Waypoints />}
           href="/malha"
-          nota={`${fmt.n(painel.trechos_total)} trechos em ${fmt.n(rodovias)} rodovias`}
+          nota={`${fmt.contar(painel.trechos_total, "trecho")} em ${fmt.contar(rodovias, "rodovia")}`}
         />
 
         <CartaoCrescimento

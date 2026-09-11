@@ -10,6 +10,7 @@ import { Chip, ChipRisco } from "@/components/ui/chip";
 import { useNotificacao } from "@/components/ui/notificacoes";
 import { EstadoVazio } from "@/components/ui/vazio";
 import { aprovarAgendamento, mudarStatusAgendamento, type Resultado } from "@/lib/acoes";
+import { PRAZO_LONGO_DEMAIS, prioridadeExibida, rotuloPrazo, textoDivergencia } from "@/lib/dominio";
 import { fmt, relativoEmDias } from "@/lib/format";
 import type { Equipe, Risco } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -23,7 +24,9 @@ export type ItemDecisao = {
   kmInicio: number;
   kmFim: number;
   sentido: string | null;
-  /** Prioridade decidida pela LLM. Usa a mesma escala visual do risco. */
+  /** A palavra que a LLM escreveu. NAO e o que a tela pinta: o chip sai de
+   *  `prioridadeExibida(diasAteLimite, prioridade)`, e esta so aparece na
+   *  frase de divergencia quando as duas discordam. */
   prioridade: Risco;
   diasAteLimite: number | null;
   dataSugerida: string;
@@ -38,9 +41,26 @@ export type ItemDecisao = {
 
 type Decisao = "aprovado" | "descartado";
 
+/**
+ * O prazo em numero grande.
+ *
+ * `dias === 0` NAO e "0 dias acima do limite" -- e zero dia de prazo, o trecho
+ * chega ao limite hoje. A versao anterior mandava tudo `<= 0` para o texto
+ * "acima do limite" e imprimia a frase literal "0 dias acima do limite" nos
+ * seis cartoes desta tela, que e o numero mais visivel do painel. O dominio ja
+ * separava os dois casos (`rotuloPrazo(0)` responde "acima do limite", sem
+ * numero); aqui a separacao e por sinal, para o numero grande continuar
+ * significando magnitude.
+ *
+ * O teto de `PRAZO_LONGO_DEMAIS` tambem vale aqui: acima de um ano o numero
+ * some e sobra a frase, pelo mesmo motivo pelo qual ele existe -- "621 dias"
+ * sobre uma extrapolacao linear e precisao de mentira.
+ */
 function Prazo({ dias }: { dias: number | null }) {
   const semPrevisao = dias == null;
-  const vencido = !semPrevisao && dias <= 0;
+  const vencido = !semPrevisao && dias < 0;
+  const noLimiteHoje = dias === 0;
+  const longeDemais = !semPrevisao && dias > PRAZO_LONGO_DEMAIS;
   const magnitude = semPrevisao ? 0 : Math.abs(dias);
 
   return (
@@ -50,23 +70,29 @@ function Prazo({ dias }: { dias: number | null }) {
       <span
         className={cn(
           "tnum mt-1.5 block font-mono text-2xl leading-none font-semibold",
-          vencido ? "text-critical-ink" : "text-ink",
+          vencido || noLimiteHoje ? "text-critical-ink" : "text-ink",
         )}
       >
-        {semPrevisao ? "—" : fmt.n(magnitude)}
+        {semPrevisao || longeDemais ? "—" : fmt.n(magnitude)}
       </span>
 
       <span className="mt-1.5 flex items-center gap-1 text-2xs text-ink-3">
-        {vencido ? <OctagonAlert aria-hidden="true" className="size-3 shrink-0" /> : null}
+        {vencido || noLimiteHoje ? (
+          <OctagonAlert aria-hidden="true" className="size-3 shrink-0" />
+        ) : null}
         {semPrevisao
           ? "sem previsão"
-          : vencido
-            ? magnitude === 1
-              ? "dia acima do limite"
-              : "dias acima do limite"
-            : dias === 1
-              ? "dia até o limite"
-              : "dias até o limite"}
+          : longeDemais
+            ? rotuloPrazo(dias)
+            : noLimiteHoje
+              ? "chega ao limite hoje"
+              : vencido
+                ? magnitude === 1
+                  ? "dia acima do limite"
+                  : "dias acima do limite"
+                : dias === 1
+                  ? "dia até o limite"
+                  : "dias até o limite"}
       </span>
     </div>
   );
@@ -281,6 +307,13 @@ export function ExigemDecisao({
           const confirma = confirmando === item.id;
           const aprova = aprovando === item.id;
           const rotuloTrecho = `${item.rodovia}, ${fmt.faixaKm(item.kmInicio, item.kmFim)}`;
+          /* O chip sai do PRAZO, nunca da palavra da LLM. Numa simulacao ela
+             devolveu `critica` para um trecho que cruzava o limite em 61 dias,
+             justificando com "menos de 7 dias" no mesmo paragrafo em que
+             escreveu "61" -- e este cartao mostrava o chip vermelho ao lado do
+             numero 61, os dois se contradizendo na mesma linha. */
+          const leitura = prioridadeExibida(item.diasAteLimite, item.prioridade);
+          const divergencia = textoDivergencia(leitura);
 
           return (
             <li
@@ -299,7 +332,7 @@ export function ExigemDecisao({
 
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-                    <ChipRisco risco={item.prioridade} tamanho="sm" />
+                    <ChipRisco risco={leitura.risco} tamanho="sm" />
 
                     <Link
                       href={`/trechos/${item.trechoId}`}
@@ -310,6 +343,10 @@ export function ExigemDecisao({
 
                     <Chip tom="neutro">{item.uf}</Chip>
                   </div>
+
+                  {divergencia ? (
+                    <p className="mt-2 text-xs text-ink-3">{divergencia}</p>
+                  ) : null}
 
                   <p className="tnum mt-2.5 font-mono text-xs break-words text-ink-3">
                     {fmt.faixaKm(item.kmInicio, item.kmFim)}

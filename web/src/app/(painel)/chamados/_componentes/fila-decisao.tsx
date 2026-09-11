@@ -5,7 +5,8 @@ import type { ReactNode } from "react";
 import { diasDeAtraso } from "@/lib/chamados/numero";
 import { MOTIVO_ADIAMENTO, STATUS_CHAMADO_TOKEN } from "@/lib/dominio";
 import { fmt } from "@/lib/format";
-import type { ChamadoAdiamento, ChamadoDetalhado, StatusChamado } from "@/lib/types";
+import type { ChamadoNaTela } from "@/lib/chamados/queries";
+import type { ChamadoAdiamento, StatusChamado } from "@/lib/types";
 
 import { CartaoChamado, desde, type Destaque } from "./cartao-chamado";
 import { IconeChamado } from "./icones";
@@ -13,9 +14,9 @@ import { IconeChamado } from "./icones";
 /** O que `filaDeDecisao` devolve. Tipo local, e não importado do módulo de
  *  consulta, porque o adiamento vem embutido só no bloco do meio. */
 export type Fila = {
-  aguardando: ChamadoDetalhado[];
-  adiamentos: (ChamadoDetalhado & { adiamento: ChamadoAdiamento })[];
-  atrasados: ChamadoDetalhado[];
+  aguardando: ChamadoNaTela[];
+  adiamentos: (ChamadoNaTela & { adiamento: ChamadoAdiamento })[];
+  atrasados: ChamadoNaTela[];
 };
 
 export type BlocoDaFila = "aguardando" | "adiamentos" | "atrasados";
@@ -107,7 +108,7 @@ export function FilaDecisao({
   aoAbrir: (id: number) => void;
   aoVerTodos: (bloco: BlocoDaFila) => void;
 }) {
-  function fichas(lista: ChamadoDetalhado[], destaque: (c: ChamadoDetalhado) => Destaque) {
+  function fichas(lista: ChamadoNaTela[], destaque: (c: ChamadoNaTela) => Destaque) {
     if (lista.length === 0) return <NadaEsperando />;
     return lista.slice(0, FICHAS).map((c) => (
       <CartaoChamado

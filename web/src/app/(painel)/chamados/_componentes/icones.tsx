@@ -63,7 +63,13 @@ export function IconeChamado({ nome, className }: { nome: string; className?: st
 }
 
 const BASE_CHIP =
-  "inline-flex max-w-full items-center gap-1.5 rounded-full border border-transparent font-medium whitespace-nowrap";
+  "inline-flex max-w-full items-center gap-1.5 rounded-full border font-medium whitespace-nowrap";
+
+/* `border-transparent` do Tailwind e MORTA neste projeto: `globals.css` tem
+   `* { border-color: var(--border) }` fora de camada, e CSS sem camada vence as
+   utilities. Sem esta cor inline todo chip de estado ganhava um anel cinza em
+   volta do fundo colorido -- visivel na tela, invisivel em tipos, lint e build. */
+export const BORDA_INVISIVEL = { borderColor: "transparent" } as const;
 
 const TAMANHOS = {
   sm: "h-5 px-1.5 text-2xs [&_svg]:size-3",
@@ -92,7 +98,7 @@ export function ChipChamado({
   return (
     <span
       className={cn(BASE_CHIP, TAMANHOS[tamanho], className)}
-      style={{ color: token.tinta, backgroundColor: token.fundo }}
+      style={{ ...BORDA_INVISIVEL, color: token.tinta, backgroundColor: token.fundo }}
       title={token.descricao}
     >
       <IconeChamado nome={token.icone} />

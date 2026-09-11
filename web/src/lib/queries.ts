@@ -66,8 +66,23 @@ export const listarZonasClima = cache(async (): Promise<ZonaClima[]> => {
   return data as ZonaClima[];
 });
 
+/**
+ * `AAAA-MM-DD` de N dias atras, ancorado no dia de Brasilia.
+ *
+ * O que havia aqui era `somarDias(new Date(), -dias).toISOString().slice(0,10)`:
+ * `somarDias` usa `getDate`/`setDate`, que sao getters LOCAIS, e o
+ * `.toISOString()` no fim reprojeta para UTC. Num servidor em UTC -- o caso
+ * normal em producao -- das 21h a meia-noite de Brasilia o dia ja virou, que e
+ * exatamente o motivo de `isoHoje()` existir. `parseData` ancora ao MEIO-DIA
+ * local, entao formatar pelos getters locais nao escorrega de dia.
+ */
+function diasAtras(dias: number): string {
+  const d = somarDias(isoHoje(), -dias);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export const medicoesDoTrecho = cache(async (trechoId: number, dias = 240): Promise<Medicao[]> => {
-  const desde = somarDias(new Date(), -dias).toISOString().slice(0, 10);
+  const desde = diasAtras(dias);
   const { data, error } = await db
     .from("medicoes")
     .select("id, trecho_id, data, altura_cm")
@@ -133,6 +148,11 @@ export const agendamentosDoTrecho = cache(async (trechoId: number): Promise<Agen
   return data as unknown as AgendamentoDetalhado[];
 });
 
+function dentroDe7Dias(data: string, hoje: string): boolean {
+  const d = diasEntre(hoje, data);
+  return d >= 0 && d <= 7;
+}
+
 /** Numeros do topo do painel. Calculados em memoria: 50 trechos nao justificam RPC. */
 export const montarPainel = cache(async (): Promise<Painel> => {
   const [trechos, agendamentos] = await Promise.all([
@@ -157,13 +177,21 @@ export const montarPainel = cache(async (): Promise<Painel> => {
     executados_30d: agendamentos.filter(
       (a) => a.status === "executado" && diasEntre(a.data_sugerida, hoje) <= 30 && diasEntre(a.data_sugerida, hoje) >= 0,
     ).length,
-    rocadas_proximos_7d: [...pendentes, ...aprovados].filter((a) => {
-      const d = diasEntre(hoje, a.data_sugerida);
-      return d >= 0 && d <= 7;
-    }).length,
+    // ATENCAO ao usar `pendentes` e `aprovados` ao lado deste: os dois contam a
+    // MALHA INTEIRA, sem recorte de data, e `rocadas_proximos_7d` conta 7 dias.
+    // Eles nao somam, e a nota do indicador ja anunciou "18 + 16" embaixo de um
+    // numero que dizia 20. Quem os exibir junto tem que dizer o escopo.
+    rocadas_proximos_7d: [...pendentes, ...aprovados].filter((a) => dentroDe7Dias(a.data_sugerida, hoje)).length,
     crescimento_medio_cm_dia: crescimentos.length ? sum(crescimentos) / crescimentos.length : 0,
     crescimento_maximo_cm_dia: crescimentos.length ? Math.max(...crescimentos) : 0,
-    trechos_acima_do_limite: trechos.filter((t) => (t.altura_atual_cm ?? 0) >= t.altura_limite_cm).length,
+    // `Number()` nos DOIS: `numeric` do Postgres chega como string pelo
+    // PostgREST (ver `estadoDaAltura`, que ja se defende disso), e ai
+    // `"9.5" >= "40.0"` e `true` por comparacao lexicografica. Nesta base a
+    // conta certa da 22 e a lexicografica daria 27 -- o painel contaria cinco
+    // trechos folgados como acima do limite, com cara de numero exato.
+    trechos_acima_do_limite: trechos.filter(
+      (t) => Number(t.altura_atual_cm ?? 0) >= Number(t.altura_limite_cm),
+    ).length,
   };
 });
 
@@ -206,7 +234,7 @@ export const trechosPorRodovia = cache(async () => {
  * Uma linha por especie: sao 3, dentro do limite de series validado.
  */
 export const serieCrescimentoPorEspecie = cache(async (dias = 45) => {
-  const desde = somarDias(new Date(), -dias).toISOString().slice(0, 10);
+  const desde = diasAtras(dias);
   const { data, error } = await db
     .from("previsoes")
     .select("data_previsao, crescimento_cm_dia, trecho_id, trechos!inner ( especie )")

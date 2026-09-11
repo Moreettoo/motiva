@@ -123,7 +123,7 @@ export function Conversa({ sugestoes, escopo }: { sugestoes: string[]; escopo: n
 
   const rodapeEscopo =
     escopo > 0
-      ? `Baseado nos ${fmt.n(escopo)} agendamentos mais recentes. O copiloto não lê medições, alturas nem escala de equipe.`
+      ? `Baseado ${escopo === 1 ? "no agendamento mais recente" : `nos ${fmt.n(escopo)} agendamentos mais recentes`}. O copiloto lê a data e o prazo até o limite de cada trecho; medições, alturas e escala de equipe ficam fora.`
       : "A base ainda não tem agendamentos: rode a análise em lote antes de confiar na resposta.";
 
   return (
@@ -131,7 +131,16 @@ export function Conversa({ sugestoes, escopo }: { sugestoes: string[]; escopo: n
       {/* A altura real vem de cima (`Shell` → página → esta seção); aqui só
           resta decidir quem cresce. O histórico rola sozinho, dentro do seu
           próprio espaço, o campo de pergunta abaixo não se move. */}
-      <div className="min-h-0 flex-1 overflow-y-auto scroll-thin">
+      {/* `tabIndex={0}`: o historico rola por conta propria e nao tem nenhum
+          elemento focavel dentro (as respostas sao texto), entao quem navega
+          por teclado nao conseguia rola-lo -- os chips de sugestao e o campo
+          ficam FORA desta caixa. WCAG 2.1.1. */}
+      <div
+        tabIndex={0}
+        role="region"
+        aria-label="Histórico da conversa"
+        className="min-h-0 flex-1 overflow-y-auto scroll-thin"
+      >
         {turnos.length === 0 && (
           <EstadoVazio
             icone={<MessageSquareText />}
@@ -152,7 +161,13 @@ export function Conversa({ sugestoes, escopo }: { sugestoes: string[]; escopo: n
               </p>
               <p className="mt-1.5 text-base break-words text-ink">{turno.pergunta}</p>
 
-              <div className="mt-3 border-l-2 border-accent-line pl-4">
+              <div
+                className="mt-3 border-l-2 pl-4"
+                /* A unica marca que separa a resposta da pergunta. `border-accent-line`
+                   e morta: `* { border-color }` sem camada em `globals.css` vence a
+                   utility, e o filete saia cinza igual a qualquer outra borda. */
+                style={{ borderColor: "var(--accent-line)" }}
+              >
                 {turno.erro ? (
                   <Aviso tom="critical" titulo="O copiloto não respondeu">
                     <p>{turno.erro}</p>
@@ -192,11 +207,12 @@ export function Conversa({ sugestoes, escopo }: { sugestoes: string[]; escopo: n
                     type="button"
                     onClick={() => enviar(sugestao)}
                     disabled={pendente}
+                    style={{ borderColor: "var(--borda, var(--border))" }}
                     className={cn(
                       "inline-flex max-w-full cursor-pointer items-center gap-1.5 rounded-full border border-border",
                       "bg-surface-2 px-3 py-1.5 text-xs text-ink-2",
                       "transition-[background-color,border-color,color] duration-150 ease-[var(--ease-out-quint)]",
-                      "hover:border-border-strong hover:bg-surface-3 hover:text-ink",
+                      "hover:bg-surface-3 hover:[--borda:var(--border-strong)] hover:text-ink",
                       "disabled:pointer-events-none disabled:opacity-50",
                     )}
                   >

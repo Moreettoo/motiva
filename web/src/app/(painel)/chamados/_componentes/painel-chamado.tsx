@@ -10,12 +10,12 @@ import { ChipRisco } from "@/components/ui/chip";
 import { PainelLateral } from "@/components/ui/painel-lateral";
 import { acoesDisponiveis, terminal, type Acao } from "@/lib/chamados/maquina";
 import { diasDeAtraso, estaAtrasado } from "@/lib/chamados/numero";
-import { MOTIVO_ADIAMENTO } from "@/lib/dominio";
+import type { ChamadoNaTela } from "@/lib/chamados/queries";
+import { MOTIVO_ADIAMENTO, prioridadeExibida, textoDivergencia } from "@/lib/dominio";
 import { fmt, relativoEmDias } from "@/lib/format";
 import type {
   Cargo,
   ChamadoAdiamento,
-  ChamadoDetalhado,
   ChamadoEvento,
   ChamadoFoto,
 } from "@/lib/types";
@@ -37,7 +37,7 @@ import { FotosAntesDepois } from "./fotos-antes-depois";
 import { ChipChamado } from "./icones";
 import { LinhaDoTempo } from "./linha-do-tempo";
 
-export type DetalheChamado = ChamadoDetalhado & {
+export type DetalheChamado = ChamadoNaTela & {
   eventos: ChamadoEvento[];
   fotos: ChamadoFoto[];
   adiamento_pendente: ChamadoAdiamento | null;
@@ -183,6 +183,8 @@ function CorpoChamado({
   const { trecho, agendamento, adiamento_pendente: adiamento } = detalhe;
   const equipe = agendamento.equipe;
   const atrasado = estaAtrasado(detalhe.status, agendamento.data_sugerida, hoje);
+  const prioridade = prioridadeExibida(detalhe.prazo_dias, agendamento.prioridade, agendamento.origem);
+  const divergencia = textoDivergencia(prioridade);
   const acoes = acoesDisponiveis(detalhe.status, cargo, false);
   const kmDoTrecho = Math.max(0, Number(trecho.km_fim) - Number(trecho.km_inicio));
 
@@ -207,7 +209,8 @@ function CorpoChamado({
       <Secao titulo="Estado e prazo">
         <div className="flex flex-wrap items-center gap-2">
           <ChipChamado status={detalhe.status} />
-          <ChipRisco risco={agendamento.prioridade} />
+          {/* Do PRAZO de hoje. Ver `prioridadeExibida`. */}
+          <ChipRisco risco={prioridade.risco} />
           {atrasado ? (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-critical-soft px-2 py-0.5 text-xs font-medium text-critical-ink">
               <CalendarClock aria-hidden="true" className="size-3.5 shrink-0" />
@@ -215,6 +218,14 @@ function CorpoChamado({
             </span>
           ) : null}
         </div>
+
+        {/* A divergência não some: a tela mostra as duas e diz qual prevaleceu.
+            Numa simulação a LLM já devolveu `critica` para um trecho que
+            cruzava o limite em 61 dias, justificando com "menos de 7 dias" no
+            mesmo parágrafo em que escreveu "61". */}
+        {divergencia ? (
+          <p className="mt-2 text-xs text-ink-3">{divergencia}</p>
+        ) : null}
 
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <Dado rotulo="Data prevista">
@@ -260,7 +271,16 @@ function CorpoChamado({
           <Dado rotulo="Final">
             <span className="tnum">{fmt.cm(detalhe.altura_final_cm)}</span>
             <span className="block text-2xs text-ink-3">
-              {detalhe.altura_final_cm == null ? "a equipe ainda não mediu" : "medida no fechamento"}
+              {/* "medida no fechamento" e falso quando o gestor digitou a
+                  altura no encerramento administrativo -- e o cartao dizia
+                  isso a dois centimetros do aviso "Concluido sem evidencia de
+                  campo", na mesma tela. Mesma regra da altura inicial logo
+                  acima: a legenda nomeia quem produziu o numero. */}
+              {detalhe.altura_final_cm == null
+                ? "a equipe ainda não mediu"
+                : detalhe.sem_evidencia
+                  ? "informada no encerramento"
+                  : "medida no fechamento"}
             </span>
           </Dado>
 
@@ -329,7 +349,7 @@ function CorpoChamado({
       </Secao>
 
       <Secao titulo="Fotos">
-        <FotosAntesDepois fotos={detalhe.fotos} trecho={trecho} />
+        <FotosAntesDepois fotos={detalhe.fotos} trecho={trecho} encerradoSemCampo={detalhe.sem_evidencia} />
       </Secao>
 
       {adiamento ? (

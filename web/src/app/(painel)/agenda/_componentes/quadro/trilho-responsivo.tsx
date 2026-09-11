@@ -8,9 +8,7 @@ import { Botao } from "@/components/ui/botao";
 import { fmt } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-import type { ItemAgenda } from "../dados";
 import { TrilhoFila } from "./trilho-fila";
-import type { CargaArrasto } from "./usar-arrasto";
 
 /** Mesmo limiar que `barra-lateral.tsx` já consulta (`CONSULTA_LG`): abaixo
  *  dele a lateral vira `NavegacaoMovel` e o trilho perde a coluna própria,
@@ -42,26 +40,11 @@ function useMontado(): boolean {
   return useSyncExternalStore(semAssinatura, verdadeiro, falso);
 }
 
-type PropsTrilho = {
-  itens: ItemAgenda[];
-  total: number;
-  expandido: boolean;
-  aoExpandir: () => void;
-  janelaFim: string;
-  realcado: boolean;
-  idEmVoo: number | null;
-  idAtivo: number | null;
-  selecionado: number | null;
-  salvandoIds: ReadonlySet<number>;
-  anelErroPorId: ReadonlyMap<number, number>;
-  aoPegar: (e: React.PointerEvent<HTMLElement>, carga: CargaArrasto) => void;
-  somenteLeitura: boolean;
-  aoTeclar: (e: React.KeyboardEvent<HTMLElement>, carga: CargaArrasto) => void;
-  aoAbrir: (id: number) => void;
-  engolirClique: (e: React.MouseEvent) => void;
-  refCartao: (id: number) => (no: HTMLElement | null) => void;
-  aoFocar: (id: number) => () => void;
-};
+/* DERIVADA, e nao uma copia a mao das 18 props de `TrilhoFila`.
+   Este wrapper so repassa `{...props}`, entao a copia nao adicionava nada e
+   tinha um custo real: uma prop nova no trilho parava aqui, e a mensagem do
+   compilador apontava para o repasse, nao para a origem. */
+type PropsTrilho = React.ComponentProps<typeof TrilhoFila>;
 
 /**
  * O trilho da fila, com duas montagens: a troca é de ONDE ele entra no DOM,
@@ -142,7 +125,7 @@ export function TrilhoResponsivo({
         className={cn(
           "pointer-events-auto mt-2 min-h-0 overflow-hidden rounded-lg border border-border shadow-lg",
           "transition-[max-height] duration-200 ease-[var(--ease-out-quint)]",
-          docaAberta ? "max-h-[60vh] overflow-y-auto scroll-thin" : "max-h-0 border-transparent",
+          docaAberta ? "max-h-[60vh] overflow-y-auto scroll-thin" : "max-h-0",
         )}
       >
         <TrilhoFila {...props} />

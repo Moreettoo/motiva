@@ -9,7 +9,7 @@ import type { DeltaIndicador } from "@/components/ui/indicador";
 import type { BarraDado } from "@/components/viz/barras";
 import type { SerieLinha } from "@/components/viz/linha";
 import { podeEscrever } from "@/lib/auth/permissoes";
-import { corSerie, ESPECIE, ordemRisco } from "@/lib/dominio";
+import { corSerie, ESPECIE, ordemRisco, prioridadeExibida } from "@/lib/dominio";
 import { exigirCargo } from "@/lib/auth/sessao";
 import { diasEntre, fmt, isoHoje, proximaReanalise } from "@/lib/format";
 import {
@@ -121,18 +121,29 @@ export default async function PaginaPainel() {
     trechos.filter((t) => t.risco === "critica").map((t) => Number(t.extensao_km) || 0),
   );
 
-  /* Exige decisão o que a IA sugeriu e ninguém confirmou: prioridade crítica ou
-     alta, ou data sugerida dentro da semana (incluindo as que já venceram). */
+  /* Exige decisão o que a IA sugeriu e ninguém confirmou: risco crítico ou
+     alto, ou data sugerida dentro da semana (incluindo as que já venceram).
+
+     O risco sai do PRAZO, e não de `a.prioridade`. Com a palavra da LLM
+     mandando aqui, ela decidia duas coisas de uma vez e as duas errado quando
+     discordava do número: um trecho folgado que ela chamou de crítico SUBIA
+     para o topo da fila do gestor, e um trecho de 10 dias que ela chamou de
+     média só entrava se a data ajudasse. Ordenar e filtrar pela mesma leitura
+     que o chip pinta é o que faz a fila e o cartão contarem a mesma história. */
+  const riscoDaSugestao = (a: AgendamentoDetalhado) =>
+    prioridadeExibida(
+      a.previsao?.dias_ate_limite ?? porTrecho.get(a.trecho_id)?.dias_ate_limite ?? null,
+      a.prioridade,
+    ).risco;
+
   const urgentes = sugestoesVigentes(agendamentos)
-    .filter(
-      (a) =>
-        a.prioridade === "critica" ||
-        a.prioridade === "alta" ||
-        diasEntre(hoje, a.data_sugerida) <= JANELA_DECISAO_DIAS,
-    )
+    .filter((a) => {
+      const risco = riscoDaSugestao(a);
+      return risco === "critica" || risco === "alta" || diasEntre(hoje, a.data_sugerida) <= JANELA_DECISAO_DIAS;
+    })
     .sort(
       (a, b) =>
-        ordemRisco(a.prioridade) - ordemRisco(b.prioridade) ||
+        ordemRisco(riscoDaSugestao(a)) - ordemRisco(riscoDaSugestao(b)) ||
         (a.previsao?.dias_ate_limite ?? 9999) - (b.previsao?.dias_ate_limite ?? 9999) ||
         a.data_sugerida.localeCompare(b.data_sugerida),
     );
@@ -265,7 +276,7 @@ export default async function PaginaPainel() {
               <span className="tnum">
                 {decisoesRestantes === 1
                   ? "Mais 1 sugestão aguardando decisão."
-                  : `Mais ${decisoesRestantes} sugestões aguardando decisão.`}
+                  : `Mais ${fmt.contar(decisoesRestantes, "sugestão aguardando decisão", "sugestões aguardando decisão")}.`}
               </span>
               <LinkAcao href="/agenda" className="ml-auto">
                 Ver todas na agenda
