@@ -31,11 +31,19 @@ export async function entrar(entrada: {
   // Uma mensagem so para "nao existe" e "senha errada": nao confirmar quem tem conta.
   if (error || !data.user) return { ok: false, erro: "E-mail ou senha não conferem." };
 
-  const { data: perfil } = await db
+  const { data: perfil, error: erroPerfil } = await db
     .from("perfis")
     .select("cargo, ativo, senha_provisoria")
     .eq("usuario_id", data.user.id)
     .maybeSingle();
+
+  /* Sem esta separacao, "a leitura falhou" e "ativo = false" davam a MESMA
+     resposta: a pessoa com a senha certa era deslogada e lia, em tom
+     definitivo, que um administrador desativou a conta dela. Aqui nao ha
+     signOut: a credencial esta certa, quem falhou foi o banco. */
+  if (erroPerfil) {
+    return { ok: false, erro: "Não foi possível confirmar seu acesso agora. Tente de novo em alguns segundos." };
+  }
 
   if (!perfil || !perfil.ativo) {
     await supabase.auth.signOut();
