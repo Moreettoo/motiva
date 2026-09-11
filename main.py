@@ -1,4 +1,40 @@
 """
+######################################################################
+##                                                                  ##
+##   NAO PUBLIQUE ESTE ARQUIVO. FERRAMENTA LOCAL, SOMENTE.          ##
+##                                                                  ##
+##   Esta API NAO TEM AUTENTICACAO NENHUMA e escreve no MESMO       ##
+##   banco que o painel le — o banco da demonstracao, que e o de    ##
+##   producao. Qualquer pessoa que alcance a porta pode ler a       ##
+##   malha inteira, gravar previsao e criar agendamento, sem        ##
+##   sessao, sem cargo e sem deixar autor no historico.             ##
+##                                                                  ##
+##   Tres motivos, e cada um sozinho ja basta:                      ##
+##     - sem login: nenhuma rota chama nada parecido com            ##
+##       `obterSessao`/`permitir`, ao contrario do painel;          ##
+##     - CORS `allow_origins=["*"]`: qualquer site do mundo faz a   ##
+##       requisicao pelo navegador de quem estiver com a porta      ##
+##       aberta;                                                    ##
+##     - `/diagnostico` e o handler de erro devolvem trecho de      ##
+##       stack trace, que entrega caminho de arquivo e versao.      ##
+##                                                                  ##
+##   Rodar em `localhost` esta correto e e para isso que ele        ##
+##   existe. O que nao pode e subir para Vercel, Render, Railway,   ##
+##   Fly, EC2, tunel (ngrok/cloudflared) nem `--host 0.0.0.0` em    ##
+##   rede que nao seja a sua.                                       ##
+##                                                                  ##
+##   Conferido em 11/09/2026: nada no repositorio o publica. Nao    ##
+##   ha Dockerfile, Procfile, vercel.json nem diretorio `api/` na   ##
+##   raiz; o `requirements.txt` fica na raiz e nao em `web/`, que   ##
+##   e a pasta do projeto na Vercel; e o unico workflow do GitHub   ##
+##   Actions roda `analisar_lote.py`, nunca `uvicorn`. Se um dia    ##
+##   algum desses aparecer apontando para ca, o certo e autenticar  ##
+##   ou apagar este arquivo — nao publica-lo assim.                 ##
+##   Ver docs/operacao/seguranca.md e                               ##
+##   docs/superpowers/specs/2026-09-13-depois-da-demonstracao.md.   ##
+##                                                                  ##
+######################################################################
+
   1. busca o trecho no Supabase
   2. pega a previsao do tempo no Open-Meteo
   3. preve o crescimento com o modelo .pkl  (IA de previsao)
@@ -63,6 +99,11 @@ import modelo as modelo_mod
 METRICAS = modelo_mod.METRICAS
 
 app = FastAPI(title="Motiva - Gestao de Vegetacao", version="1.0")
+
+# `allow_origins=["*"]` so e aceitavel porque este processo NAO VAI AO AR — ver o
+# aviso no topo do arquivo. Nao troque isto por uma lista de origens achando que
+# resolve: o buraco nao e o CORS, e a ausencia de autenticacao. CORS restringe o
+# navegador de terceiros, nao o `curl` de quem alcanca a porta.
 app.add_middleware(
     CORSMiddleware, allow_origins=["*"],
     allow_methods=["*"], allow_headers=["*"],
