@@ -221,13 +221,25 @@ export async function alterarCargo(usuarioId: string, cargo: Cargo): Promise<Res
   });
   if (motivo) return { ok: false, erro: motivo };
 
-  // Quem deixa de ser Rocador deixa a equipe sem lider: um Admin nao lidera turma.
-  if (alvo.cargo === "rocador" && cargo !== "rocador") {
-    await db.from("equipes").update({ lider_id: null }).eq("lider_id", usuarioId);
-  }
-
+  /* O cargo PRIMEIRO, e a equipe depois.
+     Na ordem inversa, uma falha na troca do cargo deixava o estado partido e o
+     erro na tela mentia sobre ele: a pessoa continuava Rocador -- porque o
+     `perfis` nao mudou -- mas ja nao liderava nada. O Admin lia "Nao foi
+     possivel alterar o cargo", concluia que nada aconteceu, e so descobria pelo
+     rocador, cujo app abre vazio no dia seguinte.
+     Nesta ordem a falha do primeiro passo nao toca a equipe, e a falha do
+     segundo deixa um estado que a propria tela mostra e o Admin conserta: cargo
+     novo com a equipe ainda apontando para ele. */
   const { error } = await db.from("perfis").update({ cargo }).eq("usuario_id", usuarioId);
   if (error) return { ok: false, erro: `Não foi possível alterar o cargo: ${error.message}` };
+
+  // Quem deixa de ser Rocador deixa a equipe sem lider: um Admin nao lidera turma.
+  if (alvo.cargo === "rocador" && cargo !== "rocador") {
+    const { error: erroEquipe } = await db.from("equipes").update({ lider_id: null }).eq("lider_id", usuarioId);
+    if (erroEquipe) {
+      return { ok: false, erro: `O cargo mudou, mas a equipe continua com esta pessoa como líder: ${erroEquipe.message}. Tente de novo.` };
+    }
+  }
   const { error: erroAuth } = await db.auth.admin.updateUserById(usuarioId, { app_metadata: { cargo } });
   if (erroAuth) return { ok: false, erro: `O perfil mudou, mas o token não: ${erroAuth.message}. Tente de novo.` };
 
