@@ -26,10 +26,13 @@ export function DecisaoIa({
   agendamento,
   trecho,
   hojeIso,
+  podeEscrever,
 }: {
   agendamento: AgendamentoDetalhado | null;
   trecho: TrechoStatus;
   hojeIso: string;
+  /** O botão de reanalisar só existe com permissão de escrita. */
+  podeEscrever: boolean;
 }) {
   const crescimento = trecho.crescimento_cm_dia == null ? null : Number(trecho.crescimento_cm_dia);
   const observacoes = trecho.observacoes?.trim() || null;
@@ -47,9 +50,15 @@ export function DecisaoIa({
           <EstadoVazio
             icone={<Bot />}
             titulo="Nenhuma decisão para este trecho"
+            /* O botão se chama "Reanalisar trecho" (ver `acoes-trecho.tsx`), e
+               ele NAO existe para o Analista: `AcoesTrecho` devolve `null` sem
+               permissão de escrita. Mandar procurar um botão com outro nome,
+               que pode nem estar na tela, é pior do que não mandar. */
             descricao={
               "A análise em lote só chama o modelo de linguagem para trechos a menos de 45 dias do limite. " +
-              "Use “Analisar Trecho” no topo da página para forçar uma decisão agora."
+              (podeEscrever
+                ? "Use “Reanalisar trecho”, no topo da página, para forçar uma decisão agora."
+                : "Peça a um gestor para reanalisar o trecho se precisar de uma decisão agora.")
             }
           />
         </CartaoCorpo>

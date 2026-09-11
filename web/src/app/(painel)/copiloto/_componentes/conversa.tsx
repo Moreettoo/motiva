@@ -131,7 +131,16 @@ export function Conversa({ sugestoes, escopo }: { sugestoes: string[]; escopo: n
       {/* A altura real vem de cima (`Shell` → página → esta seção); aqui só
           resta decidir quem cresce. O histórico rola sozinho, dentro do seu
           próprio espaço, o campo de pergunta abaixo não se move. */}
-      <div className="min-h-0 flex-1 overflow-y-auto scroll-thin">
+      {/* `tabIndex={0}`: o historico rola por conta propria e nao tem nenhum
+          elemento focavel dentro (as respostas sao texto), entao quem navega
+          por teclado nao conseguia rola-lo -- os chips de sugestao e o campo
+          ficam FORA desta caixa. WCAG 2.1.1. */}
+      <div
+        tabIndex={0}
+        role="region"
+        aria-label="Histórico da conversa"
+        className="min-h-0 flex-1 overflow-y-auto scroll-thin"
+      >
         {turnos.length === 0 && (
           <EstadoVazio
             icone={<MessageSquareText />}

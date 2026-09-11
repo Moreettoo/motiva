@@ -159,7 +159,21 @@ function Gaveta({
       descricao={`${fmt.faixaKm(Number(t.km_inicio), Number(t.km_fim))} · ${t.uf}${t.sentido ? ` · ${t.sentido}` : ""}`}
       rodape={
         podeEscrever ? (
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex min-w-0 flex-col gap-2">
+            {/* O motivo do bloqueio em TEXTO, e nao so no `title`. Botao
+                `disabled` nao recebe foco e, na maioria dos navegadores, nem
+                dispara tooltip no hover: "Aprovar rocada" aparecia apagado e
+                nada explicava por que ate a pessoa rolar a gaveta inteira ate
+                a secao "Ajustar plano", que e onde a mesma frase ja aparecia
+                como dica do campo Equipe. */}
+            {(item.status === "sugerido" && bloqueioAprovacao) ||
+            (item.status === "aprovado" && !encerrando && bloqueioEncerramento) ? (
+              <p className="min-w-0 text-xs text-ink-3">
+                {item.status === "sugerido" ? bloqueioAprovacao : bloqueioEncerramento}
+              </p>
+            ) : null}
+
+            <div className="flex flex-wrap items-center gap-2">
             {item.status === "sugerido" ? (
               <Botao
                 variante="primario"
@@ -240,6 +254,7 @@ function Gaveta({
                 </Botao>
               )
             ) : null}
+            </div>
           </div>
         ) : (
           <AvisoSomenteLeitura podeEscrever={false} />

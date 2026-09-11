@@ -137,7 +137,15 @@ export function PainelTrecho({
       titulo={trecho.sentido ? `${trecho.rodovia} · ${trecho.sentido}` : trecho.rodovia}
       descricao={`${fmt.faixaKm(kmInicio, kmFim)} · ${trecho.uf}`}
       rodape={
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex min-w-0 flex-col gap-2">
+          {/* O motivo do bloqueio em TEXTO. Botao `disabled` nao recebe foco e
+              nao dispara tooltip nativo na maioria dos navegadores, entao
+              "Aprovar rocada" ficava apagado sem nada explicando por que. */}
+          {podeEscrever && agendamentoId != null && status === "sugerido" && bloqueioAprovacao ? (
+            <p className="min-w-0 text-xs text-ink-3">{bloqueioAprovacao}</p>
+          ) : null}
+
+          <div className="flex flex-wrap items-center gap-2">
           {podeEscrever && agendamentoId != null ? (
             <>
               <Botao
@@ -193,6 +201,7 @@ export function PainelTrecho({
             Abrir trecho
             <ExternalLink aria-hidden="true" className="size-4 shrink-0" />
           </Link>
+          </div>
         </div>
       }
     >

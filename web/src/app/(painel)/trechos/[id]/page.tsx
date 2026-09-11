@@ -163,7 +163,7 @@ export default async function PaginaTrecho({ params }: { params: Promise<{ id: s
         hojeIso={hojeIso}
       />
 
-      <DecisaoIa agendamento={agendamentoAtual} trecho={trecho} hojeIso={hojeIso} />
+      <DecisaoIa agendamento={agendamentoAtual} trecho={trecho} hojeIso={hojeIso} podeEscrever={escreve} />
 
       {/* Depois de `DecisaoIa`, e não antes: a ordem na página é a ordem dos
           fatos — primeiro por que esta roçada foi marcada, depois em que pé

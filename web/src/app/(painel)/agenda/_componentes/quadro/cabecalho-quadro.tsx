@@ -29,17 +29,25 @@ import type { Janela } from "../dados";
  *    maior que zero. Ocupar um quarto de faixa para dizer "nada errado" é o
  *    oposto de um alerta.
  *
- * A LEGENDA é uma só, e antes eram duas mais três frases soltas. As faixas de
- * risco vão até `media`: pela regra de negócio, trecho de risco `baixa` não tem
- * agendamento em aberto (ver a spec de 2026-08-14), então um cartão verde não
- * pode aparecer no quadro e nomear a faixa seria prometer uma cor que não vem.
+ * A LEGENDA é uma só, e antes eram duas mais três frases soltas.
  */
 
-/** As faixas que podem aparecer num cartão do quadro. `baixa` fica de fora, ver
- *  o comentário acima. Escrita à mão e não derivada de `ORDEM_RISCO` de
- *  propósito: derivar com um `.filter()` esconderia a decisão dentro de uma
- *  expressão, e esta lista é uma afirmação sobre o domínio. */
-const RISCOS_NO_QUADRO: Risco[] = ["critica", "alta", "media"];
+/** As faixas que podem aparecer num cartão do quadro.
+ *
+ *  `baixa` ENTROU. O comentário anterior a excluía porque "trecho de risco
+ *  `baixa` não tem agendamento em aberto", o que era verdade enquanto só o lote
+ *  escrevia. `criarRocadaManual` mudou isso, e o caso TÍPICO dela é justamente
+ *  o trecho folgado — agendar na mão é o que se faz quando o modelo não vê
+ *  necessidade (reclamação, obra, evento). `dispensavel` é falso em roçada
+ *  manual, então o cartão verde fica no quadro indefinidamente. A view também
+ *  carimba `baixa` quando `dias_ate_limite` é NULL. Sem esta linha, a única
+ *  cor que a legenda ao lado não nomeava era a que mais aparece fora do lote —
+ *  cor de status sem rótulo, o oposto do que a skill `dataviz` pede.
+ *
+ *  Escrita à mão e não derivada de `ORDEM_RISCO` de propósito: derivar com um
+ *  `.filter()` esconderia a decisão dentro de uma expressão, e esta lista é uma
+ *  afirmação sobre o domínio. */
+const RISCOS_NO_QUADRO: Risco[] = ["critica", "alta", "media", "baixa"];
 
 export function CabecalhoQuadro({
   janela,
