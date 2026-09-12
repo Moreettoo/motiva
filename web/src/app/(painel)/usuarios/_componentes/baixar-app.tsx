@@ -28,14 +28,14 @@ const VERSAO = "campo-v0.1.0";
  * mudarem quando a release sair. Publicada a release, troque por `null`: o
  * aviso sai e o resto do cartão continua igual.
  */
-const DISPONIVEL_EM: string | null = "2026-09-12";
+const DISPONIVEL_EM: string | null = null;
 
 /**
  * O SHA-256 sai da página da release, calculado no arquivo publicado.
  * `null` até lá: um número inventado aqui seria pior que a ausência dele, já
  * que a conferência existe justamente para provar que o APK é o nosso.
  */
-const SHA256: string | null = null;
+const SHA256: string | null = "220b09e193d06dc67ce84b2876f66c3949dce0d0c6b69546e47db847dac2f50a";
 
 const PASSOS = [
   "Abrir este link no celular Android — pelo QR ao lado, ou digitando o endereço.",

@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "app.vercel.motiva_highwai.twa",
+        "sha256_cert_fingerprints": ["CD:7D:5D:3B:95:0B:A0:8C:74:26:E8:7D:BB:75:93:F1:A6:8D:A6:87:BF:F5:F1:78:E7:31:10:9A:D1:A4:07:AF"]
+      }
+    }]

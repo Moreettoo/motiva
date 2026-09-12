@@ -3,11 +3,23 @@
 Como o `campo.apk` é gerado, como ele se atualiza (quase sempre sozinho), onde vive a chave
 que não pode ser perdida, e o que exige um APK novo.
 
-> **Estado em 10/09/2026:** o pacote ainda **não foi gerado**. O que existe no repositório é
-> tudo o que vem antes disso — a PWA em `/campo`, o manifesto (`web/src/app/manifest.ts`), os
-> ícones e o QR (`web/public/icones/`). Ainda **não** existem `web/public/.well-known/assetlinks.json`,
-> release no GitHub, nem o cartão "Baixar o app de campo" em `/usuarios`. Este documento é o
-> procedimento a seguir; os passos 2 e 3 estão pendentes.
+> **Estado em 12/09/2026:** o pacote **foi gerado** pelo PWABuilder, o
+> `assetlinks.json` está em `web/public/.well-known/` e publicado, e o cartão "Baixar o app de
+> campo" em `/usuarios` já mostra o SHA-256. Falta só a release `campo-v0.1.0` no GitHub, com o
+> arquivo `campo.apk` anexado — é ela que o QR code abre.
+>
+> **O `package_name` real é `app.vercel.motiva_highwai.twa`, e não o `br.com.highwai.campo` que a
+> tabela abaixo pedia.** O PWABuilder deriva o identificador do domínio e foi esse o valor que
+> entrou no pacote assinado. Funciona: o `assetlinks.json` declara exatamente esse nome e a
+> impressão digital bate, então o Android esconde a barra de endereço. Mas o identificador é a
+> identidade permanente do app no Android — trocá-lo cria um app **diferente**, que exige
+> desinstalar e reinstalar em cada aparelho. Enquanto só o celular da demonstração tiver o app
+> instalado, refazer é barato; depois que as equipes instalarem, não é. Se a Motiva adotar o
+> sistema, esta é a primeira coisa a decidir — e o nome carrega "vercel", que ficaria errado no dia
+> em que o projeto ganhar domínio próprio.
+>
+> Impressão digital do certificado em uso (SHA-256):
+> `CD:7D:5D:3B:95:0B:A0:8C:74:26:E8:7D:BB:75:93:F1:A6:8D:A6:87:BF:F5:F1:78:E7:31:10:9A:D1:A4:07:AF`
 
 ---
 
@@ -49,7 +61,7 @@ Em <https://www.pwabuilder.com>, informe `https://motiva-highwai.vercel.app/camp
 
 | Campo | Valor |
 |---|---|
-| Package ID | `br.com.highwai.campo` |
+| Package ID | `br.com.highwai.campo` — **atenção:** o PWABuilder ignora e preenche a partir do domínio; em 12/09 saiu `app.vercel.motiva_highwai.twa`. Confira o campo antes de gerar |
 | App name | `HighwAI Campo` |
 | Launcher name | `Campo` |
 | App version / version code | `0.1.0` / `1` |
