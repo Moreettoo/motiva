@@ -89,9 +89,12 @@ def _classe(valor) -> int | None:
         if valor in _NAO_SE_APLICA:
             return None
     try:
-        n = int(float(valor))
+        f = float(valor)
     except (TypeError, ValueError):
         raise ValueError(f"valor de classe desconhecido: {valor!r}") from None
+    if not f.is_integer():
+        raise ValueError(f"classe nao inteira: {valor!r}")
+    n = int(f)
     if n not in (1, 2, 3):
         raise ValueError(f"classe fora de 1..3: {valor!r}")
     return n

@@ -19,8 +19,12 @@ def test_marcos_sao_60_de_0_a_29300():
 
 
 def test_data_interna_e_template_nas_duas():
-    assert planilha.ler(ARQ_LEV_1).data_interna == date(2025, 3, 28)
-    assert planilha.ler(ARQ_LEV_2).data_interna == date(2025, 3, 28)
+    lev1 = planilha.ler(ARQ_LEV_1)
+    lev2 = planilha.ler(ARQ_LEV_2)
+    assert lev1.data_interna == date(2025, 3, 28)
+    assert lev2.data_interna == date(2025, 3, 28)
+    assert lev1.data == date(2026, 3, 13)
+    assert lev2.data == date(2026, 3, 20)
 
 
 def test_contagens_medidas_em_13_09_2026():
@@ -50,3 +54,20 @@ def test_quatro_faixas_em_escopo():
 def test_valor_desconhecido_e_erro():
     with pytest.raises(ValueError):
         planilha._classe("7")
+
+
+def test_classe_normaliza_ausencia_e_valores_validos():
+    assert planilha._classe(None) is None
+    assert planilha._classe("") is None
+    assert planilha._classe("X") is None
+    assert planilha._classe("x") is None
+    assert planilha._classe(1) == 1
+    assert planilha._classe(2) == 2
+    assert planilha._classe(3) == 3
+
+
+def test_classe_nao_inteira_e_erro():
+    with pytest.raises(ValueError):
+        planilha._classe(2.9)
+    with pytest.raises(ValueError):
+        planilha._classe("1.5")
