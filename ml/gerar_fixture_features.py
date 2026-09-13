@@ -25,7 +25,7 @@ from pathlib import Path
 
 import clima
 
-DESTINO = Path("web/src/lib/modelo/fixture-features.json")
+DESTINO = Path(__file__).resolve().parents[1] / "web" / "src" / "lib" / "modelo" / "fixture-features.json"
 
 INICIO = date(2026, 6, 1)          # 60 dias de aquecimento + janela
 AQUECIMENTO = 60

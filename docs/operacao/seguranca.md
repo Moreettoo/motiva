@@ -248,7 +248,7 @@ painel lê.
 - **não existe** `Dockerfile`, `Procfile`, `vercel.json`, `render.yaml`, `fly.toml` nem `app.yaml`
   em lugar nenhum do repositório;
 - **não existe** diretório `api/` na raiz — é dele que a Vercel publicaria função Python;
-- o `requirements.txt` está na **raiz**, e a pasta do projeto na Vercel é **`web/`**; não há
+- o `requirements.txt` está em **`ml/`**, e a pasta do projeto na Vercel é **`web/`**; não há
   `web/requirements.txt`;
 - o **único** workflow do GitHub Actions (`.github/workflows/main.yml`) roda `python analisar_lote.py`,
   nunca `uvicorn`;

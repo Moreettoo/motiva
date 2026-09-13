@@ -43,7 +43,7 @@ import os
 import sys
 from datetime import date, timedelta
 
-ARQUIVO = os.getenv("VALIDACAO_CAMPO", "validacao_campo.json")
+ARQUIVO = os.getenv("VALIDACAO_CAMPO") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "validacao_campo.json")
 
 #: Grandeza que o alvo do modelo significa. Qualquer outra e outra coisa.
 GRANDEZA_DO_ALVO = "dossel"

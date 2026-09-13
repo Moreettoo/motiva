@@ -54,8 +54,9 @@ from pathlib import Path
 import joblib
 import numpy as np
 
-DESTINO = Path("web/src/lib/modelo")
-CAMINHO_PKL = "modelo_gramas.pkl"
+RAIZ = Path(__file__).resolve().parents[1]
+DESTINO = RAIZ / "web" / "src" / "lib" / "modelo"
+CAMINHO_PKL = str(Path(__file__).resolve().parent / "modelo_gramas.pkl")
 N_AMOSTRAS = 600
 #: Quantas das amostras usam uma especie que o modelo nunca viu, para o
 #: TypeScript ter que reproduzir o caminho do valor faltante.

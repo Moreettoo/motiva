@@ -25,7 +25,7 @@
 ##                                                                  ##
 ##   Conferido em 11/09/2026: nada no repositorio o publica. Nao    ##
 ##   ha Dockerfile, Procfile, vercel.json nem diretorio `api/` na   ##
-##   raiz; o `requirements.txt` fica na raiz e nao em `web/`, que   ##
+##   raiz; o `requirements.txt` fica em `ml/` e nao em `web/`, que  ##
 ##   e a pasta do projeto na Vercel; e o unico workflow do GitHub   ##
 ##   Actions roda `analisar_lote.py`, nunca `uvicorn`. Se um dia    ##
 ##   algum desses aparecer apontando para ca, o certo e autenticar  ##

@@ -59,7 +59,7 @@ find /c/Users/enzom/AppData/Local/Temp/motiva-deploy -type f -size +2M -printf '
 ```
 
 Os dois únicos arquivos acima de 2 MB que devem aparecer são `web/src/lib/modelo/modelo.json`
-(6,3 MB, as 1.200 árvores) e `modelo_gramas.pkl` (5,5 MB).
+(6,3 MB, as 1.200 árvores) e `ml/modelo_gramas.pkl` (5,5 MB).
 
 O `project.json` copiado de `/e/motiva/.vercel/` é o que liga o diretório ao projeto certo:
 

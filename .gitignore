@@ -35,3 +35,9 @@ build/
 *.tsbuildinfo
 next-env.d.ts
 .env*
+
+# Pesquisa: o SQLite e regeneravel; os caches de rede tambem
+pesquisa/rodoanel.sqlite
+pesquisa/dados/cache/
+backups/
+.pytest_cache/

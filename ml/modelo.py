@@ -44,7 +44,7 @@ from typing import Sequence
 import joblib
 import numpy as np
 
-CAMINHO = os.getenv("MODELO_PKL", "modelo_gramas.pkl")
+CAMINHO = os.getenv("MODELO_PKL") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "modelo_gramas.pkl")
 
 #: Horizonte da busca do cruzamento, em dias. E o teto de `dias_periodo` no
 #: treino: alem disso o modelo satura no ultimo bin em vez de errar com barulho.
