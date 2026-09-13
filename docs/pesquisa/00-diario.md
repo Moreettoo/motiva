@@ -5,3 +5,4 @@ Hora de Brasília. Números só quando saíram de código.
 
 - 2026-09-13 HH:MM · Tarefa 0 · `pesquisa/verificar_preparacao.sh` · preparação manual conferida · commit (a preencher)
 - 2026-09-13 20:21 · Tarefa 1 · `git mv` da raiz para `ml/`, ajuste de caminhos e do workflow, `pytest` de 0 testes · antes: `FileNotFoundError` do `.pkl` rodando de `/tmp`; depois: `2026-08-20 00:18 1815037` · commit 96a923b
+- 2026-09-13 20:32 · Tarefa 2 · esqueleto de `pesquisa/`, `banco.py` (sqlite local) e copia dos 4 brutos da Motiva; `pytest` focado em `test_banco.py` e `pytest` completo do repo · 3 passed no foco, 3 passed na suite inteira; 4 arquivos brutos commitados (120 KB, 120 KB, 3 KB, 1,9 MB) · commit 57f4dca
