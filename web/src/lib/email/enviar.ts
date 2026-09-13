@@ -38,7 +38,7 @@ export async function enviarEmail(e: {
 
   const resend = new Resend(chave);
   const { data, error } = await resend.emails.send({
-    from: process.env.EMAIL_REMETENTE ?? "HighwAI <onboarding@resend.dev>",
+    from: process.env.EMAIL_REMETENTE ?? "HighwAI <avisos@highwai.pro>",
     to: e.para,
     subject: e.assunto,
     html,

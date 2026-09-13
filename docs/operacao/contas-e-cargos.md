@@ -50,10 +50,16 @@ convite — a conta é criada pelo servidor no momento em que o convite é aceit
 O convite vale **7 dias**. A pessoa abre o link, escreve o nome como a equipe a conhece,
 escolhe uma senha (mínimo 10 caracteres, misturando letras e números) e já entra logada.
 
-### O e-mail pode não sair, e isso é esperado hoje
+### O e-mail sai para qualquer endereço desde 13/09/2026
 
-O Resend está em **modo de teste**: sem domínio verificado, ele só entrega para o e-mail da
-própria conta — hoje, **enzo.moretto@sasi.com.br**. Qualquer outro destinatário volta erro.
+O domínio **`highwai.pro`** está verificado no Resend (região São Paulo, com DKIM, SPF e DMARC) e
+o remetente é `HighwAI <avisos@highwai.pro>`. Antes disso o Resend estava em modo de teste e só
+entregava para a conta dona da chave; qualquer outro destinatário voltava `403`.
+
+Duas coisas continuam valendo. O domínio é novo e **ainda não tem reputação de envio**, então os
+primeiros e-mails podem cair em spam — melhora sozinho com o volume. E **ninguém lê respostas**:
+`avisos@highwai.pro` não tem caixa postal, e o domínio não tem registro MX, então responder ao
+convite devolve erro para quem respondeu.
 
 Por isso a tela **sempre** mostra o link copiável, e mostra um aviso amarelo
 *"O e-mail não saiu — mande o link por outro canal"* quando foi o caso. Mande o link por
@@ -158,10 +164,11 @@ O caminho desenhado é **Entrar → "Esqueci a senha"**: a pessoa informa o e-ma
 link válido por 1 hora. A tela responde sempre a mesma coisa, exista a conta ou não — é de
 propósito, para não confirmar quem tem acesso ao sistema.
 
-**Enquanto o Resend estiver em modo de teste, esse e-mail só chega para
-enzo.moretto@sasi.com.br.** Para todos os outros o link é gerado e não é entregue. A própria
-tela avisa: *"O serviço de e-mail está em modo de teste; se você não receber, peça a um
-administrador uma senha provisória."*
+**Desde 13/09/2026 esse e-mail chega para qualquer endereço**, pelo domínio verificado. O aviso
+da tela — *"O serviço de e-mail está em modo de teste; se você não receber, peça a um
+administrador uma senha provisória."* — só aparece quando o envio falha de verdade, e agora a
+causa mais provável é o e-mail ter caído em **spam**, não ter sido recusado. Mande a pessoa olhar
+lá antes de pedir senha provisória.
 
 E aqui está a parte que o painel **ainda não faz**: não existe botão de "senha provisória".
 Convidar de novo também não resolve, porque a conta já existe. Então, hoje, o desempate é
@@ -217,7 +224,8 @@ procurando o botão.
 
 | Limite | O que fazer hoje |
 |---|---|
-| E-mail só chega para `enzo.moretto@sasi.com.br` (Resend em modo de teste) | Use o link copiável do convite; para senha, a seção 6. |
+| O e-mail pode cair em spam (domínio de envio novo, sem reputação) | Peça para olhar a pasta de spam; o link copiável do convite continua na tela de qualquer jeito. |
+| Resposta ao e-mail não chega a ninguém (`avisos@highwai.pro` não tem caixa postal) | Responda pelo seu e-mail normal; ver "o que ficou" no fim. |
 | Não há botão de "senha provisória" para conta existente | Seção 6, passos manuais. |
 | Não há link para `/definir-senha` no menu | Digite o caminho. |
 | Não há como **excluir** uma conta pelo painel | Desative. Excluir apagaria o histórico junto. |

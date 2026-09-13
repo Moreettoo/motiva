@@ -41,22 +41,23 @@ código, e ambos com saída no roteiro reescrito.
 
 ## 2 · O que travou
 
-### 2.1 · O convite trava 11 segundos e depois mostra um e-mail pessoal na tela
+### 2.1 · O convite trava 11 segundos — e o aviso do modo de teste ACABOU
 
 Clicar em "Enviar convite" deixa o botão em estado de carga, **sem rótulo**, por cerca de 11
-segundos — é a ida ao Resend. Depois a gaveta mostra duas caixas:
+segundos — é a ida ao Resend. Isso continua valendo: fale por cima da espera.
 
-- verde, "Convite criado", com o link inteiro e um botão "Copiar link" — funciona;
-- âmbar, "O e-mail não saiu", repetindo a recusa do Resend **em inglês e citando
-  `enzomoretto2006@gmail.com`**, que é a conta pessoal dona da chave.
+**O resto desta seção foi resolvido em 13/09/2026.** Até então o Resend estava em modo de teste e
+recusava qualquer destinatário que não fosse a conta dona da chave, então a gaveta mostrava uma
+caixa âmbar "O e-mail não saiu" repetindo a recusa **em inglês e citando um gmail pessoal** — a
+pior frase possível numa sala com a Motiva. A saída era convidar aquele gmail.
 
-O comportamento está certo (o produto degrada e entrega o link). O problema é de plateia: numa sala
-com a Motiva, um aviso amarelo em inglês nomeando um gmail pessoal é a pior frase possível.
+Agora o domínio **`highwai.pro`** está verificado no Resend (região São Paulo, DKIM + SPF + DMARC)
+e o remetente é `HighwAI <avisos@highwai.pro>`. **Convide qualquer endereço**, inclusive o de
+alguém da Motiva na sala — o e-mail chega de verdade, e essa é uma batida melhor do que a prevista.
 
-**Saída, sem tocar em código:** convidar **`enzomoretto2006@gmail.com`**. É o único endereço que o
-Resend em modo de teste aceita, então o e-mail **chega de verdade** — e aí o passo 2 ganha a batida
-que o spec queria ("mostrar o e-mail do Resend"), em vez de mostrar o erro dele. Deixe a caixa de
-entrada aberta numa aba antes de começar.
+Duas ressalvas honestas: o domínio é novo e ainda não tem reputação de envio, então o primeiro
+e-mail pode cair em **spam** — tenha a aba da caixa de entrada aberta e saiba onde é a pasta de
+spam. E quem responder ao e-mail não chega a ninguém: `avisos@highwai.pro` não tem caixa postal.
 
 ### 2.2 · Aceitar o convite na mesma janela derruba a sessão de Admin
 
@@ -263,8 +264,8 @@ ter linha estranha no passo 9.
 5. Instalar o APK no Android, entrar como `lider.8.demo@demo.highwai.com.br`, **conceder a permissão
    de localização ao ar livre**, e deixar o app aberto uma vez com sinal para o snapshot baixar.
 6. No navegador: entrar como `admin.demo`, **abrir o sino uma vez** (zera o contador), abrir uma
-   **janela anônima** em branco e deixá-la pronta, e abrir a caixa de entrada de
-   `enzomoretto2006@gmail.com` numa aba.
+   **janela anônima** em branco e deixá-la pronta, e abrir numa aba a caixa de entrada do endereço
+   que você vai convidar no passo 2 — qualquer um serve desde 13/09, com o domínio verificado.
 
 ---
 
@@ -285,7 +286,8 @@ menor — quem vê o quê é regra de servidor, não de tela."*
 
 ### Passo 2 — Convidar um Analista · 2:00
 
-**[clique]** Usuários → Convidar → `enzomoretto2006@gmail.com`, cargo **Analista** → Enviar convite.
+**[clique]** Usuários → Convidar → o endereço que você escolheu, cargo **Analista** → Enviar
+convite. Convidar alguém da própria Motiva, ali na hora, é a versão mais forte deste passo.
 
 *(enquanto os ~11 s de envio rodam)* *"Não existe cadastro aberto aqui. A única porta é o convite, e
 o banco guarda só o hash do token — o link inteiro só existe no e-mail. Vale sete dias."*

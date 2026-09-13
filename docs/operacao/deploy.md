@@ -154,15 +154,25 @@ Três armadilhas do CLI, todas medidas:
 Como `Sensitive` esconde o valor, a conferência de uma chave secreta é funcional, não visual —
 o teste da seção seguinte diz qual das treze está errada.
 
-### Ressalva do Resend
+### O domínio de envio
 
-`EMAIL_REMETENTE` é `HighwAI <onboarding@resend.dev>`, o remetente de sandbox do Resend.
-**Sem um domínio verificado, o Resend só entrega para o e-mail da própria conta.** Um convite
-para qualquer outro endereço é aceito pela API e não chega a lugar nenhum.
+`EMAIL_REMETENTE` é `HighwAI <avisos@highwai.pro>`, e **`highwai.pro` está verificado no Resend**
+desde 13/09/2026, na região São Paulo (`sa-east-1`), com DKIM, SPF e DMARC publicados no DNS da
+Hostinger. O envio vale para qualquer destinatário.
 
-Isso não bloqueia a demonstração porque a tela de convite mostra o **link copiável** de
-qualquer jeito — é por ele que a conta nova é criada. Mas quem demonstra precisa saber que
-"não chegou o e-mail" é o comportamento esperado, e não uma falha ao vivo.
+O remetente **precisa ser desse domínio**. Apontá-lo para outro faz o Resend recusar com `403`,
+dizendo que só entrega para a conta dona da chave — que era o estado anterior, com o remetente de
+sandbox `onboarding@resend.dev`.
+
+Três coisas que continuam verdadeiras e vale saber antes de alguém chamar de bug:
+
+- **`highwai.pro` é só o remetente, não o endereço do painel.** `APP_URL` continua
+  `https://motiva-highwai.vercel.app`, e tem que continuar: o APK do app de campo tem esse host
+  gravado dentro dele, e trocar o domínio do site exige pacote novo (`docs/operacao/apk.md`).
+- **Domínio de envio novo não tem reputação**, então os primeiros e-mails podem cair em spam.
+  Melhora com o volume; o DMARC (`p=none`) já está publicado.
+- **Não há caixa postal em `highwai.pro`**, e "Enable Receiving" está desligado de propósito: o
+  sistema só envia. Quem responder a um convite recebe erro de entrega.
 
 A chave em uso é restrita a envio: `GET https://api.resend.com/domains` responde `401` com
 `"This API key is restricted to only send emails"`. Isso é a chave **válida** e bem escopada,

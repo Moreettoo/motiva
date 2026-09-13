@@ -58,14 +58,27 @@ aceitável numa demonstração e não é aceitável com dado de cliente dentro.
 e um segundo fator ali é a diferença entre registrar a roçada e não registrar. Antes de ligar,
 resolver o item 1.3: sem e-mail funcionando, perder o autenticador é perder a conta.
 
-### 1.3 · Domínio próprio e Resend fora do modo de teste
+### 1.3 · Domínio próprio e Resend fora do modo de teste — ✅ FEITO em 13/09/2026
 
-**Hoje.** O Resend está em modo de teste: sem domínio verificado, **só entrega para
-enzo.moretto@sasi.com.br**. Todo o resto volta erro, e as telas contornam mostrando o link
-copiável do convite.
+**Resolvido.** `highwai.pro` foi comprado (Hostinger) e verificado no Resend na região São Paulo
+(`sa-east-1`), com DKIM, SPF e DMARC publicados. `EMAIL_REMETENTE` passou a
+`HighwAI <avisos@highwai.pro>`, no `.env.local` e na Vercel. O envio vale para qualquer
+destinatário: a mesma chamada que devolvia `403` passou a devolver um id.
 
-**Por que ficou de fora.** Verificar domínio depende de DNS de terceiro, e não havia domínio
-próprio para verificar.
+**O que sobrou deste item**, e é pequeno:
+
+- **Um `Reply-To`.** Hoje o envio não manda esse cabeçalho, e `avisos@highwai.pro` não tem caixa
+  postal nem MX — quem responder a um convite recebe erro de entrega. A correção são duas linhas
+  em `src/lib/email/enviar.ts` mais uma variável apontando para uma caixa que existe. Não requer
+  ligar "Enable Receiving" no Resend, que traria MX e descartaria tudo em silêncio.
+- **Reputação.** O domínio é novo, então os primeiros envios podem cair em spam. Melhora com
+  volume. Quando houver volume real, subir o DMARC de `p=none` para `p=quarantine`.
+- **O site continua em `motiva-highwai.vercel.app`**, de propósito: o APK tem esse host gravado
+  dentro dele. Mudar o endereço do painel para `highwai.pro` exige pacote novo assinado com a
+  mesma keystore — ver `docs/operacao/apk.md`.
+
+**Por que tinha ficado de fora.** Verificar domínio depende de DNS de terceiro, e não havia
+domínio próprio para verificar.
 
 **O que dói.** Duas coisas, e a segunda é pior. O convite virou trabalho manual — copiar link
 e mandar por WhatsApp. E o "Esqueci a senha" **não funciona para ninguém além de uma pessoa**:
