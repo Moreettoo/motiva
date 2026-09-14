@@ -84,6 +84,25 @@ await checar(
 );
 await checar("zonas_clima", () => db.from("zonas_clima").select("*").limit(5), precisaTer(["rodovia", "extensao_km"]));
 
+/* A Tarefa 17 (`/validacao`) lê estas duas direto, sem view nem embed -- mas o
+   mesmo risco de forma que motivou o resto deste arquivo vale aqui: um nome de
+   coluna renomeado na migracao so aparece em runtime, nunca no `tsc`. */
+await checar(
+  "validacoes vigente",
+  () => db.from("validacoes").select("*").eq("vigente", true).limit(5),
+  precisaTer(["id", "rodovia", "janela_de", "janela_ate", "fator_calibracao", "acuracia_classe", "transicoes_total", "estaveis_total", "matriz_confusao"]),
+);
+await checar(
+  "validacoes sensibilidade",
+  () => db.from("validacoes").select("*").eq("vigente", false).eq("observacoes", "sensibilidade").limit(5),
+  precisaTer(["id", "especie", "ponto_medio_classe3_cm", "dias_desde_rocada_premissa", "acuracia_classe"]),
+);
+await checar(
+  "ndvi_analises",
+  () => db.from("ndvi_analises").select("*").limit(5),
+  precisaTer(["id", "data_alvo", "auc", "p_valor", "ndvi_mediana_c1", "ndvi_mediana_c3"]),
+);
+
 await checar(
   "agendamentos + trecho/equipe/previsao",
   () =>

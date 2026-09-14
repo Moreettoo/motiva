@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { exigirCargo } from "@/lib/auth/sessao";
 import { lacunasDeDados, listarAgendamentos, listarTrechos, montarPainel } from "@/lib/queries";
+import { validacaoVigente } from "@/lib/validacao/queries";
 
 import { Conversa } from "./_componentes/conversa";
 import { FichaModelo } from "./_componentes/ficha-modelo";
@@ -22,11 +23,12 @@ const TETO_CONTEXTO = 60;
 export default async function PaginaCopiloto() {
   const sessao = await exigirCargo("super_admin", "admin", "analista");
   void sessao;
-  const [painel, trechos, agendamentos, lacunas] = await Promise.all([
+  const [painel, trechos, agendamentos, lacunas, validacao] = await Promise.all([
     montarPainel(),
     listarTrechos(),
     listarAgendamentos(),
     lacunasDeDados(),
+    validacaoVigente(),
   ]);
 
   const escopo = Math.min(TETO_CONTEXTO, agendamentos.length);
@@ -52,7 +54,7 @@ export default async function PaginaCopiloto() {
         acoes={
           <TransparenciaSistema>
             <QualidadeDados lacunas={lacunas} total={painel.trechos_total} />
-            <FichaModelo modeloLlm={modeloLlm} />
+            <FichaModelo modeloLlm={modeloLlm} validacao={validacao} />
           </TransparenciaSistema>
         }
       />

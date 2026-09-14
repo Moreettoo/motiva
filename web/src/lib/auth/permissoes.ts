@@ -23,6 +23,7 @@ const TELAS: readonly Tela[] = [
   { prefixo: "/agenda", cargos: LEITURA },
   { prefixo: "/trechos", cargos: LEITURA },
   { prefixo: "/copiloto", cargos: LEITURA },
+  { prefixo: "/validacao", cargos: LEITURA },
   { prefixo: "/chamados", cargos: GESTAO },
   { prefixo: "/usuarios", cargos: GESTAO },
   { prefixo: "/campo", cargos: ["super_admin", "admin", "rocador"] },

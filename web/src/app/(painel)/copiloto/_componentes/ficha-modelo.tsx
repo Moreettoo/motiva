@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { CloudSun, Cpu, TriangleAlert } from "lucide-react";
 
 import { Cartao, CartaoCabecalho, CartaoCorpo, CartaoRodape } from "@/components/ui/cartao";
@@ -11,7 +12,8 @@ import {
   TabelaTitulo,
 } from "@/components/ui/tabela";
 import { ORDEM_RISCO, riscoPorPrazo } from "@/lib/dominio";
-import type { Risco } from "@/lib/types";
+import { fmt } from "@/lib/format";
+import type { Risco, Validacao } from "@/lib/types";
 
 /**
  * Ficha do sistema: o que gera confianca nao e a resposta bonita, e o gestor
@@ -51,7 +53,7 @@ const FEATURES = [
 
 const LIMITACOES = [
   "A altura de hoje é prevista, não medida: é o modelo rodando sobre o clima observado entre a última medição e hoje.",
-  "Medição velha deixa a previsão andar sozinha. Quanto mais antiga a visita ao trecho, mais longa a janela sem nada de campo para corrigi-la.",
+  "Medição com mais de 120 dias não vira previsão: o trecho aparece como lacuna, com a data da última leitura, em vez de um número inventado.",
   "A análise em lote só chama a LLM para trechos a menos de 45 dias do limite. Trecho folgado ganha previsão, mas não ganha agendamento. O silêncio ali é economia, não ausência de risco.",
   "O copiloto lê agendamentos e o prazo até o limite de cada trecho: rodovia, km, UF, data, prazo, prioridade derivada do prazo e justificativa. Medição, altura, crescimento e escala de equipe ficam fora da pergunta.",
 ];
@@ -83,7 +85,7 @@ function rotuloFaixa(faixa: { min: number; max: number }): string {
   return `${faixa.min} a ${faixa.max} dias`;
 }
 
-export function FichaModelo({ modeloLlm }: { modeloLlm: string | null }) {
+export function FichaModelo({ modeloLlm, validacao }: { modeloLlm: string | null; validacao: Validacao | null }) {
   const faixas = faixasDePrazo();
 
   return (
@@ -190,6 +192,21 @@ export function FichaModelo({ modeloLlm }: { modeloLlm: string | null }) {
             zona climática de km: a rodovia é uma linha, então trechos vizinhos compartilham o mesmo
             tempo e uma chamada serve a todos.
           </p>
+        </section>
+
+        <section>
+          <h3 className="text-2xs tracking-widest text-ink-3 uppercase">Precisão medida</h3>
+          {validacao ? (
+            <p className="mt-2 text-xs text-ink-2">
+              Contra {fmt.n(validacao.n_pares_usados)} pares reais do levantamento da Motiva no Rodoanel
+              ({fmt.dataMedia(validacao.janela_de)} → {fmt.dataMedia(validacao.janela_ate)}): {fmt.n(validacao.transicoes_detectadas ?? 0)} de{" "}
+              {fmt.n(validacao.transicoes_total ?? 0)} transições detectadas, {fmt.n(validacao.alarmes_falsos ?? 0)} alarmes falsos em{" "}
+              {fmt.n(validacao.estaveis_total ?? 0)} pontos estáveis, fator de calibração {fmt.d2(Number(validacao.fator_calibracao))}.{" "}
+              <Link href="/validacao" className="underline underline-offset-2">Ver a validação inteira.</Link>
+            </p>
+          ) : (
+            <p className="mt-2 text-xs text-warning-ink">Nenhuma validação contra campo gravada: o número que o painel mostra é do modelo sintético puro.</p>
+          )}
         </section>
 
         <section className="rounded-md border border-border bg-surface-2 p-3">
