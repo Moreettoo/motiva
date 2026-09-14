@@ -1,0 +1,542 @@
+{
+ "0": {
+  "fertilidade": 0.4772222222222222,
+  "capacidade_mm": 59.410788199612306,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 1.9316666666666666,
+  "distancia_km": 2.2,
+  "latitude": -23.416207,
+  "longitude": -46.736768
+ },
+ "500": {
+  "fertilidade": 0.5055555555555555,
+  "capacidade_mm": 59.67490687026297,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 2.0166666666666666,
+  "distancia_km": 2.2,
+  "latitude": -23.418544,
+  "longitude": -46.7409
+ },
+ "1000": {
+  "fertilidade": 0.4788888888888889,
+  "capacidade_mm": 59.9152992471256,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 1.9366666666666668,
+  "distancia_km": 2.2,
+  "latitude": -23.420953,
+  "longitude": -46.744983
+ },
+ "1500": {
+  "fertilidade": 0.43,
+  "capacidade_mm": 58.01598904523658,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 1.79,
+  "distancia_km": 0.0,
+  "latitude": -23.423436,
+  "longitude": -46.749013
+ },
+ "2000": {
+  "fertilidade": 0.4977777777777778,
+  "capacidade_mm": 58.59351012889081,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 1.9933333333333334,
+  "distancia_km": 2.0,
+  "latitude": -23.426457,
+  "longitude": -46.752486
+ },
+ "2500": {
+  "fertilidade": 0.5633333333333334,
+  "capacidade_mm": 59.238892004646715,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 2.19,
+  "distancia_km": 2.0,
+  "latitude": -23.430027,
+  "longitude": -46.755388
+ },
+ "3000": {
+  "fertilidade": 0.5155555555555557,
+  "capacidade_mm": 58.69156217729518,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 2.046666666666667,
+  "distancia_km": 0.0,
+  "latitude": -23.433017,
+  "longitude": -46.758888
+ },
+ "3500": {
+  "fertilidade": 0.4822222222222223,
+  "capacidade_mm": 58.785081751381874,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 1.9466666666666668,
+  "distancia_km": 0.0,
+  "latitude": -23.435466,
+  "longitude": -46.762943
+ },
+ "4000": {
+  "fertilidade": 0.4766666666666666,
+  "capacidade_mm": 58.90510681862739,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 1.93,
+  "distancia_km": 0.0,
+  "latitude": -23.437901,
+  "longitude": -46.767009
+ },
+ "4500": {
+  "fertilidade": 0.54,
+  "capacidade_mm": 58.40765523518328,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 2.12,
+  "distancia_km": 2.2,
+  "latitude": -23.440323,
+  "longitude": -46.771083
+ },
+ "5000": {
+  "fertilidade": 0.5011111111111112,
+  "capacidade_mm": 58.9152172348825,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 2.0033333333333334,
+  "distancia_km": 0.0,
+  "latitude": -23.442897,
+  "longitude": -46.77504
+ },
+ "5500": {
+  "fertilidade": 0.5,
+  "capacidade_mm": 59.449191113900056,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 2.0,
+  "distancia_km": 0.0,
+  "latitude": -23.445634,
+  "longitude": -46.77887
+ },
+ "6000": {
+  "fertilidade": 0.5016666666666666,
+  "capacidade_mm": 58.73801921102406,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 2.005,
+  "distancia_km": 0.0,
+  "latitude": -23.448467,
+  "longitude": -46.782614
+ },
+ "6500": {
+  "fertilidade": 0.49333333333333335,
+  "capacidade_mm": 59.70177407013606,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 1.98,
+  "distancia_km": 0.0,
+  "latitude": -23.451412,
+  "longitude": -46.786258
+ },
+ "7000": {
+  "fertilidade": 0.54,
+  "capacidade_mm": 59.52526697653519,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 2.12,
+  "distancia_km": 2.2,
+  "latitude": -23.454427,
+  "longitude": -46.789817
+ },
+ "7500": {
+  "fertilidade": 0.7022222222222222,
+  "capacidade_mm": 62.11780643175546,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 2.6066666666666665,
+  "distancia_km": 0.0,
+  "latitude": -23.457988,
+  "longitude": -46.792735
+ },
+ "8000": {
+  "fertilidade": 0.6261111111111112,
+  "capacidade_mm": 61.08806919651748,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 2.3783333333333334,
+  "distancia_km": 0.0,
+  "latitude": -23.461629,
+  "longitude": -46.795521
+ },
+ "8500": {
+  "fertilidade": 0.5544444444444445,
+  "capacidade_mm": 61.17282741993356,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 2.1633333333333336,
+  "distancia_km": 0.0,
+  "latitude": -23.465484,
+  "longitude": -46.797953
+ },
+ "9000": {
+  "fertilidade": 0.5144444444444445,
+  "capacidade_mm": 59.299473063577885,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 2.0433333333333334,
+  "distancia_km": 0.0,
+  "latitude": -23.469418,
+  "longitude": -46.800167
+ },
+ "9500": {
+  "fertilidade": 0.4955555555555555,
+  "capacidade_mm": 59.23526347270237,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 1.9866666666666666,
+  "distancia_km": 0.0,
+  "latitude": -23.473762,
+  "longitude": -46.80124
+ },
+ "10000": {
+  "fertilidade": 0.45444444444444443,
+  "capacidade_mm": 59.367527025385336,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 1.8633333333333333,
+  "distancia_km": 0.0,
+  "latitude": -23.478118,
+  "longitude": -46.802251
+ },
+ "10500": {
+  "fertilidade": 0.5344444444444445,
+  "capacidade_mm": 60.38358913435044,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 2.1033333333333335,
+  "distancia_km": 2.2,
+  "latitude": -23.482493,
+  "longitude": -46.80317
+ },
+ "11000": {
+  "fertilidade": 0.508888888888889,
+  "capacidade_mm": 61.107559959350674,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 2.026666666666667,
+  "distancia_km": 2.2,
+  "latitude": -23.486321,
+  "longitude": -46.805384
+ },
+ "11500": {
+  "fertilidade": 0.5405555555555556,
+  "capacidade_mm": 59.18575260318926,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 2.1216666666666666,
+  "distancia_km": 2.2,
+  "latitude": -23.48981,
+  "longitude": -46.808403
+ },
+ "12000": {
+  "fertilidade": 0.5211111111111112,
+  "capacidade_mm": 59.22946881548748,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 2.0633333333333335,
+  "distancia_km": 2.2,
+  "latitude": -23.493087,
+  "longitude": -46.811662
+ },
+ "12500": {
+  "fertilidade": 0.5449999999999999,
+  "capacidade_mm": 59.63546560186107,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 2.135,
+  "distancia_km": 2.2,
+  "latitude": -23.495969,
+  "longitude": -46.815365
+ },
+ "13000": {
+  "fertilidade": 0.52,
+  "capacidade_mm": 59.27252535385312,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 2.06,
+  "distancia_km": 2.2,
+  "latitude": -23.499304,
+  "longitude": -46.818428
+ },
+ "13500": {
+  "fertilidade": 0.44111111111111106,
+  "capacidade_mm": 58.80991960771609,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 1.8233333333333333,
+  "distancia_km": 2.2,
+  "latitude": -23.503321,
+  "longitude": -46.820527
+ },
+ "14000": {
+  "fertilidade": 0.35,
+  "capacidade_mm": 60.0,
+  "fonte": "premissa",
+  "nitrogenio_g_kg": null,
+  "distancia_km": 0.0,
+  "latitude": -23.507358,
+  "longitude": -46.820809
+ },
+ "14500": {
+  "fertilidade": 0.35,
+  "capacidade_mm": 60.0,
+  "fonte": "premissa",
+  "nitrogenio_g_kg": null,
+  "distancia_km": 0.0,
+  "latitude": -23.511421,
+  "longitude": -46.818817
+ },
+ "15000": {
+  "fertilidade": 0.35,
+  "capacidade_mm": 60.0,
+  "fonte": "premissa",
+  "nitrogenio_g_kg": null,
+  "distancia_km": 0.0,
+  "latitude": -23.515647,
+  "longitude": -46.817408
+ },
+ "15500": {
+  "fertilidade": 0.35,
+  "capacidade_mm": 60.0,
+  "fonte": "premissa",
+  "nitrogenio_g_kg": null,
+  "distancia_km": 0.0,
+  "latitude": -23.520036,
+  "longitude": -46.816577
+ },
+ "16000": {
+  "fertilidade": 0.35,
+  "capacidade_mm": 60.0,
+  "fonte": "premissa",
+  "nitrogenio_g_kg": null,
+  "distancia_km": 0.0,
+  "latitude": -23.524427,
+  "longitude": -46.816764
+ },
+ "16500": {
+  "fertilidade": 0.35,
+  "capacidade_mm": 60.0,
+  "fonte": "premissa",
+  "nitrogenio_g_kg": null,
+  "distancia_km": 0.0,
+  "latitude": -23.528818,
+  "longitude": -46.817576
+ },
+ "17000": {
+  "fertilidade": 0.35,
+  "capacidade_mm": 60.0,
+  "fonte": "premissa",
+  "nitrogenio_g_kg": null,
+  "distancia_km": 0.0,
+  "latitude": -23.533249,
+  "longitude": -46.817859
+ },
+ "17500": {
+  "fertilidade": 0.35,
+  "capacidade_mm": 60.0,
+  "fonte": "premissa",
+  "nitrogenio_g_kg": null,
+  "distancia_km": 0.0,
+  "latitude": -23.537703,
+  "longitude": -46.817817
+ },
+ "18000": {
+  "fertilidade": 0.4872222222222222,
+  "capacidade_mm": 60.54891539899423,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 1.9616666666666667,
+  "distancia_km": 2.2,
+  "latitude": -23.542056,
+  "longitude": -46.818597
+ },
+ "18500": {
+  "fertilidade": 0.35,
+  "capacidade_mm": 60.0,
+  "fonte": "premissa",
+  "nitrogenio_g_kg": null,
+  "distancia_km": 0.0,
+  "latitude": -23.546344,
+  "longitude": -46.819916
+ },
+ "19000": {
+  "fertilidade": 0.35,
+  "capacidade_mm": 60.0,
+  "fonte": "premissa",
+  "nitrogenio_g_kg": null,
+  "distancia_km": 0.0,
+  "latitude": -23.55071,
+  "longitude": -46.820184
+ },
+ "19500": {
+  "fertilidade": 0.35,
+  "capacidade_mm": 60.0,
+  "fonte": "premissa",
+  "nitrogenio_g_kg": null,
+  "distancia_km": 0.0,
+  "latitude": -23.555138,
+  "longitude": -46.81965
+ },
+ "20000": {
+  "fertilidade": 0.35,
+  "capacidade_mm": 60.0,
+  "fonte": "premissa",
+  "nitrogenio_g_kg": null,
+  "distancia_km": 0.0,
+  "latitude": -23.559581,
+  "longitude": -46.819394
+ },
+ "20500": {
+  "fertilidade": 0.35,
+  "capacidade_mm": 60.0,
+  "fonte": "premissa",
+  "nitrogenio_g_kg": null,
+  "distancia_km": 0.0,
+  "latitude": -23.564035,
+  "longitude": -46.819343
+ },
+ "21000": {
+  "fertilidade": 0.35,
+  "capacidade_mm": 60.0,
+  "fonte": "premissa",
+  "nitrogenio_g_kg": null,
+  "distancia_km": 0.0,
+  "latitude": -23.56765,
+  "longitude": -46.817241
+ },
+ "21500": {
+  "fertilidade": 0.35,
+  "capacidade_mm": 60.0,
+  "fonte": "premissa",
+  "nitrogenio_g_kg": null,
+  "distancia_km": 0.0,
+  "latitude": -23.570659,
+  "longitude": -46.813658
+ },
+ "22000": {
+  "fertilidade": 0.35,
+  "capacidade_mm": 60.0,
+  "fonte": "premissa",
+  "nitrogenio_g_kg": null,
+  "distancia_km": 0.0,
+  "latitude": -23.574371,
+  "longitude": -46.811186
+ },
+ "22500": {
+  "fertilidade": 0.5466666666666667,
+  "capacidade_mm": 60.835267078279216,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 2.14,
+  "distancia_km": 2.2,
+  "latitude": -23.578511,
+  "longitude": -46.809393
+ },
+ "23000": {
+  "fertilidade": 0.6027777777777777,
+  "capacidade_mm": 61.18506234713723,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 2.308333333333333,
+  "distancia_km": 2.2,
+  "latitude": -23.582839,
+  "longitude": -46.80892
+ },
+ "23500": {
+  "fertilidade": 0.5994444444444444,
+  "capacidade_mm": 60.02960540419486,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 2.2983333333333333,
+  "distancia_km": 2.2,
+  "latitude": -23.587283,
+  "longitude": -46.809256
+ },
+ "24000": {
+  "fertilidade": 0.5877777777777777,
+  "capacidade_mm": 59.95002115676418,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 2.263333333333333,
+  "distancia_km": 2.2,
+  "latitude": -23.591648,
+  "longitude": -46.810137
+ },
+ "24500": {
+  "fertilidade": 0.5522222222222223,
+  "capacidade_mm": 61.02845870050892,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 2.1566666666666667,
+  "distancia_km": 2.2,
+  "latitude": -23.595973,
+  "longitude": -46.811302
+ },
+ "25000": {
+  "fertilidade": 0.35,
+  "capacidade_mm": 60.0,
+  "fonte": "premissa",
+  "nitrogenio_g_kg": null,
+  "distancia_km": 0.0,
+  "latitude": -23.600298,
+  "longitude": -46.812466
+ },
+ "25500": {
+  "fertilidade": 0.5099999999999999,
+  "capacidade_mm": 60.51780384817111,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 2.03,
+  "distancia_km": 0.0,
+  "latitude": -23.604623,
+  "longitude": -46.81363
+ },
+ "26000": {
+  "fertilidade": 0.5461111111111111,
+  "capacidade_mm": 60.14055802472665,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 2.138333333333333,
+  "distancia_km": 0.0,
+  "latitude": -23.608421,
+  "longitude": -46.815892
+ },
+ "26500": {
+  "fertilidade": 0.5427777777777778,
+  "capacidade_mm": 60.09022180973271,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 2.1283333333333334,
+  "distancia_km": 0.0,
+  "latitude": -23.611764,
+  "longitude": -46.819106
+ },
+ "27000": {
+  "fertilidade": 0.5299999999999999,
+  "capacidade_mm": 60.27465264781756,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 2.09,
+  "distancia_km": 0.0,
+  "latitude": -23.614795,
+  "longitude": -46.822645
+ },
+ "27500": {
+  "fertilidade": 0.5577777777777778,
+  "capacidade_mm": 60.35911206282467,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 2.1733333333333333,
+  "distancia_km": 0.0,
+  "latitude": -23.6176,
+  "longitude": -46.826422
+ },
+ "28000": {
+  "fertilidade": 0.6205555555555556,
+  "capacidade_mm": 60.30155162272686,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 2.361666666666667,
+  "distancia_km": 0.0,
+  "latitude": -23.621495,
+  "longitude": -46.828231
+ },
+ "28500": {
+  "fertilidade": 0.5427777777777778,
+  "capacidade_mm": 61.36128318524436,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 2.1283333333333334,
+  "distancia_km": 2.2,
+  "latitude": -23.625862,
+  "longitude": -46.829188
+ },
+ "29000": {
+  "fertilidade": 0.5422222222222222,
+  "capacidade_mm": 61.754045246656275,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 2.1266666666666665,
+  "distancia_km": 2.2,
+  "latitude": -23.630066,
+  "longitude": -46.830734
+ },
+ "29300": {
+  "fertilidade": 0.5472222222222222,
+  "capacidade_mm": 61.727593569139216,
+  "fonte": "soilgrids",
+  "nitrogenio_g_kg": 2.1416666666666666,
+  "distancia_km": 2.2,
+  "latitude": -23.632539,
+  "longitude": -46.831841
+ }
+}
