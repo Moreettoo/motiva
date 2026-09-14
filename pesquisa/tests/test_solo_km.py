@@ -1,5 +1,6 @@
 import json
 
+import pytest
 import solo
 
 from pesquisa.rodoanel import solo_km
@@ -152,3 +153,26 @@ def test_cache_em_disco_sobrevive_a_um_json_dumps_de_verdade_com_chaves_string(t
     assert set(dados) == {0, 500}
     assert all(isinstance(k, int) for k in dados)
     assert dados[500]["fertilidade"] == 0.4
+
+
+def test_cache_corrompido_estoura_em_vez_de_refazer_as_60_chamadas(tmp_path, monkeypatch):
+    """`carregar_ou_buscar` le o cache com `json.loads(CACHE.read_text(...))`
+    sem nenhum try/except: um arquivo truncado ou corrompido estoura
+    `json.JSONDecodeError` hoje, e isso E o comportamento certo. O perigo
+    aqui NAO e o estouro -- e uma futura "correcao" bem-intencionada que
+    envolvesse essa leitura num `except json.JSONDecodeError: dados = {}`
+    para "se recuperar" de um arquivo ruim: isso descartaria SILENCIOSAMENTE
+    todos os marcos ja buscados e dispararia as 60 chamadas de rede de novo,
+    sem avisar ninguem. Este teste grava lixo no lugar do cache e confere que
+    a excecao sobe (e que nada tenta buscar de novo) -- para que essa
+    "recuperacao" nunca passe despercebida pela suite.
+    """
+    cache = tmp_path / "solo.json"
+    cache.write_text("{isto nao e json valido", encoding="utf-8")
+    monkeypatch.setattr(solo_km, "CACHE", cache)
+
+    def nao_deveria_ser_chamado(lat, lon):
+        raise AssertionError("cache corrompido tinha que estourar antes de qualquer busca")
+
+    with pytest.raises(json.JSONDecodeError):
+        solo_km.carregar_ou_buscar(EixoFalso(), marcos=(0, 500), buscar=nao_deveria_ser_chamado, pausa=0)
