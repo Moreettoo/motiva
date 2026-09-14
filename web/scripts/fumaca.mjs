@@ -154,7 +154,9 @@ await checar(
    O teste exige o errcode 42501 (permission denied) e NAO aceita "voltou vazio sem erro". Os dois
    sao seguros hoje, mas significam coisas diferentes: 42501 e a ausencia de GRANT, que e o desenho
    atual (`revoke all from anon, authenticated`); vazio-sem-erro seria grant concedido com RLS
-   filtrando, ou seja, alguem mexeu. Medido em 11/09/2026: as 15 respondem 42501.
+   filtrando, ou seja, alguem mexeu. Medido em 11/09/2026: as 15 respondem 42501; em
+   14/09/2026, com as sete tabelas da Tarefa 11 (faixas, levantamentos, validacoes,
+   validacao_pares, calibracoes, ndvi_observacoes, ndvi_analises), as 22 respondem 42501.
 
    Se este teste falhar porque o projeto passou a ler do navegador com a chave publishavel, a
    correcao e reescrever ESTE teste de proposito — nao afrouxa-lo para "qualquer erro serve". */
@@ -162,6 +164,8 @@ const FECHADAS_PARA_O_PUBLICO = [
   "trechos", "agendamentos", "previsoes", "medicoes", "execucoes", "equipes", "zonas_clima",
   "perfis", "convites", "redefinicoes_senha",
   "chamados", "chamado_eventos", "chamado_fotos", "chamado_adiamentos", "notificacoes",
+  "faixas", "levantamentos", "validacoes", "validacao_pares", "calibracoes",
+  "ndvi_observacoes", "ndvi_analises",
 ];
 
 await checar(
