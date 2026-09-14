@@ -33,8 +33,12 @@ import { cn } from "@/lib/utils";
  * ícones daqui (sete estados × quinze tipos de evento, com sobreposição) não
  * aparecem em legenda de gráfico nenhuma. Misturar os dois faria toda tela do
  * painel carregar os ícones desta.
+ *
+ * Exportado para `icones.test.ts` provar, iterando `STATUS_CHAMADO_TOKEN` e
+ * `TIPO_EVENTO`, que os dois vocabulários que este registro promete cobrir
+ * resolvem de verdade -- e não caem no `?? Circle`.
  */
-const ICONES: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
+export const ICONES: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
   CalendarCheck,
   CalendarClock,
   CalendarRange,

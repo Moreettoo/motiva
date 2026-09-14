@@ -1,13 +1,16 @@
 import type { ComponentType, CSSProperties, ReactNode, SVGProps } from "react";
 import {
+  Anchor,
   Circle,
   CircleCheck,
+  CircleHelp,
   CircleSlash,
   Clock,
   CloudSun,
   Fence,
   Flag,
   GitFork,
+  Hand,
   History,
   Minus,
   OctagonAlert,
@@ -16,7 +19,9 @@ import {
   Rows3,
   Sparkles,
   Spline,
+  Tractor,
   TriangleAlert,
+  Truck,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -25,8 +30,15 @@ import { cn } from "@/lib/utils";
  * Ponte entre o nome de ícone guardado em `@/lib/dominio` e o componente.
  * Fica aqui, e não em cada gráfico, porque ícone só aparece colado num rótulo,
  * e rótulo colado em marca colorida é exatamente o que a legenda é.
+ *
+ * Exportado (e não `const` privada) para `legenda.test.ts` poder iterar os
+ * mapas de `dominio.ts` e provar que todo `icone` que ESTE registro deveria
+ * cobrir resolve de verdade, em vez de cair no `?? Circle` -- que é
+ * exatamente como `sem_dados` nasceu sem `CircleHelp` aqui: `tsc`, `eslint` e
+ * o `dominio.test.ts` de então passavam, porque `TokenStatus.icone` é
+ * `string` solto, e a tela desenhava uma bolinha vazia nos 60 trechos.
  */
-const ICONES: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
+export const ICONES: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
   OctagonAlert,
   TriangleAlert,
   Clock,
@@ -40,6 +52,21 @@ const ICONES: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
   Redo2,
   Rows3,
   Fence,
+  // `RISCO.sem_dados` (migração `risco_sem_dados`, Tarefa 16): sem este, todo
+  // trecho sem previsão desenhava a mesma bolinha vazia que este comentário
+  // descreve duas entradas abaixo -- o efeito CONTRÁRIO do que a migração
+  // existe para evitar ("não sei" lendo como "ícone quebrado", não mais
+  // "está tudo bem", mas ainda errado).
+  CircleHelp,
+  // `METODO_ROCADA` (Tarefa 16): ainda sem tela que os use -- `TrechoStatus.
+  // metodo_rocada` chega da view, mas nenhum componente lê `METODO_ROCADA[...]`
+  // ainda. Registrados agora porque a Tarefa 18 (cartão do trecho) vai
+  // precisar, e é mais barato fazer aqui do que depois de descobrir a mesma
+  // bolinha vazia de novo.
+  Tractor,
+  Hand,
+  Truck,
+  Anchor,
   // Procedência do clima no simulador. Sem estes três o `?? Circle` desenhava
   // uma bolinha vazia ao lado de "Previsão" e "Média observada", que na tela
   // lê como ícone que não carregou, não como escolha.
