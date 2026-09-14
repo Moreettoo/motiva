@@ -36,10 +36,15 @@ export const levantamentosDoTrecho = cache(async (trechoId: number): Promise<Lev
 
 /**
  * Uma linha por RA-RET importado (não uma por trecho x faixa): a evidência,
- * no painel, de que a acurácia medida em `/validacao` não é um número de uma
- * rodada só, mas um mecanismo permanente -- cada levantamento semanal novo
- * da Motiva volta a reconferir o modelo. `agruparImportacoes` (`agrupar.ts`,
- * ao lado) faz o agrupamento por data e é onde isso é testado sem banco.
+ * no painel, de que existe um mecanismo permanente de entrada de dado, não
+ * duas planilhas carregadas uma vez e esquecidas. `importar_levantamento.py
+ * --gravar` traz cada levantamento novo da Motiva sozinho e sem duplicar
+ * (idempotente, provado na Tarefa 13) -- essa parte É automática. RECONFERIR
+ * a acurácia medida em `/validacao` contra o levantamento novo NÃO é: hoje
+ * isso ainda pede um desenvolvedor apontar a janela nova e rodar consolidar/
+ * validar/publicar à mão (`docs/operacao/importar-levantamento.md`, seção
+ * 6). `agruparImportacoes` (`agrupar.ts`, ao lado) faz o agrupamento por
+ * data e é onde isso é testado sem banco.
  */
 export const levantamentosImportados = cache(async (): Promise<LevantamentoImportado[]> => {
   const { data, error } = await db.from("levantamentos").select("data, arquivo_origem, trecho_id, importado_em").order("data");

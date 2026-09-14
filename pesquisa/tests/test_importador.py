@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timezone
 
 from pesquisa.rodoanel import ARQ_LEV_1, ARQ_LEV_2, planilha, supabase_io
 from pesquisa.rodoanel.planilha import NOME_POR_CODIGO
@@ -31,6 +31,35 @@ def test_linhas_de_levantamento_sao_720_por_arquivo_e_unicas():
     # unicas). Confere um marco e uma faixa especificos contra a leitura direta da planilha.
     alvo = next(l for l in linhas if REV_IDS[l["trecho_id"]] == 0 and l["faixa_codigo"] == "cant_lateral_externa")
     assert alvo["classe"] == lev.classe(0, "cant_lateral_externa")
+    # `importado_em` vai explicito e igual nas 720 linhas de UMA chamada (o mesmo `agora`,
+    # ver docstring de linhas_levantamento) -- nunca ausente nem divergente dentro do lote.
+    t = datetime(2026, 9, 14, 12, 0, 0, tzinfo=timezone.utc)
+    com_agora = supabase_io.linhas_levantamento(lev, IDS, agora=t)
+    assert {l["importado_em"] for l in com_agora} == {t.isoformat()}
+
+
+def test_reimportar_a_mesma_data_atualiza_importado_em_sem_duplicar():
+    """Defeito real corrigido em revisao (pos-Tarefa 21): sem `importado_em` explicito no
+    payload, um upsert em cima da mesma chave (trecho_id, faixa_codigo, data) deixava a
+    coluna intocada -- so o `now()` default do banco no INSERT original valia, para sempre.
+    O manual (`docs/operacao/importar-levantamento.md`, secao 5) recomenda corrigir o
+    arquivo e rodar `--gravar` de novo depois de um erro percebido; sem esta correcao, o
+    cartao "Levantamentos importados" do painel continuaria mostrando a data/hora da
+    PRIMEIRA tentativa mesmo depois da correcao -- o unico dado cujo proposito e dizer
+    quando a importacao aconteceu mentindo sobre quando ela aconteceu.
+    """
+    sb = FakeSupabase()
+    lev = planilha.ler(ARQ_LEV_1)
+    t1 = datetime(2026, 9, 14, 10, 0, 0, tzinfo=timezone.utc)
+    t2 = datetime(2026, 9, 15, 8, 30, 0, tzinfo=timezone.utc)
+
+    supabase_io.upsert_levantamentos(sb, supabase_io.linhas_levantamento(lev, IDS, agora=t1))
+    assert {l["importado_em"] for l in sb.tabelas["levantamentos"]} == {t1.isoformat()}
+    assert len(sb.tabelas["levantamentos"]) == 720
+
+    supabase_io.upsert_levantamentos(sb, supabase_io.linhas_levantamento(lev, IDS, agora=t2))
+    assert {l["importado_em"] for l in sb.tabelas["levantamentos"]} == {t2.isoformat()}   # avancou, nao ficou em t1
+    assert len(sb.tabelas["levantamentos"]) == 720                                       # upsert, nao duplicou
 
 
 def test_medicoes_derivadas_uma_por_marco_com_faixa_em_escopo():

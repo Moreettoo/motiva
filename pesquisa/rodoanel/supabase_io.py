@@ -7,7 +7,7 @@ regravadas por (trecho, data, origem). Rodar duas vezes deixa o banco igual.
 from __future__ import annotations
 
 import os
-from datetime import date
+from datetime import date, datetime, timezone
 
 from dotenv import load_dotenv
 from supabase import create_client
@@ -79,10 +79,24 @@ def upsert_trechos(sb, segmentos: list[Segmento], solo_por_marco: dict[int, dict
     return ids_por_marco(sb)
 
 
-def linhas_levantamento(lev: Levantamento, ids: dict[int, int]) -> list[dict]:
+def linhas_levantamento(lev: Levantamento, ids: dict[int, int], agora: datetime | None = None) -> list[dict]:
+    """`importado_em` vai explicito no payload -- de propósito, não por acaso.
+
+    Sem isso, um upsert em cima de uma linha que já existe (mesma chave
+    trecho_id/faixa_codigo/data) NAO atualiza a coluna: o PostgREST so
+    escreve as colunas presentes no payload, e a coluna so pegaria o
+    `now()` default do banco no INSERT original. Uma reimportacao corretiva
+    -- exatamente o que `docs/operacao/importar-levantamento.md` (secao 5)
+    recomenda depois de um erro percebido pos-`--gravar` -- deixaria o
+    cartao "Levantamentos importados" do painel mostrando, para sempre, a
+    data/hora da PRIMEIRA tentativa, nao da correcao. `agora` e parametro (em
+    vez de `datetime.now()` direto no corpo) so para o teste poder fixar dois
+    instantes diferentes e provar que o valor avanca.
+    """
+    ts = (agora or datetime.now(timezone.utc)).isoformat()
     return [{"trecho_id": ids[o.km_m], "faixa_codigo": o.faixa, "data": lev.data.isoformat(), "classe": o.classe,
              "altura_estimada_cm": PONTO_MEDIO_CM[o.classe] if o.classe else None, "arquivo_origem": lev.arquivo,
-             "data_no_arquivo": lev.data_interna.isoformat() if lev.data_interna else None}
+             "data_no_arquivo": lev.data_interna.isoformat() if lev.data_interna else None, "importado_em": ts}
             for o in lev.observacoes]
 
 

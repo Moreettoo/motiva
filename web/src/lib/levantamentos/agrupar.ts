@@ -57,11 +57,19 @@ export type LevantamentoImportado = { data: string; arquivo: string; trechos: nu
  * ser importada de um `.test.ts` -- e sem isso o bug do parágrafo anterior
  * seria visível só em produção, nunca num teste.
  *
- * `importado_em` fica o mais recente das linhas do grupo. Na prática todas
- * as linhas de uma importação gravam no mesmo instante (o `upsert` do
- * publicador é uma única chamada em lote), mas nada no schema obriga isso --
- * um reprocessamento parcial deixaria `importado_em` divergente dentro da
- * mesma data, e mostrar o mais antigo esconderia a correção mais recente.
+ * `importado_em` fica o mais recente das linhas do grupo -- e não é uma
+ * cautela teórica. `supabase_io.upsert_levantamentos` corta os 720 upserts
+ * de uma importação em lotes de 500 (`LOTE = 500`), ou seja, TODA importação
+ * vira pelo menos duas chamadas separadas ao banco, nunca "uma única chamada
+ * em lote" como este comentário chegou a dizer antes desta correção; nada
+ * garante que as linhas de lotes diferentes carreguem o mesmo instante.
+ * Some-se a isso que uma correção pós-`--gravar` (o próprio manual de
+ * operação recomenda repetir o comando -- `docs/operacao/importar-
+ * levantamento.md`, seção 5) ou um reprocessamento parcial também deixam
+ * `importado_em` divergente dentro da mesma data. Mostrar o mais antigo
+ * esconderia a gravação (ou a correção) mais recente; o `max` aqui é o que
+ * garante que o cartão sempre mostre a última vez que aquela data foi
+ * gravada, não uma leitura arbitrária do meio do lote.
  */
 export function agruparImportacoes(
   linhas: Pick<Levantamento, "data" | "arquivo_origem" | "trecho_id" | "importado_em">[],

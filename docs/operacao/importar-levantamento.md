@@ -8,8 +8,13 @@ errado — ele só lê o arquivo e conta, nunca grava nada.
 
 Por que isso importa: o HighwAI só é confiável na medida em que compara suas previsões contra
 o que a equipe da Motiva realmente viu na estrada (é o que a tela **Validação** do painel
-mostra). Cada levantamento novo que entra é uma reconferência a mais — é assim que a acurácia
-deixa de ser o resultado de duas planilhas e vira um número que se atualiza toda semana.
+mostra). O que este documento ensina — os comandos das seções 2 e 4 — deixa cada levantamento
+novo gravado no banco sozinho e sem duplicar, não importa quantas vezes você rode; isso já
+funciona hoje, sem passo manual nenhum. **Recalcular a acurácia com esse levantamento novo**,
+porém, ainda não acontece sozinho: é um passo manual à parte, descrito na seção 6, que hoje só
+um desenvolvedor faz. Enquanto ele não roda, a validação mostrada no painel continua sendo a
+do par de levantamentos mais recente que alguém já processou — não necessariamente a do
+arquivo que você acabou de importar.
 
 ---
 

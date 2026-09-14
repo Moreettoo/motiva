@@ -60,7 +60,7 @@ function limitacoes(v: Validacao, distanciaFronteiraCm: number | null): string[]
     "A calibração é do Rodoanel. O método transfere para outra rodovia; o número, não.",
     "Pixel de 10 m no satélite: faixas estreitas (dispositivos e marginais) ficam fora da leitura por segmento.",
     "53 roçadas inferidas em uma semana é amostra pequena para um detector automático de corte.",
-    "A acurácia não é prometida: é medida contra dado real de campo, e cada levantamento novo que o importador traz pode reconferi-la -- mas o recálculo é um passo que um desenvolvedor roda, não algo automático (docs/operacao/importar-levantamento.md).",
+    "A acurácia não é prometida: é medida contra dado real de campo, e cada levantamento novo que o importador traz pode reconferi-la — mas o recálculo é um passo que um desenvolvedor roda, não algo automático (docs/operacao/importar-levantamento.md).",
   ];
 }
 

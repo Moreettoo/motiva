@@ -20,31 +20,44 @@ import type { LevantamentoImportado } from "@/lib/levantamentos/queries";
  * `descricao` abaixo fala nas duas metades, a automática e a manual, em vez
  * de emprestar a certeza de uma para a outra. Duas linhas hoje é o retrato
  * honesto de um mecanismo jovem, não uma limitação escondida.
+ *
+ * Zero linhas é um estado real, não hipotético: entre a Tarefa 12 e a
+ * Tarefa 13 deste projeto, `ia.levantamentos` chegou a ficar vazia em
+ * produção. `NdviSeparacao` (vizinho nesta mesma página) mostra uma frase
+ * nesse caso em vez de uma tabela só com cabeçalho; este componente segue o
+ * mesmo padrão, e não `Sensibilidade` (que se esconde com `return null`),
+ * porque o propósito do cartão é justamente declarar que o mecanismo existe
+ * -- some-lo no primeiro dia, antes do primeiro levantamento, escondia a
+ * própria coisa que ele existe para mostrar.
  */
 export function LevantamentosImportados({ linhas }: { linhas: LevantamentoImportado[] }) {
   return (
     <Cartao>
       <CartaoCabecalho icone={<FileSpreadsheet />} titulo="Levantamentos importados" descricao="Cada caminhada da equipe da Motiva que virou dado do sistema, gravada sozinha e sem duplicar a cada levantamento novo. Reconferir a validação com ele, porém, ainda é um passo que um desenvolvedor roda à mão." />
       <CartaoCorpo>
-        <Tabela rotulo="Levantamentos importados">
-          <TabelaCabecalho>
-            <tr><TabelaTitulo>data do levantamento</TabelaTitulo><TabelaTitulo>arquivo</TabelaTitulo><TabelaTitulo>trechos</TabelaTitulo><TabelaTitulo>importado em</TabelaTitulo></tr>
-          </TabelaCabecalho>
-          <TabelaCorpo>
-            {linhas.map((l) => (
-              <TabelaLinha key={l.data}>
-                <TabelaCelula>{fmt.dataMedia(l.data)}</TabelaCelula>
-                <TabelaCelula className="font-mono text-xs">{l.arquivo}</TabelaCelula>
-                <TabelaCelula className="tnum">{fmt.n(l.trechos)}</TabelaCelula>
-                <TabelaCelula>{fmt.dataMedia(l.importado_em.slice(0, 10))}</TabelaCelula>
-              </TabelaLinha>
-            ))}
-          </TabelaCorpo>
-        </Tabela>
+        {linhas.length === 0 ? (
+          <p className="text-sm text-ink-2">Nenhum levantamento importado ainda. O primeiro RA-RET gravado pelo importador aparece aqui.</p>
+        ) : (
+          <Tabela rotulo="Levantamentos importados">
+            <TabelaCabecalho>
+              <tr><TabelaTitulo>data do levantamento</TabelaTitulo><TabelaTitulo>arquivo</TabelaTitulo><TabelaTitulo>trechos</TabelaTitulo><TabelaTitulo>importado em</TabelaTitulo></tr>
+            </TabelaCabecalho>
+            <TabelaCorpo>
+              {linhas.map((l) => (
+                <TabelaLinha key={l.data}>
+                  <TabelaCelula>{fmt.dataMedia(l.data)}</TabelaCelula>
+                  <TabelaCelula className="font-mono text-xs">{l.arquivo}</TabelaCelula>
+                  <TabelaCelula className="tnum">{fmt.n(l.trechos)}</TabelaCelula>
+                  <TabelaCelula>{fmt.dataMedia(l.importado_em.slice(0, 10))}</TabelaCelula>
+                </TabelaLinha>
+              ))}
+            </TabelaCorpo>
+          </Tabela>
+        )}
       </CartaoCorpo>
       <CartaoRodape>
         <span className="min-w-0 break-words">
-          Para importar o próximo: <span className="font-mono">python -m pesquisa.importar_levantamento --xlsx RA-RET-ROÇ-LIMP-AAAA-MM-DD.xlsx --anterior &lt;o anterior&gt; --gravar</span>. Procedimento em <span className="font-mono">docs/operacao/importar-levantamento.md</span>.
+          Para importar {linhas.length === 0 ? "o primeiro" : "o próximo"}: <span className="font-mono">python -m pesquisa.importar_levantamento --xlsx RA-RET-ROÇ-LIMP-AAAA-MM-DD.xlsx --anterior &lt;o anterior&gt; --gravar</span>. Procedimento em <span className="font-mono">docs/operacao/importar-levantamento.md</span>.
         </span>
       </CartaoRodape>
     </Cartao>
