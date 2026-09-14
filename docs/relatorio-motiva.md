@@ -30,7 +30,7 @@ Os cinco pontos, na íntegra, tal como registrados em `docs/PLANO_MOTIVA.md` §1
 | 1 | "Plataforma com a fila de espera de ordens de serviço" | O painel calcula, por trecho, a data prevista de cruzar 30 cm (limite contratual da Artesp) menos o tempo de mobilização da equipe (7 dias), já com o equipamento e a área roçável mapeados a partir do KML de roçada da Motiva. Ver seção 7. |
 | 2 | "Ideia e lógica de predição são bem-vindas, necessitam do passo anterior: base de dados" | A base agora é real: 60 trechos do Rodoanel, 1.440 observações de campo, 248 pares de validação — não mais só o gerador sintético. Ver seção 3. |
 | 3 | "Captura de dados por análise preditiva — será necessário banco de dados estruturado, amplo e muito completo" | O banco estruturado existe (`ia.trechos`, `ia.levantamentos`, `ia.medicoes`, `ia.validacoes`, `ia.calibracoes`, `ia.ndvi_observacoes`, `ia.ndvi_analises`) e cresce sozinho a cada levantamento importado (importador idempotente, seção 7). "Amplo e muito completo" ainda não é este banco — é a distância entre 195 pares e o que um modelo por segmento exigiria; ver seção 4 e 9. |
-| 4 | "Nas rodovias encontramos variabilidade imensa de solos e espécies, o que torna a tarefa de predição muito complexa" | Solo: 43 dos 60 marcos vêm do SoilGrids (fertilidade e capacidade de água por coordenada); os 17 restantes (28%) usam uma premissa regional, declarada como tal — nunca escondida atrás de um número que parece medido. Espécie: braquiária é a premissa declarada para o Rodoanel inteiro; não foi medida em campo, e a seção 4 mostra que essa premissa decide o resultado inteiro. |
+| 4 | "Nas rodovias encontramos variabilidade imensa de solos e espécies, o que torna a tarefa de predição muito complexa" | Solo: 43 dos 60 marcos vêm do SoilGrids (fertilidade e capacidade de água por coordenada); os 17 restantes (28%) usam uma premissa regional, declarada como tal — nunca escondida atrás de um número que parece medido. Solo, medido contra o resultado: excluindo os 64 pares que dependem da premissa de solo, a acurácia **cai** para 48,9% (J −0,056) — o modelo é **pior** onde o solo é de fato medido, não melhor; ver seção 8. Espécie: braquiária é a premissa declarada para o Rodoanel inteiro; não foi medida em campo, e ela decide o resultado inteiro — com esmeralda ou batatais no lugar dela, em qualquer das nove combinações testadas de premissa, o modelo prevê zero mudança em 7 dias e marca exatamente **83,1%**, idêntico a não fazer nada. Dito de forma direta: **o modelo só consegue perder porque se move, e o que o faz mover é uma premissa não verificada.** Ver seção 4. |
 | 5 | "Pensar em outras possibilidades para captura de dados pode ser necessário" | Testamos sensoriamento remoto (Sentinel-2/NDVI) como segunda fonte de captura, nas três datas do levantamento e depois numa série de 8 anos. O resultado é um não honesto — o satélite não separa roçado de não roçado nesta rodovia com este método — reportado na íntegra na seção 6, porque um "não" medido vale mais que uma promessa não testada. |
 
 ---
@@ -67,10 +67,17 @@ espécie braquiária premissa, classe 3 = 40 cm, fator de calibração **1,0** (
 
 **O modelo perde para não fazer nada.** 60,5% de acurácia de classe, contra 83,1% de quem
 simplesmente apostasse que nada muda em 7 dias — e os intervalos de confiança (Clopper-Pearson,
-95%, calculados sobre as contagens acima) nem se sobrepõem quase: 53%–67% contra 77%–88%. O `J`
-(fração de transições detectadas menos fração de alarmes falsos) do modelo é **negativo**
-(−0,024): ele erra mais alarmes falsos, proporcionalmente, do que acerta transições reais. Isso
-não é uma leitura favorável, e não estamos escrevendo de outro jeito.
+95%, calculados sobre as contagens acima) **não se sobrepõem em nada**: 53,3%–67,4% contra
+77,1%–88,1%, ou seja, o teto do intervalo do modelo (67,4%) fica abaixo do piso do intervalo da
+linha de base (77,1%). O `J` (fração de transições detectadas menos fração de alarmes falsos) do
+modelo é **negativo** (−0,024): ele erra mais alarmes falsos, proporcionalmente, do que acerta
+transições reais. Isso não é uma leitura favorável, e não estamos escrevendo de outro jeito.
+
+Comparar dois intervalos de confiança, aliás, não é o teste correto aqui — são **os mesmos 195
+pares pontuados de duas formas**, não duas amostras independentes. O teste pareado apropriado
+(McNemar) diz a mesma coisa com mais força: entre os pares em que os dois discordam, o modelo
+acerta onde a linha de base erra em **9** pares, e erra onde ela acerta em **53**; p exato =
+**1,05 × 10⁻⁸**. A derrota para a linha de base não é ruído de amostra pequena — é o resultado.
 
 Por classe (mesma validação, `ia.validacao_pares`, conferido ao vivo): classe 1 = 77 de 130
 (59,2%, IC 50,3%–67,8%); classe 2 = 31 de 52 (59,6%, IC 45,1%–73,0%); classe 3 = 10 de 13 (76,9%,
@@ -78,19 +85,39 @@ IC **46,2%–95,0%**). O número da classe 3 parece o melhor dos três, mas **13
 sustentam uma leitura de 77%** — o intervalo de confiança vai de 46% a 95%, e não deve ser levado
 à apresentação sem ele.
 
-**O diagnóstico, que é o achado mais valioso desta semana:** o modelo não erra a altura por
-muito. Nos mesmos 195 pares, a banda de incerteza do modelo (q10–q90) tem **largura mediana de
-2,91 cm** — ele acerta a altura a menos de um centímetro e meio para cada lado. O problema não é
-o modelo prever mal; é a régua de três classes que julga ele. Para quem começou a semana em
-classe 1, a mediana das alturas finais previstas fica em **9,93 cm**, a **menos de 1 mm** (0,74
-mm, exatamente) da fronteira de 10 cm que separa a classe 1 da classe 2. O modelo está acertando
-a altura quase exatamente em cima da linha que decide se ele "acertou" ou "errou" a classe — um
-empurrão de menos de um milímetro na fronteira muda o resultado de certo para errado, para dezenas
-de trechos ao mesmo tempo. A régua de três classes destrói uma precisão que o modelo já tem.
+**O diagnóstico, que é o achado mais valioso desta semana: a régua de três classes é grossa
+demais para a precisão que o modelo já tem.** Três medidas sustentam isso, e cada uma diz uma
+coisa diferente — vale separá-las, porque juntá-las é fácil e seria exagero.
+
+1. **O modelo é confiante.** Nos mesmos 195 pares, a banda de 80% dele (q10–q90 — o intervalo
+   dentro do qual ele próprio diz que o crescimento de 7 dias deve cair) tem **largura mediana de
+   2,91 cm**. Atenção ao que esse número é: é a incerteza que o modelo **declara de si mesmo**,
+   não o erro dele medido contra o campo.
+2. **Onde dá para conferir, a altura prevista cai onde deveria.** Em **192 dos 195 pares** a
+   altura final prevista cai dentro da faixa de altura da classe que a equipe observou, ou a menos
+   de 1,5 cm dela — distância mediana **0 cm**, média **0,35 cm**, e só **3 pares** passam de
+   1,5 cm. Esta é a afirmação medida; é ela que sustenta "o modelo não erra a altura por muito".
+3. **E a régua corta exatamente onde ele está.** Para quem começou a semana em classe 1, a mediana
+   das alturas finais previstas fica em **9,93 cm**, a **0,74 mm** da fronteira de 10 cm que separa
+   a classe 1 da classe 2. O modelo está acertando a altura quase em cima da linha que decide se
+   ele "acertou" ou "errou" a classe — um empurrão de menos de um milímetro nessa fronteira muda o
+   resultado de certo para errado em dezenas de trechos ao mesmo tempo.
+
+**A ressalva, dita sem rodeio: o erro exato de altura deste modelo não pode ser medido com os
+dados que existem hoje, e nada neste relatório o mede.** O campo é ordinal — a equipe marca classe
+1, 2 ou 3 —, e a altura inicial de cada par é o ponto médio da classe (5, 20 ou 40 cm), uma
+convenção, não uma medição. Por isso não existe "erro de ±X cm" em lugar nenhum deste projeto: o
+que existe é o item 2 acima, que é o mais forte que estes dados permitem afirmar. E é exatamente
+esse limite que torna o pedido da seção 9 — centímetros no lugar de três classes — o próximo passo
+mais barato: ele transforma uma pergunta hoje sem resposta em uma que tem.
 
 *(Fontes: `ia.validacoes` id 29 e `ia.validacao_pares` da validação vigente, consultados ao vivo
 em 14/09/2026; intervalos de confiança calculados por método exato de Clopper-Pearson sobre as
-mesmas contagens, não copiados de nenhum resumo anterior.)*
+mesmas contagens, não copiados de nenhum resumo anterior. O teste de McNemar e as três medidas do
+diagnóstico saem par a par do mesmo conjunto, no cenário de fator 1,0 — `resultado.sem_calibracao`
+de `pesquisa/dados/derivados/validacao.json`, que é o mesmo `ia.validacao_pares` gravado. Cuidado
+para quem for reconferir: os campos de topo daquele arquivo (`pares`, `resultado.final`,
+`fator_vigente`) guardam o cenário de fator 1,15, testado e **rejeitado** — não o vigente.)*
 
 ---
 
@@ -137,6 +164,18 @@ datas), mas na direção **invertida** da expectativa ingênua: capim alto lê N
 que capim baixo. A leitura mais provável é que, em março, no fim do verão em São Paulo, capim
 alto e não roçado já está mais seco e senescente, enquanto um gramado recém-roçado ainda está em
 crescimento ativo — NDVI mede verdor, não altura.
+
+**E essa inversão é um achado positivo, não um acaso — vale dizê-lo, porque é o único resultado
+favorável desta seção e ele estava subdeclarado.** Um AUC de 0,155 não é "nada": AUC é simétrico
+em torno de 0,5, então ler o sinal na direção certa (NDVI **baixo** = capim alto) dá **0,845** em
+13/03/2026 e **0,812** em 28/03/2025, com p = 0,005 e p = 0,007 — separação forte, não ruído. Em
+linguagem de operação: **nestas datas, o satélite conseguiu dizer onde o capim estava alto**, que
+é diretamente uma resposta ao quinto ponto do feedback da Motiva. A ressalva honesta vem junto e é
+grande: as amostras são minúsculas (7 contra 23 segmentos em 13/03; 17 contra 4 em 20/03 — a data
+que não deu significância; 11 contra 16 em 28/03/2025), são três datas de março, e uma leitura de
+**nível** ("está alto agora") é coisa diferente de detectar **variação** ("foi roçado esta
+semana") — que é o que a operação precisa, e é o que deu nulo logo abaixo. Não se compra um
+monitoramento por satélite com esses n; mas vale um teste dirigido, e ele está na seção 9.
 
 **O teste que importa para operação — detectar quando uma roçada aconteceu — deu nulo.** Entre
 13 e 20/03/2026, a queda de NDVI nos 34 segmentos com roçada inferida (mediana 0,014) foi
@@ -216,16 +255,46 @@ completas:
 - A calibração é local ao Rodoanel. O método transfere para outra rodovia; o número, não.
 - Fatores não observáveis permanecem como ruído irredutível: altura exata do corte anterior,
   pisoteio, herbicida, queimada, pastoreio na faixa.
-- 53 roçadas inferidas (38 com NDVI válido nas duas datas) é amostra pequena para um detector
-  automático — a seção 6 mostra o que acontece quando se tenta mesmo assim, com 8 anos de dados.
+- **As datas dos dois levantamentos vêm do nome do arquivo, não de dentro dele.** O único campo
+  interno de data das duas planilhas (célula BF6) traz **2025-03-28 nos dois arquivos** — o que
+  não pode ser a data de duas caminhadas diferentes, e por isso foi julgado template preenchido
+  uma vez. As datas adotadas (13/03 e 20/03/2026) são as dos nomes dos arquivos. Disso dependem a
+  janela de clima buscada no ERA5, o horizonte de crescimento de 7 dias e, portanto, os 60,5%
+  inteiros. Se essas duas caminhadas não foram nesses dias, o número muda. **É uma pergunta que
+  só a Motiva responde, e vale perguntar** (`docs/pesquisa/01-consolidacao.md`).
+- **Foram excluídos 53 dos 248 pares (21%) porque queda de classe foi lida como roçada** — e essa
+  exclusão favorece o modelo, porque o modelo só prevê crescimento: um par que "desceu" de classe
+  seria erro garantido para ele. A leitura é defensável (capim não encolhe sozinho em 7 dias), mas
+  não é a única: dos 53, **27 são 2 → 1**, tão compatíveis com divergência de critério entre as
+  duas equipes de campo quanto com roçada, e **3 são 1 → 3 em sete dias** (≈ 3 cm/dia), o que não
+  é crescimento plausível e é quase certamente erro de observação — e esses 3 estão dentro das 33
+  "transições" que o modelo é cobrado por detectar. Não houve teste de concordância entre
+  observadores. A exclusão infla **os dois** números da seção 4, os 60,5% e os 83,1%
+  (`docs/pesquisa/01-consolidacao.md`).
+- 53 pares com queda de classe viraram **38 roçadas inferidas** por segmento, das quais **34** têm
+  NDVI válido nas duas datas — amostra pequena para um detector automático, e a seção 6 mostra o
+  que acontece quando se tenta mesmo assim, com 8 anos de dados.
+- **A população da validação é mais larga que a população da decisão:** **29 dos 195 pares (15%)**
+  vêm de faixas de dispositivo e marginal, marcadas `em_escopo = false`, que nunca alimentam a
+  medição de trecho nem a fila de roçada. Continuam capim real e medido, e incluí-los na validação
+  é defensável — mas quem apresenta o número precisa saber que ele foi apurado sobre um conjunto
+  um pouco diferente daquele sobre o qual o sistema decide.
+- **O solo assumido não está segurando o número para cima — está segurando para baixo.** A
+  objeção natural a 60,5% é "seu número está escorado num chute de solo em 28% dos marcos". A
+  resposta medida é o contrário do confortável: excluindo os **64 pares** que dependem dessa
+  premissa, a acurácia **cai para 48,9%** e o `J` piora para **−0,056** (contra 60,5% e −0,024 nos
+  195 pares inteiros). O modelo é **pior** justamente onde o solo é medido pelo SoilGrids. Isso
+  não desfaz a limitação — continua não havendo base para reivindicar precisão por segmento de
+  solo nos 28% assumidos —, mas mostra que a premissa não é o que está inflando o resultado
+  (`docs/pesquisa/02-validacao.md`, "Sensibilidade ao solo assumido").
 - A acurácia não é prometida: é medida, e a linha de base "nada muda em 7 dias" acerta 83,1%
   hoje — mais que o modelo.
 
 Uma nota de transparência sobre este próprio relatório: a versão do sistema hoje em produção
-(página `/validacao`) troca a quarta limitação acima por outra, mais específica, sobre os dias
-desde a última roçada serem desconhecidos (premissa de 200 dias, testada contra 30 e 60) — uma
-substituição consciente feita durante o projeto, não uma perda. As duas limitações são
-verdadeiras e as duas estão listadas aqui.
+(página `/validacao`) não traz a quinta limitação acima (os fatores não observáveis) e traz, em
+lugar dela, outra mais específica: os dias desde a última roçada serem desconhecidos (premissa de
+200 dias, testada contra 30 e 60) — uma substituição consciente feita durante o projeto, não uma
+perda. As duas limitações são verdadeiras e as duas estão listadas aqui.
 
 ---
 
@@ -241,6 +310,16 @@ enquanto os eventos conhecidos tiverem janela de 7 dias em vez de data exata; po
 por cargo no banco; upload da planilha RA-RET pelo próprio painel, sem precisar de linha de
 comando.
 
+Um item novo, que sai de um achado desta semana e não estava na lista original: **testar o
+satélite como leitura de NÍVEL, não de variação.** A seção 6 mostra que o NDVI separou capim alto
+de capim baixo com AUC efetivo de 0,845 (13/03/2026) e 0,812 (28/03/2025), p ≤ 0,007, lido na
+direção invertida — sinal forte, mas sobre 7 contra 23 e 11 contra 16 segmentos, em duas datas de
+março. O teste que fecha a questão é barato e não depende de mais nada da Motiva além do
+levantamento que ela já faz: repetir a comparação em mais datas, cobrindo outras estações, e ver
+se o limiar de NDVI se sustenta como estimador de "está alto agora" por segmento. Se sustentar, o
+satélite vira uma segunda fonte de medição entre caminhadas — não de detecção de roçada, que a
+mesma seção mostra ser nula com este método.
+
 Desta lista de 22 tarefas, ficam ainda abertos, registrados para quem continuar: a regra de
 aceitação de calibração da especificação é circular e foi corrigida por decisão humana em
 produção (seção 5) — vale reescrever a regra, não só contornar o resultado dela; e a página
@@ -248,8 +327,12 @@ produção (seção 5) — vale reescrever a regra, não só contornar o resulta
 
 **O próximo passo mais barato e com mais efeito prático é este: pedir à Motiva para registrar a
 altura da vegetação em centímetros, não em três classes, no próximo levantamento de campo.** A
-seção 4 mostra que o modelo já prevê a altura a menos de 1,5 cm de erro para cada lado — o
-problema não é o modelo, é a régua de três classes que o julga. Trocar a régua por um número
-custa à Motiva o mesmo levantamento de campo que já é feito hoje (marcar "12 cm" em vez de
-escolher entre 1/2/3), e muda o que este sistema pode ser avaliado por: de uma classificação que
-perde para não fazer nada, para um erro de altura em centímetros que já é pequeno e medido.
+seção 4 mostra por quê: em 192 dos 195 pares a altura prevista já cai dentro da faixa da classe
+observada (ou a menos de 1,5 cm dela), e a mediana prevista para quem partiu da classe 1 fica a
+0,74 mm da fronteira que decide o acerto. O problema não é o modelo, é a régua de três classes que
+o julga — e enquanto ela for de três classes, **o erro de altura do modelo continua sem poder ser
+medido**, nem por nós nem por quem quiser auditar. Trocar a régua por um número custa à Motiva o
+mesmo levantamento de campo que já é feito hoje (marcar "12 cm" em vez de escolher entre 1/2/3), e
+muda o que este sistema pode ser avaliado por: de uma classificação que perde para não fazer nada,
+para um erro de altura em centímetros — que passa a existir como número, e a partir daí pode ser
+cobrado.
