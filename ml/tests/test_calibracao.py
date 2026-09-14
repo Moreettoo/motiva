@@ -152,3 +152,28 @@ def test_carregar_nunca_traz_calibracao_inativa():
     assert len(ativas) == 1
     assert ativas[0]["fator"] == "1.0"
     assert all(l["fator"] != "1.15" for l in ativas)
+
+
+class _SbQueDerruba:
+    """Simula a tabela `calibracoes` fora do ar: RLS mudou, rede caiu, schema
+    andou -- qualquer coisa que faca `.execute()` levantar.
+    """
+
+    def table(self, nome):
+        raise RuntimeError("simulado: calibracoes indisponivel")
+
+
+def test_carregar_seguro_sobrevive_a_falha_e_degrada_para_lista_vazia():
+    """O achado do review: `calibracao.carregar(sb)` sem guarda, chamado FORA
+    do laco por trecho em `analisar_lote.main()`, e ponto unico de falha do
+    lote inteiro -- uma tabela fora do ar mata `main()` e os 60 trechos ficam
+    sem previsao NENHUMA naquele dia, nao so "sem calibracao". `carregar_seguro`
+    e o que `analisar_lote.py` chama agora: nunca propaga a excecao, devolve
+    lista vazia, e cada trecho cai para `SEM` (fator 1,0) -- a MESMA degradacao
+    que uma tabela vazia (sem excecao nenhuma) ja produzia antes desta tarefa.
+    """
+    assert calibracao.carregar_seguro(_SbQueDerruba()) == []
+    # e a lista vazia realmente devolve SEM para qualquer trecho, no mesmo
+    # caminho que uma tabela vazia (sem falha) ja usava:
+    c = calibracao.escolher(calibracao.carregar_seguro(_SbQueDerruba()), "SP-021 Rodoanel Oeste", "braquiaria")
+    assert c is calibracao.SEM

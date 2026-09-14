@@ -29,6 +29,24 @@ def carregar(sb) -> list[dict]:
             .eq("ativo", True).execute().data)
 
 
+def carregar_seguro(sb) -> list[dict]:
+    """`carregar` blindado contra a tabela cair (RLS, rede, schema).
+
+    O lote roda uma vez por dia; se essa UNICA consulta levantar, o `main()`
+    inteiro morre e os 60 trechos ficam sem previsao nenhuma naquele dia --
+    um erro de rede vira um dia inteiro de silencio no painel. Uma lista vazia
+    aqui produz exatamente a mesma degradacao que a tabela vazia ja produz de
+    verdade (cada trecho cai para `SEM`, fator 1,0): pior que sem calibracao,
+    nunca pior que sem previsao nenhuma.
+    """
+    try:
+        return carregar(sb)
+    except Exception as e:
+        print(f"ERRO ao carregar calibracoes: {type(e).__name__}: {e} "
+              "-- seguindo sem calibracao (fator 1,0 em todo trecho)")
+        return []
+
+
 def _especificidade(linha: dict, rodovia: str, especie: str) -> int | None:
     if linha.get("rodovia") not in (None, rodovia) or linha.get("especie") not in (None, especie):
         return None

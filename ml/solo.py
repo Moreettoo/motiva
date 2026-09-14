@@ -297,3 +297,26 @@ def _ler_ponto(lat: float, lon: float, distancia: float,
         distancia_km=distancia,
         regime=regime,
     )
+
+
+def do_trecho(t: dict, zona: Solo) -> Solo:
+    """O solo do proprio trecho quando existe; senao o da zona, como sempre.
+
+    `ia.trechos` carrega `fertilidade_solo`/`capacidade_agua_solo_mm` para os
+    marcos onde o SoilGrids respondeu no ponto exato (gravado pelo publicador,
+    ver `pesquisa.rodoanel.solo_km`); os outros usam o solo da ZONA climatica
+    (ver `analisar_lote.montar_zonas`), que pode vir do SoilGrids tambem ou da
+    premissa quando o mapa nao cobre a regiao.
+
+    Isolada aqui, e nao inline em `analisar_lote.py`, de proposito: aquele
+    modulo abre clientes de rede (Supabase, OpenAI) so de ser importado, e
+    isto e a UNICA logica de decisao no meio dele -- precisa poder ser testada
+    sem isso. Os dois campos tem que existir JUNTOS: um sem o outro nao vira
+    Solo nenhum, cai para a zona (nao ha combinacao de "meio trecho, meio
+    zona"). Ver spec 4: `fonte` sempre viaja com o numero, por isso o default
+    "soilgrids" aqui -- e a unica fonte que grava esses dois campos no trecho.
+    """
+    if t.get("fertilidade_solo") is not None and t.get("capacidade_agua_solo_mm") is not None:
+        return Solo(float(t["fertilidade_solo"]), float(t["capacidade_agua_solo_mm"]),
+                   t.get("solo_fonte") or "soilgrids")
+    return zona

@@ -414,7 +414,7 @@ def main():
 
     zonas, ambiente = montar_zonas(trechos, hoje)
 
-    calibs = calibracao.carregar(sb)
+    calibs = calibracao.carregar_seguro(sb)
     print(f"Calibracoes ativas: {len(calibs)}" + "".join(
         f"\n  {c.get('rodovia') or 'qualquer rodovia'} / {c.get('especie') or 'qualquer especie'}: fator {float(c['fator']):.2f}" for c in calibs) + "\n")
 
@@ -440,11 +440,8 @@ def main():
 
             try:
                 # Solo do proprio trecho quando existe (SoilGrids no marco, gravado pelo
-                # publicador); senao o da zona, como sempre.
-                terra = amb[1]
-                if t.get("fertilidade_solo") is not None and t.get("capacidade_agua_solo_mm") is not None:
-                    terra = solo.Solo(float(t["fertilidade_solo"]), float(t["capacidade_agua_solo_mm"]),
-                                      t.get("solo_fonte") or "soilgrids")
+                # publicador); senao o da zona, como sempre. Ver `solo.do_trecho`.
+                terra = solo.do_trecho(t, amb[1])
                 calib = calibracao.escolher(calibs, t["rodovia"], t["especie"])
                 conc = t.get("concessionarias") or {}
                 mob = int(conc.get("mobilizacao_dias") or 7)
