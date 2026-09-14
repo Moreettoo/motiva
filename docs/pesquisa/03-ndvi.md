@@ -1,6 +1,6 @@
 # 03 · NDVI Sentinel-2 contra a verdade de campo
 
-Gerado por `pesquisa/ndvi/analisar_ndvi.py` em 14/09/2026 01:12 (commit ca04174).
+Gerado por `pesquisa/ndvi/analisar_ndvi.py` em 14/09/2026 10:46 (commit ea18d47).
 
 Máscara: polígonos de roçada do KML por segmento. Coleção `COPERNICUS/S2_SR_HARMONIZED`, pixel válido com SCL fora de {3, 8, 9, 10, 11} e probabilidade de nuvem < 40%.
 Classe do segmento = pior faixa em escopo na data. A leitura de 28/03/2025 usa as classes de 13/03/2026 e serve só como sanidade da hipótese de data.

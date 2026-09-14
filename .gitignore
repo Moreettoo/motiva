@@ -41,3 +41,6 @@ pesquisa/rodoanel.sqlite
 pesquisa/dados/cache/
 backups/
 .pytest_cache/
+
+# Ruido do Finder no macOS
+.DS_Store
