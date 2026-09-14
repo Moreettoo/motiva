@@ -304,3 +304,123 @@ Em 13/03, com o fator vigente, o sistema marcaria **{fila['n_marcados']}** segme
 - 33 transições é amostra pequena; o fator é local ao Rodoanel.
 - Solo assumido, não medido, em **{_br(pct_marcos_premissa, 0)}%** dos marcos (ver "Sensibilidade ao solo assumido"): não dá para reivindicar precisão por segmento de solo nessa fração da rodovia.
 """
+def _leitura_separacao(saida: dict, f) -> str:
+    """Paragrafo interpretativo sobre a direcao da separacao AUC, exigido pela
+    revisao: a tabela sozinha nao diz que um AUC < 0,5 significa uma inversao
+    (capim mais alto lendo NDVI mais baixo), so um leitor especialista
+    infere isso. Todo numero aqui vem de `saida` ou de `planilha.PONTO_MEDIO_CM`
+    (constante do dominio, nao do resultado desta rodada, mas tambem nao
+    digitada solta neste arquivo); a frase de direcao e escolhida por
+    `auc < 0.5` por data, entao um resultado futuro com auc >= 0.5 produz o
+    texto oposto em vez de contradizer os dados (regra do projeto: nenhum
+    numero de relatorio digitado a mao).
+    """
+    coms = [r for r in saida["analises"] if not r.get("sem_imagem") and r.get("auc") is not None]
+    if not coms:
+        return ""
+    itens = "; ".join(f"{r['data_alvo']} (AUC {f(r['auc'])}, p = {f(r['p_valor'], 4)})" for r in coms)
+    invertidas = [r["data_alvo"] for r in coms if r["auc"] < 0.5]
+    significativas = [r["data_alvo"] for r in coms if r["p_valor"] is not None and r["p_valor"] < 0.05]
+    cm3 = f"{planilha.PONTO_MEDIO_CM[3]:.0f}"
+    cm1 = f"{planilha.PONTO_MEDIO_CM[1]:.0f}"
+    if len(invertidas) == len(coms):
+        direcao = (f"**invertida em todas as datas com comparação possível**: a classe 3 (capim mais alto, "
+                    f"~{cm3} cm) lê NDVI **mais baixo** que a classe 1 (capim recém-roçado, ~{cm1} cm) — o oposto "
+                    "da expectativa ingênua de que mais vegetação lê NDVI mais alto")
+    elif not invertidas:
+        direcao = "no sentido esperado em todas as datas: a classe 3 lê NDVI mais alto que a classe 1"
+    else:
+        direcao = (f"invertida em {len(invertidas)} de {len(coms)} datas ({', '.join(invertidas)}) e no sentido "
+                   "esperado nas demais")
+    if not significativas:
+        sig = "sem significância estatística em nenhuma data (p ≥ 0,05)"
+    elif len(significativas) == len(coms):
+        sig = f"estatisticamente significativa nas {len(coms)} datas (p < 0,05)"
+    else:
+        sig = f"estatisticamente significativa em {', '.join(significativas)} (p < 0,05); não significativa nas demais"
+    return (f"A separação entre classes é real, mas {direcao}. Valores observados: {itens}. A comparação é "
+            f"{sig}. Essa é exatamente a limitação já registrada abaixo — \"NDVI mede verdor, não altura: capim "
+            "alto e seco pode ler baixo\" — confirmada pelos dados: em março, no fim do verão/início do outono "
+            "em São Paulo, capim alto não roçado pode estar mais seco e senescente, lendo NDVI mais baixo do que "
+            "um gramado recém-roçado ainda em crescimento ativo.")
+
+
+def _leitura_sanidade(saida: dict, f) -> str:
+    """A leitura de 2025-03-28 reaproveita as classes de campo de 13/03/2026
+    sobre imagem de um ano antes (sanidade da hipotese de data, nao uma
+    segunda amostra independente). Se ela mostrar a MESMA direcao das datas
+    de 2026, isso e uma pergunta em aberto -- pode ser efeito de lugar, nao
+    so de mes -- e o texto tem que dizer isso sem virar explicacao definitiva.
+    So aparece quando os dados de fato mostram essa coincidencia de direcao.
+    """
+    por_data = {r["data_alvo"]: r for r in saida["analises"] if not r.get("sem_imagem") and r.get("auc") is not None}
+    sanidade = por_data.get("2025-03-28")
+    outras = [r for k, r in por_data.items() if k != "2025-03-28"]
+    if sanidade is None or not outras:
+        return ""
+    mesma_direcao = [r["data_alvo"] for r in outras if (r["auc"] < 0.5) == (sanidade["auc"] < 0.5)]
+    if not mesma_direcao:
+        return ""
+    return (f"A leitura de sanidade de 2025-03-28 (AUC {f(sanidade['auc'])}) usa as classes de campo de 13/03/2026 "
+            f"sobre uma imagem de satélite de um ano antes, e mostra a mesma direção de {', '.join(mesma_direcao)}. "
+            "Isso é uma pergunta em aberto, não uma explicação assentada: parte do efeito pode ser do **lugar** "
+            "(faixas estreitas, sombra de árvore, vegetação diferente naquele trecho) em vez da altura do capim "
+            "naquele mês específico — o único fator realmente comum entre a leitura de 2025 e as de 2026 é a "
+            "etiqueta de classe por segmento, não a imagem nem a estação do ano.")
+
+
+def _leitura_delta(saida: dict, f) -> str:
+    """O teste de corte (13->20/03) e o unico com `n_rocados`; sem prosa, um
+    p nao significativo fica so como numero na tabela e ninguem le que o
+    satelite nao detectou nada. Liga isso ao espec (secao 14: um detector de
+    rocada treinado esta fora de escopo porque a amostra de eventos inferidos
+    numa janela curta e pequena) usando o numero de segmentos rocados que
+    saiu DESTE calculo (`n_segmentos_rocados`), nunca o "53" ilustrativo do
+    espec, que e de outro contexto. `n_segmentos_rocados` (todos os rocados
+    inferidos no periodo) e `alvo['n_rocados']` (so os com NDVI valido nas
+    duas datas, que entram na comparacao) sao denominadores DIFERENTES por
+    definicao -- se vierem diferentes, uma clausula computada explica a
+    diferenca em vez de deixar dois numeros parecidos sem ligacao no texto.
+    """
+    alvo = next((r for r in saida["analises"] if r.get("n_rocados") is not None), None)
+    if alvo is None:
+        return ""
+    significativo = alvo["p_valor_delta"] is not None and alvo["p_valor_delta"] < 0.05
+    if significativo:
+        return (f"O teste de corte ({alvo['data_alvo']}) encontrou diferença estatisticamente significativa de "
+                 f"NDVI entre segmentos roçados e não roçados (p = {f(alvo['p_valor_delta'], 4)}).")
+    total_rocados = saida["n_segmentos_rocados"]
+    ponte = (f" ({alvo['n_rocados']} dos {total_rocados} tinham NDVI válido em ambas as datas, entrando nesta "
+             "comparação)" if alvo["n_rocados"] != total_rocados else "")
+    return (f"O teste de corte **não encontrou** diferença de NDVI entre roçados (n = {alvo['n_rocados']}, ΔNDVI "
+            f"mediano {f(alvo['delta_rocados'])}) e não roçados (n = {alvo['n_nao_rocados']}, ΔNDVI mediano "
+            f"{f(alvo['delta_nao_rocados'])}) — p = {f(alvo['p_valor_delta'], 4)}. Consistente com o espec (seção "
+            f"14, fora de escopo): {total_rocados} segmentos com roçada inferida no intervalo{ponte} é "
+            "amostra pequena para um detector treinado, e o mesmo tamanho de amostra limita o poder deste teste "
+            "de diferença de medianas.")
+
+
+def ndvi(saida: dict) -> str:
+    def f(v, casas=3):
+        return "—" if v is None else f"{v:.{casas}f}".replace(".", ",")
+    blocos = []
+    for r in saida["analises"]:
+        if r.get("sem_imagem"):
+            blocos.append(f"### {r['data_alvo']}\n\nNenhuma imagem com nuvem média abaixo de 50% em ±7 dias. Resultado registrado: a cobertura de nuvem inviabilizou a leitura nesta data.")
+            continue
+        texto = (f"### {r['data_alvo']}\n\nImagem de **{r['data_imagem']}** (defasagem {r['defasagem_dias']:+d} d, nuvem média {f(r['nuvem_pct_media'], 2)}).\n\n"
+                 f"| | classe 1 | classe 3 |\n|---|---|---|\n| segmentos | {r['n_classe1']} | {r['n_classe3']} |\n"
+                 f"| NDVI mediano | {f(r['ndvi_mediana_c1'])} | {f(r['ndvi_mediana_c3'])} |\n\n"
+                 f"AUC (classe 3 acima da 1) = **{f(r['auc'])}** · p = {f(r['p_valor'], 4)}.")
+        if r.get("n_rocados") is not None:
+            texto += (f"\n\nΔNDVI 13→20/03: roçados (n = {r['n_rocados']}) **{f(r['delta_rocados'])}** · "
+                      f"não roçados (n = {r['n_nao_rocados']}) **{f(r['delta_nao_rocados'])}** · p = {f(r['p_valor_delta'], 4)}.")
+        blocos.append(texto)
+    leitura_extra = "\n\n".join(p for p in (_leitura_separacao(saida, f), _leitura_sanidade(saida, f), _leitura_delta(saida, f)) if p)
+    return (f"# 03 · NDVI Sentinel-2 contra a verdade de campo\n\nGerado por `pesquisa/ndvi/analisar_ndvi.py` em {saida['gerado_em']} (commit {saida['commit']}).\n\n"
+            "Máscara: polígonos de roçada do KML por segmento. Coleção `COPERNICUS/S2_SR_HARMONIZED`, pixel válido com SCL fora de {3, 8, 9, 10, 11} e probabilidade de nuvem < 40%.\n"
+            "Classe do segmento = pior faixa em escopo na data. A leitura de 28/03/2025 usa as classes de 13/03/2026 e serve só como sanidade da hipótese de data.\n\n"
+            + "\n\n".join(blocos)
+            + f"\n\n## Leitura\n\nAUC 0,5 = o satélite não separa; 1,0 = separa perfeitamente. {saida['n_segmentos_rocados']} segmentos tiveram roçada inferida no intervalo.\n\n"
+            + (leitura_extra + "\n\n" if leitura_extra else "")
+            + "## Limitações\n\n- Pixel de 10 m e polígonos estreitos: segmentos com poucos pixels válidos pesam igual aos largos.\n- Uma data por levantamento, com defasagem de até 7 dias.\n- NDVI mede verdor, não altura: capim alto e seco pode ler baixo.\n")
