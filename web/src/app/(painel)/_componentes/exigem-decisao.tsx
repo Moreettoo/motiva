@@ -12,7 +12,7 @@ import { EstadoVazio } from "@/components/ui/vazio";
 import { aprovarAgendamento, mudarStatusAgendamento, type Resultado } from "@/lib/acoes";
 import { PRAZO_LONGO_DEMAIS, prioridadeExibida, rotuloPrazo, textoDivergencia } from "@/lib/dominio";
 import { fmt, relativoEmDias } from "@/lib/format";
-import type { Equipe, Risco } from "@/lib/types";
+import type { Equipe, Prioridade } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export type ItemDecisao = {
@@ -27,7 +27,7 @@ export type ItemDecisao = {
   /** A palavra que a LLM escreveu. NAO e o que a tela pinta: o chip sai de
    *  `prioridadeExibida(diasAteLimite, prioridade)`, e esta so aparece na
    *  frase de divergencia quando as duas discordam. */
-  prioridade: Risco;
+  prioridade: Prioridade;
   diasAteLimite: number | null;
   dataSugerida: string;
   justificativa: string;

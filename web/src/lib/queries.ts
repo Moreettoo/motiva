@@ -4,7 +4,7 @@ import { cache } from "react";
 
 import { db } from "./supabase";
 import { diasEntre, isoHoje, somarDias } from "./format";
-import { ordemRisco, prioridadeExibida } from "./dominio";
+import { ordemRisco, piorRiscoDe, prioridadeExibida } from "./dominio";
 import { distanciaKm, groupBy, sum } from "./utils";
 import type {
   AgendamentoDetalhado,
@@ -128,7 +128,7 @@ export const execucoesDoTrecho = cache(async (trechoId: number): Promise<Execuca
 const SELECT_AGENDAMENTO = `
   id, trecho_id, previsao_id, data_sugerida, prioridade, justificativa, fatores,
   status, origem, modelo_usado, equipe_id, atualizado_em, criado_em,
-  trecho:trechos!inner ( id, rodovia, km_inicio, km_fim, uf, sentido, especie, tipo_pista, altura_limite_cm, latitude, longitude ),
+  trecho:trechos!inner ( id, rodovia, km_inicio, km_fim, uf, sentido, especie, tipo_pista, altura_limite_cm, latitude, longitude, ativo ),
   equipe:equipes ( id, nome, base_uf ),
   previsao:previsoes ( crescimento_cm_dia, altura_atual_cm, dias_ate_limite, chuva_total_mm, temperatura_media_c )
 `;
@@ -150,9 +150,12 @@ export const listarAgendamentos = cache(
        da lista. Aqui a lista alimenta a gaveta de nova rocada, o painel e o
        contexto do copiloto. */
     const lista = data as unknown as AgendamentoDetalhado[];
+    /* A view ja esconde trecho inativo; esta lista vem da TABELA, entao esconde aqui.
+       Sem isto a agenda desenharia cartao de trecho que a malha nao mostra. */
+    const visiveis = lista.filter((a) => a.trecho.ativo !== false);
     const risco = (a: AgendamentoDetalhado) =>
       prioridadeExibida(a.previsao?.dias_ate_limite, a.prioridade, a.origem).risco;
-    return lista.sort(
+    return visiveis.sort(
       (a, b) => a.data_sugerida.localeCompare(b.data_sugerida) || ordemRisco(risco(a)) - ordemRisco(risco(b)),
     );
   },
@@ -166,7 +169,8 @@ export const agendamentosDoTrecho = cache(async (trechoId: number): Promise<Agen
     .order("criado_em", { ascending: false })
     .order("id", { ascending: false });
   if (error) erro(`os agendamentos do trecho ${trechoId}`, error);
-  return data as unknown as AgendamentoDetalhado[];
+  const lista = data as unknown as AgendamentoDetalhado[];
+  return lista.filter((a) => a.trecho.ativo !== false);
 });
 
 function dentroDe7Dias(data: string, hoje: string): boolean {
@@ -182,7 +186,7 @@ export const montarPainel = cache(async (): Promise<Painel> => {
   ]);
 
   const hoje = isoHoje();
-  const porRisco = { critica: 0, alta: 0, media: 0, baixa: 0 } as Record<Risco, number>;
+  const porRisco = { critica: 0, alta: 0, media: 0, baixa: 0, sem_dados: 0 } as Record<Risco, number>;
   for (const t of trechos) porRisco[t.risco] += 1;
 
   const crescimentos = trechos.map((t) => t.crescimento_cm_dia ?? 0).filter((v) => v > 0);
@@ -240,10 +244,11 @@ export const trechosPorRodovia = cache(async () => {
         kmMin: Math.min(...ordenados.map((t) => t.km_inicio)),
         kmMax: Math.max(...ordenados.map((t) => t.km_fim)),
         extensao: sum(ordenados.map((t) => Number(t.extensao_km) || 0)),
-        piorRisco: ordenados.reduce<Risco>(
-          (pior, t) => (ordemRisco(t.risco) < ordemRisco(pior) ? t.risco : pior),
-          "baixa",
-        ),
+        // `piorRiscoDe`, e nao um `.reduce()` proprio: as duas ja tinham
+        // divergido uma vez (ver o cabecalho de `malha.ts`), e um reduce
+        // semeado com "baixa" fixo erraria exatamente o mesmo jeito que
+        // `piorRiscoDe` corrigiu quando um grupo inteiro fica `sem_dados`.
+        piorRisco: piorRiscoDe(ordenados),
         criticos: ordenados.filter((t) => t.risco === "critica").length,
       };
     })

@@ -52,7 +52,14 @@ export type Simulacao = {
   aguaSoloMediaPct: number;
   janela: Janela;
   extrapolacoes: Extrapolacao[];
+  /** Fator de calibração aplicado aos três quantis. 1 = sem calibração. */
+  fator: number;
 };
+
+/** O fator entra aqui, fora das árvores: `arvores.test.ts` continua comparando o percurso cru com o scikit-learn. */
+function escalar(i: Intervalo, fator: number): Intervalo {
+  return { q10: i.q10 * fator, q50: i.q50 * fator, q90: i.q90 * fator };
+}
 
 /**
  * Altura ao fim de `d` dias, para cada `d` de 1 ate o pedido.
@@ -80,7 +87,7 @@ export type Simulacao = {
  * mais janela), porque ele nao depende do tamanho do periodo perguntado -- so
  * da altura inicial, pelo Kc.
  */
-export function simular(pedido: PedidoSimulacao, janela: Janela): Simulacao {
+export function simular(pedido: PedidoSimulacao, janela: Janela, fator = 1): Simulacao {
   const total = Math.min(pedido.dias, janela.dias.length);
 
   if (total < 1) {
@@ -116,7 +123,7 @@ export function simular(pedido: PedidoSimulacao, janela: Janela): Simulacao {
   ];
 
   for (let d = 1; d <= total; d += 1) {
-    const crescimento = preverCrescimento({ ...contexto, diasPeriodo: d });
+    const crescimento = escalar(preverCrescimento({ ...contexto, diasPeriodo: d }), fator);
 
     pontos.push({
       dia: d,
@@ -142,6 +149,7 @@ export function simular(pedido: PedidoSimulacao, janela: Janela): Simulacao {
     crescimentoCmDia: fim.crescimento.q50 / total,
     aguaSoloMediaPct: (agua / total) * 100,
     janela,
+    fator,
     extrapolacoes: extrapolacoes({
       alturaInicialCm: pedido.alturaInicialCm,
       dias: pedido.dias,

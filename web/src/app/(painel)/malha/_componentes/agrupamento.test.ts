@@ -45,6 +45,16 @@ function trecho(overrides: Partial<TrechoStatus>): TrechoStatus {
     chamado_id: null,
     chamado_numero: null,
     chamado_status: null,
+    fonte_cadastro: "levantamento_motiva",
+    km_marco_m: null,
+    metodo_rocada: null,
+    area_rocada_m2: null,
+    fertilidade_solo: null,
+    capacidade_agua_solo_mm: null,
+    solo_fonte: null,
+    medicao_origem: null,
+    classe_medida: null,
+    fator_calibracao: null,
     ...overrides,
   };
 }

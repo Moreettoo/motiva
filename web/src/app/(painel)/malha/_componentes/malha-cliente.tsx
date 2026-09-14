@@ -81,7 +81,7 @@ export function MalhaCliente({
   );
 
   const contagemRisco = useMemo(() => {
-    const base: Record<Risco, number> = { critica: 0, alta: 0, media: 0, baixa: 0 };
+    const base: Record<Risco, number> = { critica: 0, alta: 0, media: 0, baixa: 0, sem_dados: 0 };
     for (const t of trechos) base[t.risco] += 1;
     return base;
   }, [trechos]);

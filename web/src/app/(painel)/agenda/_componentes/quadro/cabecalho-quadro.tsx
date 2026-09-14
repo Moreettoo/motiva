@@ -40,14 +40,19 @@ import type { Janela } from "../dados";
  *  o trecho folgado — agendar na mão é o que se faz quando o modelo não vê
  *  necessidade (reclamação, obra, evento). `dispensavel` é falso em roçada
  *  manual, então o cartão verde fica no quadro indefinidamente. A view também
- *  carimba `baixa` quando `dias_ate_limite` é NULL. Sem esta linha, a única
+ *  carimbava `baixa` quando `dias_ate_limite` era NULL. Sem esta linha, a única
  *  cor que a legenda ao lado não nomeava era a que mais aparece fora do lote —
  *  cor de status sem rótulo, o oposto do que a skill `dataviz` pede.
+ *
+ *  `sem_dados` ENTROU pelo mesmo motivo, na migração `risco_sem_dados`
+ *  (13/09/2026 em diante): a view passou a emitir `sem_dados`, não mais
+ *  `baixa`, quando não há previsão nenhuma, e o caso de agendamento manual
+ *  sobre trecho sem medição é exatamente esse.
  *
  *  Escrita à mão e não derivada de `ORDEM_RISCO` de propósito: derivar com um
  *  `.filter()` esconderia a decisão dentro de uma expressão, e esta lista é uma
  *  afirmação sobre o domínio. */
-const RISCOS_NO_QUADRO: Risco[] = ["critica", "alta", "media", "baixa"];
+const RISCOS_NO_QUADRO: Risco[] = ["critica", "alta", "media", "baixa", "sem_dados"];
 
 export function CabecalhoQuadro({
   janela,

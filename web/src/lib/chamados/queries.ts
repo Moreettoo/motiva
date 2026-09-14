@@ -33,7 +33,7 @@ const SELECT_CHAMADO = `
   *,
   agendamento:agendamentos!inner ( id, data_sugerida, prioridade, justificativa, origem, equipe_id,
     equipe:equipes ( id, nome, lider:perfis!equipes_lider_id_fkey ( nome ) ) ),
-  trecho:trechos!inner ( id, rodovia, km_inicio, km_fim, uf, sentido, latitude, longitude, altura_limite_cm, observacoes )
+  trecho:trechos!inner ( id, rodovia, km_inicio, km_fim, uf, sentido, latitude, longitude, altura_limite_cm, observacoes, ativo )
 `;
 
 type Bruto = Omit<ChamadoDetalhado, "agendamento"> & {
@@ -69,6 +69,11 @@ export const listarChamados = cache(
     if (error) erro("os chamados", error);
     return (data as unknown as Bruto[])
       .map(normalizar)
+      // A view ja esconde trecho inativo; este select vem da TABELA. Sem isto
+      // a fila de decisao e a lista de chamados mostrariam ordem de servico
+      // de um trecho que a malha ficticia escondeu. `obterChamado` NAO filtra
+      // de proposito: quem tem o link do chamado ve, mesmo com o trecho oculto.
+      .filter((c) => c.trecho.ativo !== false)
       .map((c) => ({ ...c, prazo_dias: prazos.get(c.trecho_id) ?? null }))
       .sort(
         (a, b) =>

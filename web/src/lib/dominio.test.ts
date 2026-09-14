@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { erroFaltaEquipe, prioridadeExibida, REGIME, rotuloPrazo, textoDivergencia } from "./dominio";
+import {
+  erroFaltaEquipe,
+  ordemRisco,
+  ORDEM_RISCO,
+  piorRiscoDe,
+  prioridadeExibida,
+  REGIME,
+  RISCO,
+  rotuloPrazo,
+  textoDivergencia,
+} from "./dominio";
 import { REGIMES, REGIME_PADRAO } from "./types";
 
 describe("erroFaltaEquipe", () => {
@@ -97,5 +107,46 @@ describe("prioridadeExibida", () => {
     const leitura = prioridadeExibida(522, "alta", "manual");
     expect(leitura.risco).toBe("baixa");
     expect(leitura.divergente).toBeNull();
+  });
+});
+
+describe("RISCO.sem_dados", () => {
+  it("não pinta de seguro: nem a cor nem o ícone do 'baixa' seguro", () => {
+    // A migração `risco_sem_dados` existe exatamente para separar "não sei
+    // nada" de "está tudo bem". Um token que reusasse a cor ou o ícone de
+    // `baixa` desfaria a separação na tela, mesmo com o valor correto no banco.
+    expect(RISCO.sem_dados.cor).not.toBe(RISCO.baixa.cor);
+    expect(RISCO.sem_dados.icone).not.toBe(RISCO.baixa.icone);
+    expect(RISCO.sem_dados.cor).not.toBe(RISCO.critica.cor);
+  });
+});
+
+describe("ORDEM_RISCO / ordemRisco", () => {
+  it("sem_dados fica depois de baixa: não é mais urgente nem mais seguro, é desconhecido", () => {
+    expect(ORDEM_RISCO.at(-1)).toBe("sem_dados");
+    expect(ordemRisco("sem_dados")).toBeGreaterThan(ordemRisco("baixa"));
+  });
+});
+
+describe("piorRiscoDe", () => {
+  it("lista vazia devolve baixa: sem trecho não há o que alarmar", () => {
+    expect(piorRiscoDe([])).toBe("baixa");
+  });
+
+  it("um grupo inteiro de sem_dados continua sem_dados, não vira baixa pelo valor inicial do acumulador", () => {
+    // A armadilha que este teste tranca: semear o acumulador com `baixa`
+    // fixo (em vez do primeiro item do grupo) faz um agrupamento em que
+    // NENHUM trecho é `baixa` "vencer" contra o próprio seed e devolver
+    // `baixa` mesmo assim -- reabrindo, um nível acima, o mesmo problema que
+    // a migração corrigiu na coluna individual.
+    const grupo = [{ risco: "sem_dados" as const }, { risco: "sem_dados" as const }];
+    expect(piorRiscoDe(grupo)).toBe("sem_dados");
+  });
+
+  it("o mais urgente do grupo vence, em qualquer posição", () => {
+    expect(piorRiscoDe([{ risco: "sem_dados" as const }, { risco: "critica" as const }, { risco: "baixa" as const }])).toBe(
+      "critica",
+    );
+    expect(piorRiscoDe([{ risco: "media" as const }, { risco: "alta" as const }])).toBe("alta");
   });
 });

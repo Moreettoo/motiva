@@ -4,6 +4,7 @@ import { Brain, MapPin, Ruler, Shovel, Sparkles, TrendingUp } from "lucide-react
 import { Cartao, CartaoCabecalho, CartaoCorpo } from "@/components/ui/cartao";
 import { Indicador } from "@/components/ui/indicador";
 import { Leitura } from "@/components/ui/leitura";
+import { fatorVigente } from "@/lib/calibracao";
 import { resumir } from "@/lib/clima";
 import { ESPECIE, REGIME } from "@/lib/dominio";
 import { fmt, isoHoje } from "@/lib/format";
@@ -38,6 +39,12 @@ export async function Resultado({ pedido }: { pedido: Pedido }) {
   const capacidadeMm = pedido.capacidadeMm ?? soloDoMapa.capacidadeMm;
   const soloManual = pedido.fertilidade != null || pedido.capacidadeMm != null;
 
+  // O fator vale para o TRECHO VIZINHO (a rodovia de referência), nao para o
+  // ponto solto do mapa -- por isso depende de `vizinho` e nao entra no
+  // `Promise.all` de cima. Sem trecho perto, `fatorVigente` recebe rodovia
+  // nula e cai no "qualquer rodovia" ou em `SEM_CALIBRACAO`, nunca falha.
+  const calibracao = await fatorVigente(vizinho?.trecho.rodovia ?? null, pedido.especie);
+
   const simulacao = simular(
     {
       especie: pedido.especie,
@@ -49,6 +56,7 @@ export async function Resultado({ pedido }: { pedido: Pedido }) {
       capacidadeMm,
     },
     janela,
+    calibracao.fator,
   );
 
   const diasSimulados = simulacao.pontos.length - 1;
@@ -261,6 +269,7 @@ export async function Resultado({ pedido }: { pedido: Pedido }) {
             fallback={<LeituraCarregando />}
           >
             <LeituraGestor
+              calibracao={calibracao}
               contexto={{
                 especie: pedido.especie,
                 latitude: pedido.latitude,

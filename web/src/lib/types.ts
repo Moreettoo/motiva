@@ -50,6 +50,44 @@ export type StatusAgendamento = (typeof STATUS_AGENDAMENTO)[number];
 export const ORIGENS = ["ia", "manual"] as const;
 export type Origem = (typeof ORIGENS)[number];
 
+/** De onde saiu uma medição de altura. A tela nunca mostra as quatro com a mesma cara. */
+export const ORIGENS_MEDICAO = ["manual", "campo_app", "levantamento_classe", "demonstracao"] as const;
+export type OrigemMedicao = (typeof ORIGENS_MEDICAO)[number];
+
+/** Cadastro real (levantamento da Motiva) ou a malha fictícia da demonstração, hoje oculta. */
+export type FonteCadastro = "demonstracao" | "levantamento_motiva";
+
+/** As três classes do formulário unifilar da Motiva: < 10 cm, 10 a 30 cm, > 30 cm. */
+export type ClasseAltura = 1 | 2 | 3;
+
+export type Faixa = { codigo: string; nome: string; linha_planilha: number; lado: "externa" | "interna"; em_escopo: boolean; ordem: number };
+
+export type Levantamento = {
+  id: number; trecho_id: number; faixa_codigo: string; data: string; classe: ClasseAltura | null;
+  altura_estimada_cm: number | null; arquivo_origem: string; data_no_arquivo: string | null; importado_em: string;
+};
+
+/** Uma rodada de confronto modelo × campo. `numeric` do Postgres chega como string: use `Number()`. */
+export type Validacao = {
+  id: number; executada_em: string; rodovia: string; janela_de: string; janela_ate: string; especie: string;
+  ponto_medio_classe3_cm: number; dias_desde_rocada_premissa: number; fator_calibracao: number;
+  n_pares_total: number; n_pares_usados: number; n_rocados_excluidos: number;
+  acuracia_classe: number | null; mae_ordinal: number | null; transicoes_total: number | null; transicoes_detectadas: number | null;
+  estaveis_total: number | null; alarmes_falsos: number | null; cobertura_banda: number | null;
+  matriz_confusao: Record<"1" | "2" | "3", Record<"1" | "2" | "3", number>>;
+  parametros: Record<string, unknown>; commit_git: string | null; observacoes: string | null; vigente: boolean;
+};
+
+export type NdviAnalise = {
+  id: number; executada_em: string; data_alvo: string; data_imagem: string | null; defasagem_dias: number | null;
+  nuvem_pct_media: number | null; n_classe1: number | null; n_classe3: number | null;
+  ndvi_mediana_c1: number | null; ndvi_mediana_c3: number | null; auc: number | null; p_valor: number | null;
+  n_rocados: number | null; n_nao_rocados: number | null; delta_rocados: number | null; delta_nao_rocados: number | null;
+  p_valor_delta: number | null; observacoes: string | null;
+};
+
+export type Calibracao = { id: number; validacao_id: number | null; rodovia: string | null; especie: string | null; fator: number; valido_de: string; ativo: boolean };
+
 /** Cargos de acesso. Ordem: do maior ao menor poder; `CARGO` em dominio.ts da o rotulo. */
 export const CARGOS = ["super_admin", "admin", "analista", "rocador"] as const;
 export type Cargo = (typeof CARGOS)[number];
@@ -124,11 +162,22 @@ export type Notificacao = { id: number; destinatario_id: string; tipo: string; t
 export type ChamadoDetalhado = Chamado & {
   agendamento: { id: number; data_sugerida: string; prioridade: Prioridade; justificativa: string; origem: Origem; equipe_id: number | null;
     equipe: { id: number; nome: string; lider_nome: string | null } | null };
-  trecho: Pick<Trecho, "id" | "rodovia" | "km_inicio" | "km_fim" | "uf" | "sentido" | "latitude" | "longitude" | "altura_limite_cm" | "observacoes">;
+  trecho: Pick<Trecho, "id" | "rodovia" | "km_inicio" | "km_fim" | "uf" | "sentido" | "latitude" | "longitude" | "altura_limite_cm" | "observacoes" | "ativo">;
 };
 
-/** Risco derivado do prazo pela view, nao do texto da LLM. */
-export type Risco = Prioridade;
+/**
+ * Risco derivado do prazo pela view, nao do texto da LLM.
+ *
+ * NAO e mais um alias de `Prioridade`: as duas eram o mesmo tipo ate a
+ * migracao `20260914120000_risco_sem_dados.sql`, e um `Risco` novo vazava
+ * direto para `Prioridade` (a prioridade que a LLM escolhe num agendamento),
+ * onde "sem dados" nao faz sentido nenhum -- um agendamento sempre tem uma
+ * prioridade registrada. `sem_dados` e o que a view emite quando
+ * `dias_ate_limite` e nulo por falta de previsao (medicao vencida ou nenhuma
+ * medicao), em vez de carimbar `baixa` e fingir que o trecho esta seguro. Ver
+ * `RISCO.sem_dados` em `dominio.ts` para o rotulo e a cor.
+ */
+export type Risco = Prioridade | "sem_dados";
 
 export type Trecho = {
   id: number;
@@ -144,6 +193,8 @@ export type Trecho = {
   tipo_pista: string | null;
   observacoes: string | null;
   criado_em: string;
+  /** `false` = malha ficticia da demonstracao, oculta do painel e do lote desde 13/09/2026. */
+  ativo: boolean;
 };
 
 /** Uma linha de `ia.vw_trecho_status`, o modelo central do painel. */
@@ -194,6 +245,18 @@ export type TrechoStatus = {
   chamado_id: number | null;
   chamado_numero: string | null;
   chamado_status: StatusChamado | null;
+
+  /** Colunas da view desde 13/09/2026: origem do cadastro e o que a fila de OS precisa. */
+  fonte_cadastro: FonteCadastro;
+  km_marco_m: number | null;
+  metodo_rocada: string | null;
+  area_rocada_m2: number | null;
+  fertilidade_solo: number | null;
+  capacidade_agua_solo_mm: number | null;
+  solo_fonte: "soilgrids" | "premissa" | null;
+  medicao_origem: OrigemMedicao | null;
+  classe_medida: ClasseAltura | null;
+  fator_calibracao: number | null;
 };
 
 export type Medicao = {
@@ -201,6 +264,9 @@ export type Medicao = {
   trecho_id: number;
   data: string;
   altura_cm: number;
+  origem: OrigemMedicao;
+  classe: ClasseAltura | null;
+  faixa_codigo: string | null;
 };
 
 export type Previsao = {
@@ -236,7 +302,7 @@ export type Agendamento = {
 export type AgendamentoDetalhado = Agendamento & {
   trecho: Pick<
     Trecho,
-    "rodovia" | "km_inicio" | "km_fim" | "uf" | "sentido" | "especie" | "tipo_pista" | "altura_limite_cm" | "latitude" | "longitude"
+    "rodovia" | "km_inicio" | "km_fim" | "uf" | "sentido" | "especie" | "tipo_pista" | "altura_limite_cm" | "latitude" | "longitude" | "ativo"
   > & { id: number };
   equipe: { id: number; nome: string; base_uf: UF } | null;
   previsao: Pick<Previsao, "crescimento_cm_dia" | "altura_atual_cm" | "dias_ate_limite" | "chuva_total_mm" | "temperatura_media_c"> | null;

@@ -121,26 +121,60 @@ await checar(
   (data) => (data.length ? `${data.length} agendamento(s) ligados a previsao de outro trecho` : null),
 );
 
+/* Ate 13/09/2026 isto exigia ZERO trecho sem medicao, e valia: a malha inteira
+   era semeada com pelo menos uma medicao por trecho. Os dados reais do
+   Rodoanel trouxeram uma lacuna genuina do levantamento unifilar da Motiva --
+   cinco marcos onde nenhuma das quatro faixas em escopo foi classificada
+   naquela data. Nao e defeito do painel, e o dado de origem (ver
+   task-16-report.md). O teste agora verifica que a lacuna e EXATAMENTE esta,
+   marco a marco -- nem mais (uma medicao real se perdendo em silencio), nem
+   menos (a lacuna sendo preenchida sem que este teste seja atualizado). */
+const MARCOS_SEM_MEDICAO_CONHECIDOS = [7500, 8000, 8500, 11000, 28500];
+
 await checar(
-  "todo trecho tem pelo menos uma medicao",
+  "todo trecho tem pelo menos uma medicao, exceto a lacuna conhecida do levantamento",
   async () => {
     const [{ data: trechos }, { data: medicoes }] = await Promise.all([
-      db.from("trechos").select("id"),
+      db.from("trechos").select("id, km_marco_m"),
       db.from("medicoes").select("trecho_id"),
     ]);
     const comMedicao = new Set(medicoes.map((m) => m.trecho_id));
     return { data: trechos.filter((t) => !comMedicao.has(t.id)), error: null };
   },
-  (data) => (data.length ? `${data.length} trecho(s) sem nenhuma medicao` : null),
+  (data) => {
+    const marcos = data.map((t) => t.km_marco_m).sort((a, b) => a - b);
+    const esperados = [...MARCOS_SEM_MEDICAO_CONHECIDOS].sort((a, b) => a - b);
+    const igual = marcos.length === esperados.length && marcos.every((m, i) => m === esperados[i]);
+    if (igual) return null;
+    return `esperava exatamente os marcos sem medicao ${esperados.join(", ")}; achou ${
+      marcos.length ? marcos.join(", ") : "nenhum"
+    }`;
+  },
 );
 
+/* Ate 13/09/2026 isto exigia trecho em toda faixa de urgencia (critica, alta,
+   media, baixa), e valia porque a malha ficticia era semeada para cobrir as
+   quatro. Com os dados reais, os 60 trechos do Rodoanel tem hoje `risco =
+   'sem_dados'` para TODOS -- a medicao de marco/2026 esta vencida (178 dias,
+   acima do limiar de 120 de `analisar_lote.py`), entao o lote nunca gerou
+   previsao nenhuma, e a migracao `risco_sem_dados` faz a view dizer
+   exatamente isso, em vez de inventar `baixa`. Exigir as quatro faixas
+   sempre povoadas falharia sempre que a malha real estiver, de verdade, sem
+   nenhum trecho critico -- o que e uma leitura valida do sistema, nao um
+   defeito. O que continua valendo checar, e por isso este teste nao foi
+   apagado: a view nunca pode emitir um risco fora do vocabulario que o
+   painel sabe pintar (`RISCO` em `dominio.ts`), e sempre classifica TODO
+   trecho ativo em algum valor -- nunca null, nunca string vazia. */
 await checar(
-  "existe trecho em cada faixa de risco",
+  "todo trecho tem risco dentro do vocabulario que o painel pinta",
   async () => db.from("vw_trecho_status").select("risco"),
   (data) => {
-    const vistos = new Set(data.map((t) => t.risco));
-    const faltando = ["critica", "alta", "media", "baixa"].filter((r) => !vistos.has(r));
-    return faltando.length ? `nenhum trecho com risco: ${faltando.join(", ")}` : null;
+    const validos = new Set(["critica", "alta", "media", "baixa", "sem_dados"]);
+    const semRisco = data.filter((t) => !t.risco).length;
+    const invalidos = [...new Set(data.map((t) => t.risco))].filter((r) => r && !validos.has(r));
+    if (semRisco) return `${semRisco} trecho(s) com risco nulo ou vazio`;
+    if (invalidos.length) return `risco fora do vocabulario: ${invalidos.join(", ")}`;
+    return null;
   },
 );
 

@@ -3,6 +3,7 @@ import { CalendarClock, Sparkles } from "lucide-react";
 import { Aviso } from "@/components/ui/aviso";
 import { ChipRisco } from "@/components/ui/chip";
 import { Esqueleto } from "@/components/ui/esqueleto";
+import type { CalibracaoVigente } from "@/lib/calibracao-regra";
 import { PRIORIDADE, riscoPorPrazo, rotuloPrazo } from "@/lib/dominio";
 import { fmt } from "@/lib/format";
 import { lerSimulacao, type ContextoLeitura } from "@/lib/leitura-ia";
@@ -19,7 +20,13 @@ import { lerSimulacao, type ContextoLeitura } from "@/lib/leitura-ia";
  * Se a OpenAI falhar, a curva continua na tela e so este bloco vira aviso. A
  * metade determinista do produto nao depende da metade que fala.
  */
-export async function LeituraGestor({ contexto }: { contexto: ContextoLeitura }) {
+export async function LeituraGestor({
+  contexto,
+  calibracao,
+}: {
+  contexto: ContextoLeitura;
+  calibracao: CalibracaoVigente;
+}) {
   const leitura = await lerSimulacao(contexto);
 
   if (!leitura.ok) {
@@ -52,6 +59,24 @@ export async function LeituraGestor({ contexto }: { contexto: ContextoLeitura })
           <span className="tnum font-medium">{fmt.dataMedia(data_sugerida)}</span>
         </span>
       </div>
+
+      {/* `nPares` e `validadaEm` vem do MESMO embed de `validacoes` em
+          `escolherCalibracao`: os dois sao nulos juntos, ou preenchidos
+          juntos, nunca um sem o outro. O terceiro ramo abaixo so existe pela
+          garantia do tipo (`number | null`) -- se aparecer na tela, um
+          registro de `ia.calibracoes` foi criado sem `validacao_id`. */}
+      {calibracao.origem === "medida" && calibracao.nPares != null && calibracao.validadaEm != null ? (
+        <p className="text-xs text-ink-2">
+          Calibração: fator {fmt.d2(calibracao.fator)}, medido em {fmt.n(calibracao.nPares)} pares reais do
+          Rodoanel em {fmt.dataMedia(calibracao.validadaEm)}.
+        </p>
+      ) : calibracao.origem === "medida" ? (
+        <p className="text-xs text-ink-2">
+          Calibração: fator {fmt.d2(calibracao.fator)} (detalhes da validação indisponíveis).
+        </p>
+      ) : (
+        <p className="text-xs text-ink-2">Sem calibração medida para este ponto: a curva é o modelo sintético puro.</p>
+      )}
 
       {discordou ? (
         <Aviso tom="warning" titulo="A LLM discordou da regra de prazo">

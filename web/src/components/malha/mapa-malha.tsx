@@ -561,7 +561,7 @@ export function MapaMalha({
   }, [base, atual, largura, alturaPx]);
 
   const contagem = useMemo(() => {
-    const contas: Record<Risco, number> = { critica: 0, alta: 0, media: 0, baixa: 0 };
+    const contas: Record<Risco, number> = { critica: 0, alta: 0, media: 0, baixa: 0, sem_dados: 0 };
     for (const t of trechos) contas[t.risco] += 1;
     return contas;
   }, [trechos]);

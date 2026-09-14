@@ -154,6 +154,47 @@ describe("simular", () => {
   });
 });
 
+describe("fator de calibração", () => {
+  it("por padrão é 1: não fica undefined nem muda o resultado", () => {
+    const semArgumento = simular(base, janela(30));
+    const comUm = simular(base, janela(30), 1);
+
+    expect(semArgumento.fator).toBe(1);
+    expect(semArgumento).toEqual(comUm);
+  });
+
+  it("o fator de calibração escala os três quantis e não muda o dia 0", () => {
+    const um = simular(base, janela(30));
+    const dois = simular(base, janela(30), 2);
+
+    expect(dois.fator).toBe(2);
+    expect(dois.pontos[0].alturaCm).toBe(um.pontos[0].alturaCm);
+    expect(dois.crescimento.q10).toBeCloseTo(um.crescimento.q10 * 2, 6);
+    expect(dois.crescimento.q50).toBeCloseTo(um.crescimento.q50 * 2, 6);
+    expect(dois.crescimento.q90).toBeCloseTo(um.crescimento.q90 * 2, 6);
+
+    // A escala tem que chegar na ALTURA de cada ponto, e nao so no resumo do
+    // periodo: e `alturaCm`/`alturaMinCm`/`alturaMaxCm` que a curva desenha e
+    // que `bandaQueCruza` le. Testar so `s.crescimento` (o ultimo ponto,
+    // repetido no campo de resumo) deixaria passar uma implementacao que
+    // escalasse o resumo e esquecesse os pontos da curva.
+    const ultimo = um.pontos.length - 1;
+    expect(dois.pontos[ultimo].alturaCm).toBeCloseTo(base.alturaInicialCm + um.pontos[ultimo].crescimento.q50 * 2, 6);
+    expect(dois.pontos[ultimo].alturaMinCm).toBeCloseTo(base.alturaInicialCm + um.pontos[ultimo].crescimento.q10 * 2, 6);
+    expect(dois.pontos[ultimo].alturaMaxCm).toBeCloseTo(base.alturaInicialCm + um.pontos[ultimo].crescimento.q90 * 2, 6);
+  });
+
+  it("não desloca a extrapolação: o fator recalibra o modelo, não muda o que o pedido tem de fora do treino", () => {
+    // `extrapolacoes` sai direto do PEDIDO cru (altura, fertilidade, ...), nunca
+    // do crescimento previsto -- o fator nao deveria mexer nela em nenhuma
+    // direcao. Ver o comentario de `escalar` em `simulacao.ts`.
+    const semFator = simular({ ...base, alturaInicialCm: 90 }, janela(30));
+    const comFator = simular({ ...base, alturaInicialCm: 90 }, janela(30), 1.3);
+
+    expect(comFator.extrapolacoes).toEqual(semFator.extrapolacoes);
+  });
+});
+
 describe("diaQueCruza", () => {
   it("acha o primeiro dia acima do limite", () => {
     const s = simular({ ...base, alturaInicialCm: 12, dias: 90 }, janela(90));

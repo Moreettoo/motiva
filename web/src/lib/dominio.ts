@@ -10,16 +10,32 @@
  * `serious` ficam abaixo de 3:1 de proposito.
  */
 
-import type { Cargo, Especie, MotivoAdiamento, Regime, Risco, StatusAgendamento, StatusChamado, TipoEventoChamado } from "./types";
+import type {
+  Cargo,
+  ClasseAltura,
+  Especie,
+  MotivoAdiamento,
+  OrigemMedicao,
+  Prioridade,
+  Regime,
+  Risco,
+  StatusAgendamento,
+  StatusChamado,
+  TipoEventoChamado,
+} from "./types";
 
 /** Tom da `BarraProgresso` para cada risco. Fica aqui, e nao no componente,
  *  porque a tabela, o cartao e o painel da agenda pintavam a mesma barra a
- *  partir de tres copias deste mapa. Os valores sao os de `TomBarra`. */
+ *  partir de tres copias deste mapa. Os valores sao os de `TomBarra`.
+ *
+ *  `sem_dados` e "neutro", nao "good": nao ha crescimento previsto NENHUM
+ *  para pintar de seguro, so a ausencia de previsao. */
 export const TOM_BARRA_POR_RISCO = {
   critica: "critical",
   alta: "serious",
   media: "warning",
   baixa: "good",
+  sem_dados: "neutro",
 } as const satisfies Record<Risco, string>;
 
 export type TokenStatus = {
@@ -69,13 +85,34 @@ export const RISCO: Record<Risco, TokenStatus> = {
     icone: "CircleCheck",
     descricao: "Mais de 45 dias de folga",
   },
+  /**
+   * NAO e uma quinta faixa de urgencia: e a ausencia de uma previsao para
+   * classificar. A view emite isto quando `dias_ate_limite` e nulo por falta
+   * de previsao (medicao vencida ha mais de 120 dias, ou nenhuma medicao
+   * ainda) -- ver `20260914120000_risco_sem_dados.sql`. Antes disso a view
+   * carimbava `baixa`, e o painel inteiro lia "sem informacao nenhuma" como
+   * "seguro". Por isso o tom aqui e neutro (cinza de `--ink-3`, o mesmo do
+   * chip "Sugerido" em `STATUS`), nunca verde: "nao sei" nao e "esta bem".
+   */
+  sem_dados: {
+    rotulo: "Sem dados",
+    cor: "var(--ink-3)",
+    tinta: "var(--ink-2)",
+    fundo: "var(--surface-3)",
+    icone: "CircleHelp",
+    descricao: "Sem previsão: medição vencida ou ausente",
+  },
 };
 
 /** Prioridade decidida pela LLM usa a mesma escala do risco calculado. */
 export const PRIORIDADE = RISCO;
 
-/** Ordem de urgencia: use sempre esta, nunca `sort()` alfabetico. */
-export const ORDEM_RISCO: Risco[] = ["critica", "alta", "media", "baixa"];
+/** Ordem de urgencia: use sempre esta, nunca `sort()` alfabetico.
+ *  `sem_dados` fica por ultimo: nao e mais urgente que `baixa`, e nao e mais
+ *  seguro, e sim desconhecido -- ordenar por urgencia nao deveria fazer um
+ *  trecho sem previsao pular na frente de um trecho que a IA sabe que esta
+ *  critico. */
+export const ORDEM_RISCO: Risco[] = ["critica", "alta", "media", "baixa", "sem_dados"];
 
 export function ordemRisco(r: Risco | null | undefined): number {
   return r ? ORDEM_RISCO.indexOf(r) : ORDEM_RISCO.length;
@@ -84,9 +121,17 @@ export function ordemRisco(r: Risco | null | undefined): number {
 /**
  * Pior risco de um conjunto, o que a rodovia inteira herda no cabecalho da
  * faixa. Lista vazia devolve `baixa`: sem trecho nao ha o que alarmar.
+ *
+ * O grupo NAO vazio comeca do primeiro item, e nao de `baixa` fixo: com
+ * `sem_dados` ordenado depois de `baixa` (ver `ORDEM_RISCO`), semear o
+ * acumulador com `baixa` faria um grupo inteiro de trechos `sem_dados`
+ * "vencer" contra o proprio seed e devolver `baixa` -- exatamente a
+ * armadilha de ler "nao sei nada" como "esta tudo bem" que a coluna evita no
+ * trecho individual, reaberta um nivel acima no agrupamento.
  */
 export function piorRiscoDe(itens: readonly { risco: Risco }[]): Risco {
-  let pior: Risco = "baixa";
+  if (itens.length === 0) return "baixa";
+  let pior: Risco = itens[0].risco;
   for (const item of itens) {
     if (ordemRisco(item.risco) < ordemRisco(pior)) pior = item.risco;
   }
@@ -170,6 +215,30 @@ export const ESPECIE: Record<Especie, { rotulo: string; nomeCientifico: string; 
 };
 
 /**
+ * As três classes do formulário da Motiva. A classe 3 é a fronteira contratual
+ * (Artesp, Anexo 06, b.1.1: podar ao atingir 30 cm), por isso pinta de crítico.
+ */
+export const CLASSE_ALTURA: Record<ClasseAltura, TokenStatus> = {
+  1: { rotulo: "Classe 1", cor: "var(--good)", tinta: "var(--good-ink)", fundo: "var(--good-soft)", icone: "CircleCheck", descricao: "Abaixo de 10 cm" },
+  2: { rotulo: "Classe 2", cor: "var(--warning)", tinta: "var(--warning-ink)", fundo: "var(--warning-soft)", icone: "TriangleAlert", descricao: "De 10 a 30 cm" },
+  3: { rotulo: "Classe 3", cor: "var(--critical)", tinta: "var(--critical-ink)", fundo: "var(--critical-soft)", icone: "OctagonAlert", descricao: "Acima de 30 cm: fora do contrato" },
+};
+
+export const ORIGEM_MEDICAO: Record<OrigemMedicao, string> = {
+  manual: "Digitada no painel",
+  campo_app: "App de campo, com foto",
+  levantamento_classe: "Levantamento unifilar da Motiva: classe convertida em ponto médio",
+  demonstracao: "Semeada para demonstração",
+};
+
+export const METODO_ROCADA: Record<string, { rotulo: string; icone: string }> = {
+  "Spider, Giro-Zero ou Trator com trincheira": { rotulo: "Mecanizada (Spider, Giro-Zero ou trator com trincheira)", icone: "Tractor" },
+  "Apenas manual": { rotulo: "Apenas manual", icone: "Hand" },
+  "Trator com braço articulado": { rotulo: "Trator com braço articulado", icone: "Truck" },
+  "Spider, com ancoragem": { rotulo: "Spider com ancoragem (declive alto)", icone: "Anchor" },
+};
+
+/**
  * Vocabulario do regime de manejo.
  *
  * `experimental` nao e enfeite de rotulo: em pasto o modelo esta respondendo
@@ -229,10 +298,20 @@ export const SEQUENCIAL = [
 ] as const;
 
 /**
- * Risco a partir do prazo. Mesma regra da view `ia.vw_trecho_status`, repetida
- * aqui porque o cliente precisa reclassificar ao simular datas.
+ * Risco a partir do prazo. Mesma regra que a view `ia.vw_trecho_status`
+ * aplicava ANTES da migração `risco_sem_dados`, repetida aqui porque o
+ * cliente precisa reclassificar ao simular datas.
+ *
+ * Devolve `Prioridade`, não `Risco`, de proposito: `sem_dados` e o que a view
+ * emite quando NAO HA PREVISAO NENHUMA (medicao vencida ou ausente), e essa
+ * pergunta nunca chega aqui -- quem chama esta funcao sempre tem um numero de
+ * dias em mãos (uma previsão real do lote, ou a curva que o simulador acabou
+ * de calcular). Um período sem crescimento suficiente para cruzar o limite
+ * DENTRO do horizonte simulado é `baixa` de verdade (folgado, conhecido), não
+ * "não sei nada" -- a mesma distinção que `cruzamento()`, em `ml/modelo.py`,
+ * documenta para `dias_ate_limite is None`.
  */
-export function riscoPorPrazo(diasAteLimite: number | null | undefined): Risco {
+export function riscoPorPrazo(diasAteLimite: number | null | undefined): Prioridade {
   if (diasAteLimite == null) return "baixa";
   if (diasAteLimite <= 7) return "critica";
   if (diasAteLimite <= 20) return "alta";
@@ -264,16 +343,16 @@ export function riscoPorPrazo(diasAteLimite: number | null | undefined): Risco {
  */
 export type LeituraPrioridade = {
   /** O que a tela pinta. */
-  risco: Risco;
+  risco: Prioridade;
   /** A palavra da LLM, só quando ela difere do prazo. */
-  divergente: Risco | null;
+  divergente: Prioridade | null;
   /** Não há `dias_ate_limite`: o chip não está apoiado em prazo nenhum. */
   semPrazo: boolean;
 };
 
 export function prioridadeExibida(
   diasAteLimite: number | null | undefined,
-  registrada: Risco | null | undefined,
+  registrada: Prioridade | null | undefined,
   origem?: "ia" | "manual" | null,
 ): LeituraPrioridade {
   if (diasAteLimite == null) {
