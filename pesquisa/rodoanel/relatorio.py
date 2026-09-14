@@ -241,14 +241,56 @@ def _metricas(r: dict, nome: str) -> list:
             f"{r['alarmes_falsos']} de {r['estaveis_total']}", _br(r["J"], 3), _pct(r["cobertura_banda"])]
 
 
+def _veredito_calibracao(res: dict) -> str:
+    """A frase que fecha a seção da calibração honesta, escrita a partir do dict.
+
+    A versão antiga dizia "(a calibração não melhorou o critério; fica 1,00)"
+    sempre que o vigente fosse 1,0 — e no Rodoanel isso seria FALSO: refitando
+    em todos os pares o J sobe de −0,024 para 0,198. O que derruba o candidato
+    não é o J do refit, é o teste fora da amostra. Dizer o motivo errado a
+    favor da própria conclusão é o mesmo defeito, de sinal trocado.
+    """
+    vigente_txt = _br(res["fator_vigente"], 2)
+    rejeitado = res.get("rejeitado")
+    if rejeitado:
+        tk = res["teste_km_impares"]
+        return (f"**testado e rejeitado**. O refit em todos os {rejeitado['n']} pares é circular "
+                f"(ajusta nos mesmos pares em que é avaliado); no teste honesto acima, fora da "
+                f"amostra, ele PIORA o modelo (J {_br(tk['sem']['J'], 3)} → {_br(tk['com']['J'], 3)}, "
+                f"acurácia {_pct(tk['sem']['acuracia'])} → {_pct(tk['com']['acuracia'])}). "
+                f"Vigente: **{vigente_txt}** — calibração desligada.")
+    if res["fator_vigente"] == 1.0:
+        return f"a calibração não melhorou o critério. Vigente: **{vigente_txt}**."
+    return f"Vigente: **{vigente_txt}**."
+
+
 def validacao(saida: dict) -> str:
+    """Renderiza `02-validacao.md` a partir de uma `saida` com a DECISAO JA APLICADA.
+
+    Quem chama passa `decisao.aplicar(saida)`, nunca o artefato cru: no artefato
+    cru `fator_vigente`/`final` sao o que a regra circular da spec 7.3 escolheu
+    (1,15, acuracia 31,8%), e foi exatamente renderizar isso que fez o documento
+    afirmar "Vigente: 1,15" enquanto o banco e o relatorio ao cliente diziam 1,0.
+    Ver `pesquisa/rodoanel/decisao.py`.
+
+    `resultado["rejeitado"]`, quando presente, e o cenario que a regra escolheria
+    sozinha: ele CONTINUA no documento, com os numeros medidos, mas rotulado
+    "testado e rejeitado" -- esconde-lo seria a outra forma de mentir.
+    """
     res = saida["resultado"]
     base, final = res["sem_calibracao"], res["final"]
     lb = res["linha_de_base"]
+    rejeitado = res.get("rejeitado")
+    vigente_txt = _br(res["fator_vigente"], 2)
+    sem_calib_e_o_vigente = abs(float(base["fator"]) - float(res["fator_vigente"])) < 1e-9
     cab = ["cenário", "n", "fator", "acurácia de classe", "transições detectadas", "alarmes falsos", "J", "cobertura da banda"]
     linhas = [["linha de base: nada muda", base["n"], "—", _pct(lb["acuracia"]), f"0 de {base['transicoes_total']}", f"0 de {base['estaveis_total']}", "0,000", "—"],
-              _metricas(base, "modelo sem calibração"),
-              _metricas(final, f"modelo calibrado (fator vigente {_br(res['fator_vigente'], 2)})")]
+              _metricas(base, f"modelo sem calibração (**vigente**, fator {vigente_txt})" if sem_calib_e_o_vigente
+                        else "modelo sem calibração")]
+    if rejeitado:
+        linhas.append(_metricas(rejeitado, f"modelo calibrado (fator {_br(rejeitado['fator'], 2)}) — **testado e rejeitado**"))
+    else:
+        linhas.append(_metricas(final, f"modelo calibrado (fator vigente {vigente_txt})"))
     tk = res["teste_km_impares"]
     matriz = final["matriz"]
     m_linhas = [[f"observada {a}", matriz[str(a)]["1"], matriz[str(a)]["2"], matriz[str(a)]["3"]] for a in (1, 2, 3)]
@@ -278,9 +320,9 @@ Premissas do cenário vigente: espécie **{p['especie']}**, classe 3 = **{p['pon
 
 - Ajuste (n = {res['ajuste_km_pares']['n']}): fator **{_br(res['ajuste_km_pares']['fator'], 2)}**, J = {_br(res['ajuste_km_pares']['J'], 3)}
 - Teste (n = {tk['n']}): J sem calibração = {_br(tk['sem']['J'], 3)} → com o fator do ajuste = {_br(tk['com']['J'], 3)}
-- Reajuste em todos: fator {_br(res['calibracao_todos']['fator'], 2)}, J = {_br(res['calibracao_todos']['J'], 3)}. Vigente: **{_br(res['fator_vigente'], 2)}**{" (a calibração não melhorou o critério; fica 1,00)" if res['fator_vigente'] == 1.0 else ""}.
+- Reajuste em todos: fator {_br(res['calibracao_todos']['fator'], 2)}, J = {_br(res['calibracao_todos']['J'], 3)} — {_veredito_calibracao(res)}
 
-## Matriz de confusão do cenário vigente (linhas = observado em 20/03, colunas = previsto)
+## Matriz de confusão do cenário vigente, fator {vigente_txt} (linhas = observado em 20/03, colunas = previsto)
 
 {_tabela(["", "prevista 1", "prevista 2", "prevista 3"], m_linhas)}
 
@@ -294,7 +336,7 @@ Premissas do cenário vigente: espécie **{p['especie']}**, classe 3 = **{p['pon
 
 ## Fila retrospectiva
 
-Em 13/03, com o fator vigente, o sistema marcaria **{fila['n_marcados']}** segmento(s) como "cruza 30 cm em até 7 dias" entre os {fila['segmentos_avaliados']} com faixa em escopo; **{fila['n_cruzaram']}** de fato chegaram à classe 3 em 20/03; acertos: **{fila['n_acertos']}**.
+Em 13/03, com o fator vigente ({vigente_txt}), o sistema marcaria **{fila['n_marcados']}** segmento(s) como "cruza 30 cm em até 7 dias" entre os {fila['segmentos_avaliados']} com faixa em escopo; **{fila['n_cruzaram']}** de fato chegaram à classe 3 em 20/03; acertos: **{fila['n_acertos']}**.
 
 ## Limitações
 

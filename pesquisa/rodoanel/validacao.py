@@ -145,18 +145,34 @@ def rodar(linhas: list[Linha], Q: np.ndarray) -> dict:
     }
 
 
-def fila_retrospectiva(linhas: list[Linha], Q: np.ndarray, fator: float, em_escopo: frozenset[str]) -> dict:
-    """Em 13/03, quais segmentos o sistema marcaria como 'cruza 30 cm em ate 7 dias', e quantos cruzaram."""
+def fila_de_pares(por_par: list[dict], fator: float, em_escopo: frozenset[str]) -> dict:
+    """A fila retrospectiva a partir do `por_par` que `avaliar` ja devolveu.
+
+    Mesma regra de `fila_retrospectiva` (que delega para ca), so que lendo os
+    dicionarios gravados em vez dos objetos `Linha` + matriz `Q`. E o que
+    permite refazer a fila com OUTRO fator, offline, a partir do artefato --
+    sem rodar o modelo de novo. `q50_cm` e a mediana CRUA do modelo (`avaliar`
+    guarda `Q[i, 1]` sem multiplicar pelo fator), entao aplicar o fator aqui
+    reproduz exatamente o mesmo calculo.
+    """
     por_seg: dict[int, dict] = {}
-    for i, l in enumerate(linhas):
-        if l.faixa not in em_escopo:
+    for p in por_par:
+        if p["faixa"] not in em_escopo:
             continue
-        s = por_seg.setdefault(l.km_m, {"ini": 0, "prev": 0, "obs": 0})
-        s["ini"] = max(s["ini"], l.classe_inicial)
-        s["prev"] = max(s["prev"], classe_de(l.altura_inicial_cm + Q[i, 1] * fator))
-        s["obs"] = max(s["obs"], l.classe_final)
+        s = por_seg.setdefault(p["km_marco_m"], {"ini": 0, "prev": 0, "obs": 0})
+        s["ini"] = max(s["ini"], p["classe_inicial"])
+        s["prev"] = max(s["prev"], classe_de(p["altura_inicial_cm"] + p["q50_cm"] * fator))
+        s["obs"] = max(s["obs"], p["classe_final_observada"])
     marcados = {k for k, s in por_seg.items() if s["ini"] < 3 and s["prev"] == 3}
     cruzaram = {k for k, s in por_seg.items() if s["ini"] < 3 and s["obs"] == 3}
     return {"segmentos_avaliados": len(por_seg), "marcados": sorted(marcados), "cruzaram": sorted(cruzaram),
             "acertos": sorted(marcados & cruzaram), "n_marcados": len(marcados), "n_cruzaram": len(cruzaram),
             "n_acertos": len(marcados & cruzaram)}
+
+
+def fila_retrospectiva(linhas: list[Linha], Q: np.ndarray, fator: float, em_escopo: frozenset[str]) -> dict:
+    """Em 13/03, quais segmentos o sistema marcaria como 'cruza 30 cm em ate 7 dias', e quantos cruzaram."""
+    return fila_de_pares([{"km_marco_m": l.km_m, "faixa": l.faixa, "classe_inicial": l.classe_inicial,
+                           "classe_final_observada": l.classe_final,
+                           "altura_inicial_cm": l.altura_inicial_cm, "q50_cm": float(Q[i, 1])}
+                          for i, l in enumerate(linhas)], fator, em_escopo)

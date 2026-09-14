@@ -22,15 +22,18 @@ vigente -- nunca 1,15 como vigente.
 from __future__ import annotations
 
 import argparse
-import copy
 import json
 from datetime import date
 
-from pesquisa.rodoanel import ARQ_LEV_1, ARQ_LEV_2, ARQ_MARCOS, DERIVADOS, ESPECIE_PREMISSA, RODOVIA, banco, marcos, planilha, relatorio, solo_km, supabase_io
+from pesquisa.rodoanel import ARQ_LEV_1, ARQ_LEV_2, ARQ_MARCOS, DERIVADOS, ESPECIE_PREMISSA, RODOVIA, banco, decisao, marcos, planilha, relatorio, solo_km, supabase_io
 from pesquisa.rodoanel.segmentos import MARCOS, Segmento, limites_km
 
-FATOR_VIGENTE = 1.0     # decisao humana: calibracao desligada (ver docstring do modulo)
-FATOR_REJEITADO = 1.15  # o que a regra 7.3 escolheria sozinha; testado e rejeitado
+# A decisao humana (fator vigente 1,0, fator 1,15 testado e rejeitado) mora em
+# `pesquisa/rodoanel/decisao.py`, um ponto so, compartilhado com o renderizador
+# de `docs/pesquisa/02-validacao.md`. Antes ela vivia AQUI e so aqui: o banco
+# recebia 1,0 e o markdown continuava dizendo "Vigente: 1,15".
+FATOR_VIGENTE = decisao.FATOR_VIGENTE
+FATOR_REJEITADO = decisao.FATOR_REJEITADO
 
 
 def _segmentos() -> list[Segmento]:
@@ -38,19 +41,6 @@ def _segmentos() -> list[Segmento]:
                      float(r["longitude"]), r["metodo_rocada"] or None, float(r["area_rocada_m2"]),
                      json.loads(r["areas_por_metodo"] or "{}"))
             for r in banco.ler_csv(DERIVADOS / "segmentos.csv")]
-
-
-def _saida_vigente(saida: dict) -> dict:
-    """Copia de `saida` com o fator vigente sobrescrito para 1,0 (decisao humana): a linha
-    "final" (a que vira a validacao vigente e os pares gravados) passa a ser a metrica SEM
-    calibracao -- e o que garante que ia.validacoes.acuracia_classe/fator_calibracao para a
-    linha vigente fiquem em 60,5%/1,0, nao nos 31,8%/1,15 que o fator rejeitado daria.
-    """
-    v = copy.deepcopy(saida)
-    v["resultado"]["fator_vigente"] = FATOR_VIGENTE
-    v["resultado"]["final"] = v["resultado"]["sem_calibracao"]
-    v["pares"] = v["resultado"]["sem_calibracao"]["por_par"]
-    return v
 
 
 def _observacoes_vigente(saida: dict) -> str:
@@ -71,7 +61,7 @@ def _observacoes_vigente(saida: dict) -> str:
 def _ensaio(segs: list[Segmento], lev1, lev2, ext: dict[int, float], saida: dict, rocados: list[dict]) -> None:
     """So conta -- nenhuma linha aqui chama `supabase_io.cliente()` nem toca rede."""
     ids_rascunho = {m: -1 for m in MARCOS}
-    r = _saida_vigente(saida)["resultado"]["final"]
+    r = decisao.aplicar(saida)["resultado"]["final"]
     print(f"ensaio: {len(segs)} trechos (fonte_cadastro=levantamento_motiva, rodovia={RODOVIA!r})")
     for lev, anterior in ((lev1, None), (lev2, lev1)):
         l_lev = supabase_io.linhas_levantamento(lev, ids_rascunho)
@@ -124,7 +114,7 @@ def main(argv=None) -> int:
     # primeiro -- seu validacao_id nao tem "on delete cascade" e bloquearia o delete de baixo.
     sb.table("calibracoes").delete().eq("rodovia", RODOVIA).execute()
 
-    saida_vig = _saida_vigente(saida)
+    saida_vig = decisao.aplicar(saida)
     vid = supabase_io.gravar_validacao(sb, saida_vig, ids, rocados, vigente=True)
     sb.table("validacoes").update({"observacoes": _observacoes_vigente(saida)}).eq("id", vid).execute()
     supabase_io.ativar_calibracao(sb, vid, FATOR_VIGENTE)

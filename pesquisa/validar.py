@@ -10,8 +10,8 @@ from datetime import datetime
 
 import numpy as np
 
-from pesquisa.rodoanel import (ARQ_MARCOS, DERIVADOS, DOCS_PESQUISA, banco, clima_janela, marcos, relatorio,
-                               solo_km, validacao)
+from pesquisa.rodoanel import (ARQ_MARCOS, DERIVADOS, DOCS_PESQUISA, banco, clima_janela, decisao, marcos,
+                               relatorio, solo_km, validacao)
 from pesquisa.rodoanel.planilha import CODIGOS_EM_ESCOPO
 from pesquisa.rodoanel.segmentos import Par, Segmento
 from pesquisa.rodoanel.validacao import Parametros
@@ -103,7 +103,13 @@ def main() -> None:
     con = banco.abrir()
     con.execute("insert or replace into validacoes (chave, json) values ('vigente', ?)", (json.dumps(saida, ensure_ascii=False),))
     con.commit()
-    relatorio.escrever(DOCS_PESQUISA / "02-validacao.md", relatorio.validacao(saida))
+    # O JSON guarda o que a REGRA da spec 7.3 produziu (`fator_vigente` 1,15,
+    # `final`/`pares` do 1,15) -- e o registro cru, e fica cru. O documento sai
+    # da DECISAO HUMANA (fator 1,0), que mora em `rodoanel/decisao.py` e e a
+    # mesma que `publicar_rodoanel.py` aplica ao banco. Renderizar do JSON cru
+    # era o que fazia o markdown dizer "Vigente: 1,15" contra o banco e contra
+    # o relatorio ao cliente.
+    relatorio.escrever(DOCS_PESQUISA / "02-validacao.md", relatorio.validacao(decisao.aplicar(saida)))
 
     b, f = resultado["sem_calibracao"], resultado["final"]
     print(f"n={b['n']} · base acuracia={resultado['linha_de_base']['acuracia']:.3f}")

@@ -11,7 +11,7 @@ from datetime import date
 
 import numpy as np
 
-from pesquisa.rodoanel import planilha, relatorio, segmentos
+from pesquisa.rodoanel import DERIVADOS, decisao, planilha, relatorio, segmentos
 from pesquisa.rodoanel import validacao as validacao_mod
 from pesquisa.rodoanel.marcos import Eixo
 from pesquisa.rodoanel.planilha import Levantamento, Observacao
@@ -235,6 +235,61 @@ def test_validacao_reflete_mudanca_no_dict_nao_e_texto_fixo():
     texto_alterado = relatorio.validacao(saida)
     assert "Vigente: **2,50**" in texto_alterado
     assert "Vigente: **2,50**" not in texto_original
+
+# ----------------------------------------------------------------------
+# 02-validacao.md tem que narrar o cenario VIGENTE (fator 1,0), nunca o
+# rejeitado (1,15). E o achado da revisao final: o documento afirmava
+# "Vigente: **1,15**" e intitulava a matriz de 31,8% de "cenario vigente",
+# enquanto o banco, o painel e o relatorio ao cliente diziam 1,0 -- e o
+# relatorio CITAVA este arquivo para sustentar a conclusao oposta.
+# ----------------------------------------------------------------------
+def _texto_do_artefato_real() -> str:
+    """O documento como ele e gerado de verdade: artefato real, decisao real,
+    renderizador real. Sem modelo e sem rede -- so JSON que ja existe.
+    """
+    import json
+    saida = json.loads((DERIVADOS / "validacao.json").read_text(encoding="utf-8"))
+    return relatorio.validacao(decisao.aplicar(saida))
+
+
+def test_02_validacao_nunca_chama_o_1_15_de_vigente():
+    texto = _texto_do_artefato_real()
+    assert "fator vigente 1,15" not in texto
+    assert "Vigente: **1,15**" not in texto
+    assert "(fator 1,15) — **testado e rejeitado**" in texto
+    assert "Vigente: **1,00** — calibração desligada." in texto
+
+
+def test_02_validacao_mostra_a_matriz_do_fator_1_0_e_diz_qual_fator_e():
+    """A matriz do 1,15 previa classe 2 para quase tudo (130/52/3+10). A do 1,0
+    tem 118 acertos na diagonal, que sao os 60,5% que o relatorio ao cliente
+    informa. Publicar a matriz de um cenario com a acuracia de outro era a
+    parte mais dificil de perceber do defeito.
+    """
+    texto = _texto_do_artefato_real()
+    assert "## Matriz de confusão do cenário vigente, fator 1,00" in texto
+    assert "| observada 1 | 77 | 53 | 0 |" in texto
+    assert "| observada 2 | 21 | 31 | 0 |" in texto
+    assert "| observada 3 | 2 | 1 | 10 |" in texto
+    assert "| observada 1 | 0 | 130 | 0 |" not in texto
+
+
+def test_02_validacao_explica_POR_QUE_o_1_15_caiu_sem_inventar_motivo():
+    """A frase antiga que o renderizador usava quando o vigente era 1,0 --
+    "a calibração não melhorou o critério" -- seria FALSA aqui: refitando em
+    todos os pares o J sobe de -0,024 para 0,198. O que derruba o candidato e
+    o teste fora da amostra, e e isso que o texto tem que dizer.
+    """
+    texto = _texto_do_artefato_real()
+    assert "a calibração não melhorou o critério" not in texto
+    assert "circular" in texto and "fora da amostra" in texto
+    assert "J -0,119 → 0,033" in texto and "acurácia 59,8% → 47,8%" in texto
+
+
+def test_02_validacao_diz_com_qual_fator_a_fila_retrospectiva_foi_calculada():
+    texto = _texto_do_artefato_real()
+    assert "com o fator vigente (1,00), o sistema marcaria **0** segmento(s)" in texto
+
 
 def _analise_toy(auc, p_valor, data_alvo="2026-03-13", data_imagem="2026-03-16") -> dict:
     return {"data_alvo": data_alvo, "data_imagem": data_imagem, "defasagem_dias": 3,

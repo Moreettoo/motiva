@@ -10,8 +10,8 @@ Premissas do cenário vigente: espécie **braquiaria**, classe 3 = **40 cm**, di
 | cenário | n | fator | acurácia de classe | transições detectadas | alarmes falsos | J | cobertura da banda |
 |---|---|---|---|---|---|---|---|
 | linha de base: nada muda | 195 | — | 83,1% | 0 de 33 | 0 de 162 | 0,000 | — |
-| modelo sem calibração | 195 | 1,00 | 60,5% | 10 de 33 | 53 de 162 | -0,024 | 94,4% |
-| modelo calibrado (fator vigente 1,15) | 195 | 1,15 | 31,8% | 33 de 33 | 130 de 162 | 0,198 | 98,5% |
+| modelo sem calibração (**vigente**, fator 1,00) | 195 | 1,00 | 60,5% | 10 de 33 | 53 de 162 | -0,024 | 94,4% |
+| modelo calibrado (fator 1,15) — **testado e rejeitado** | 195 | 1,15 | 31,8% | 33 de 33 | 130 de 162 | 0,198 | 98,5% |
 
 `J` = fração das transições detectadas − fração de alarmes falsos. A linha de base acerta 83,1% sem prever nada: **acurácia total não é o critério**; transições detectadas e alarmes falsos são.
 
@@ -19,15 +19,15 @@ Premissas do cenário vigente: espécie **braquiaria**, classe 3 = **40 cm**, di
 
 - Ajuste (n = 103): fator **1,05**, J = 0,254
 - Teste (n = 92): J sem calibração = -0,119 → com o fator do ajuste = 0,033
-- Reajuste em todos: fator 1,15, J = 0,198. Vigente: **1,15**.
+- Reajuste em todos: fator 1,15, J = 0,198 — **testado e rejeitado**. O refit em todos os 195 pares é circular (ajusta nos mesmos pares em que é avaliado); no teste honesto acima, fora da amostra, ele PIORA o modelo (J -0,119 → 0,033, acurácia 59,8% → 47,8%). Vigente: **1,00** — calibração desligada.
 
-## Matriz de confusão do cenário vigente (linhas = observado em 20/03, colunas = previsto)
+## Matriz de confusão do cenário vigente, fator 1,00 (linhas = observado em 20/03, colunas = previsto)
 
 |  | prevista 1 | prevista 2 | prevista 3 |
 |---|---|---|---|
-| observada 1 | 0 | 130 | 0 |
-| observada 2 | 0 | 52 | 0 |
-| observada 3 | 0 | 3 | 10 |
+| observada 1 | 77 | 53 | 0 |
+| observada 2 | 21 | 31 | 0 |
+| observada 3 | 2 | 1 | 10 |
 
 ## Sensibilidade às premissas (sem calibração)
 
@@ -67,7 +67,7 @@ Premissas do cenário vigente: espécie **braquiaria**, classe 3 = **40 cm**, di
 
 ## Fila retrospectiva
 
-Em 13/03, com o fator vigente, o sistema marcaria **0** segmento(s) como "cruza 30 cm em até 7 dias" entre os 55 com faixa em escopo; **1** de fato chegaram à classe 3 em 20/03; acertos: **0**.
+Em 13/03, com o fator vigente (1,00), o sistema marcaria **0** segmento(s) como "cruza 30 cm em até 7 dias" entre os 55 com faixa em escopo; **1** de fato chegaram à classe 3 em 20/03; acertos: **0**.
 
 ## Limitações
 
