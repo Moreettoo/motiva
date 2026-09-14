@@ -39,9 +39,35 @@ import solo
 VALIDADE_MEDICAO_DIAS = 120
 
 
+#: Mobilizacao usada quando a concessionaria do trecho nao declara a dela. E o
+#: mesmo padrao da coluna `ia.concessionarias.mobilizacao_dias`.
+MOBILIZACAO_PADRAO_DIAS = 7
+
+
 def resolver_ambiente(lat: float, lon: float, hoje: date):
     """(serie de clima, solo) para um ponto. As duas consultas externas."""
     return clima.buscar_serie(lat, lon, hoje), solo.buscar(lat, lon)
+
+
+def mobilizacao_do_trecho(t: dict) -> int:
+    """Dias de mobilizacao da concessionaria do trecho, do embed do PostgREST.
+
+    O embed `concessionarias(mobilizacao_dias)` volta como OBJETO quando o
+    PostgREST consegue provar que a FK e unica e como LISTA quando nao
+    consegue -- a mesma armadilha que `analisar_lote.fechar_obsoletos` e
+    `calibracao.escolher` ja defendem explicitamente. Sem a guarda, um
+    servidor que devolvesse a forma de lista faria `conc.get(...)` estourar
+    `AttributeError`, e no lote diario isso derruba os 60 trechos de uma vez
+    (todos caem em `erros`, `sys.exit(1)`, X vermelho no Actions).
+
+    Aceita as duas formas, e cai para `MOBILIZACAO_PADRAO_DIAS` quando o embed
+    vem ausente, nulo, vazio, ou com a coluna nula.
+    """
+    bruto = t.get("concessionarias")
+    if isinstance(bruto, list):
+        bruto = bruto[0] if bruto else None
+    conc = bruto or {}
+    return int(conc.get("mobilizacao_dias") or MOBILIZACAO_PADRAO_DIAS)
 
 
 def analisar_trecho(sb, t: dict, serie: clima.Serie, terra: solo.Solo, hoje: date,

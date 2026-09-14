@@ -172,3 +172,43 @@ def test_solo_do_trecho_atravessa_intacto_ate_o_contexto_da_llm():
     assert ctx_trecho["solo"]["origem"] == "estimado do mapa SoilGrids"
     assert ctx_zona["solo"]["fertilidade_0_a_1"] == 0.35
     assert ctx_zona["solo"]["origem"] == "premissa, o SoilGrids nao cobre este ponto"
+
+
+# ----------------------------------------------------------------------
+# `mobilizacao_do_trecho`: a forma do embed do PostgREST
+#
+# `analisar_lote.main()` le `trechos` com `select("*, concessionarias(...)")`.
+# O embed foi acrescentado depois da migracao do Rodoanel e a unica execucao
+# que houve casou zero trechos ativos -- a forma da linha nunca foi exercitada
+# em producao. Estes casos a exercitam aqui.
+# ----------------------------------------------------------------------
+def test_mobilizacao_le_o_embed_como_objeto():
+    assert analise.mobilizacao_do_trecho(
+        trecho(concessionarias={"mobilizacao_dias": 10})) == 10
+
+
+def test_mobilizacao_le_o_embed_como_lista():
+    """O caso que derrubava o lote inteiro: o PostgREST devolve o embed como
+    LISTA quando nao consegue provar que a FK e unica. `conc.get(...)` sobre
+    uma lista levanta `AttributeError`; dentro do laco de `main()` isso joga
+    os 60 trechos em `erros` e termina com `sys.exit(1)`. As outras duas
+    leituras de embed do projeto (`fechar_obsoletos` e `calibracao.escolher`)
+    ja se defendiam disso; esta nao.
+    """
+    assert analise.mobilizacao_do_trecho(
+        trecho(concessionarias=[{"mobilizacao_dias": 10}])) == 10
+
+
+def test_mobilizacao_cai_para_o_padrao_sem_embed():
+    """As quatro formas de "nao ha numero": coluna ausente, embed nulo, lista
+    vazia e coluna nula. Todas tem que dar 7 -- nunca 0, que faria
+    `data_ideal` virar o proprio dia do limite e a equipe perder a janela de
+    mobilizacao.
+    """
+    assert analise.mobilizacao_do_trecho(trecho()) == 7
+    assert analise.mobilizacao_do_trecho(trecho(concessionarias=None)) == 7
+    assert analise.mobilizacao_do_trecho(trecho(concessionarias=[])) == 7
+    assert analise.mobilizacao_do_trecho(
+        trecho(concessionarias={"mobilizacao_dias": None})) == 7
+    assert analise.mobilizacao_do_trecho(
+        trecho(concessionarias=[{"mobilizacao_dias": None}])) == 7

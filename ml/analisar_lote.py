@@ -443,8 +443,7 @@ def main():
                 # publicador); senao o da zona, como sempre. Ver `solo.do_trecho`.
                 terra = solo.do_trecho(t, amb[1])
                 calib = calibracao.escolher(calibs, t["rodovia"], t["especie"])
-                conc = t.get("concessionarias") or {}
-                mob = int(conc.get("mobilizacao_dias") or 7)
+                mob = analise.mobilizacao_do_trecho(t)
                 r = analise.analisar_trecho(sb, t, amb[0], terra, hoje, calib=calib, mobilizacao_dias=mob)
             except LookupError as e:
                 print(f"  [{e}]  {nome}")
