@@ -1,0 +1,29 @@
+{
+ "gerado_em": "14/09/2026 16:55",
+ "commit": "0a5f694",
+ "n_observacoes": 14730,
+ "n_segmentos": 54,
+ "observacoes_por_segmento_ano": 34.1,
+ "eventos_total": 190,
+ "eventos_por_ano": {
+  "2019": 37,
+  "2020": 18,
+  "2021": 24,
+  "2022": 16,
+  "2023": 33,
+  "2024": 20,
+  "2025": 28,
+  "2026": 14
+ },
+ "conferencia_marco_2026": {
+  "n_rocados": 38,
+  "detectados": 2,
+  "recall": 0.05263157894736842,
+  "falsos": 1
+ },
+ "parametros": {
+  "queda_minima": 0.15,
+  "max_dias": 12,
+  "minimo_antes": 0.45
+ }
+}

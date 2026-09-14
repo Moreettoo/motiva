@@ -55,3 +55,24 @@ O teste de corte **não encontrou** diferença de NDVI entre roçados (n = 34, �
 - Pixel de 10 m e polígonos estreitos: segmentos com poucos pixels válidos pesam igual aos largos.
 - Uma data por levantamento, com defasagem de até 7 dias.
 - NDVI mede verdor, não altura: capim alto e seco pode ler baixo.
+
+## Série 2019–2026 e detector de corte
+
+Gerado por `pesquisa/ndvi/analisar_serie.py` em 14/09/2026 16:55 (commit 0a5f694).
+
+14.730 observações limpas em 54 segmentos (~34,1 por segmento por ano). Detector: queda ≥ 0,15 em ≤ 12 dias partindo de NDVI ≥ 0,45.
+
+| ano | cortes detectados |
+|---|---|
+| 2019 | 37 |
+| 2020 | 18 |
+| 2021 | 24 |
+| 2022 | 16 |
+| 2023 | 33 |
+| 2024 | 20 |
+| 2025 | 28 |
+| 2026 | 14 |
+
+Com recall de 5% nesta conferência (o detector achou 2 das 38 roçadas conhecidas), os 190 cortes detectados na tabela acima são mais prováveis de refletir variação sazonal de NDVI ou ruído do sensor do que roçadas reais — a contagem por ano **não** deve ser lida como histórico de roçada. Consistente com o achado da Tarefa 14 (AUC invertida, teste de corte sem diferença significativa, p = 0,6847): uma série mais longa não recuperou o que três datas não acharam.
+
+Conferência contra as 38 roçadas inferidas de 13→20/03/2026: **2 detectadas** (recall 5%), 1 segmento(s) com queda sem roçada inferida.
