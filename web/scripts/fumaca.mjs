@@ -102,6 +102,14 @@ await checar(
   () => db.from("ndvi_analises").select("*").limit(5),
   precisaTer(["id", "data_alvo", "auc", "p_valor", "ndvi_mediana_c1", "ndvi_mediana_c3"]),
 );
+/* `distanciaFronteiraClasse1` (validacao/queries.ts) le so estas quatro colunas --
+   e a mesma logica do resto deste arquivo: um nome renomeado so quebraria em
+   runtime, e o numero da fronteira de classe em `Limitacoes` depende dele. */
+await checar(
+  "validacao_pares classe 1",
+  () => db.from("validacao_pares").select("altura_inicial_cm, q50_cm, classe_inicial, incluido").eq("classe_inicial", 1).limit(5),
+  precisaTer(["altura_inicial_cm", "q50_cm", "classe_inicial", "incluido"]),
+);
 
 await checar(
   "agendamentos + trecho/equipe/previsao",

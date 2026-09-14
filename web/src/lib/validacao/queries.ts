@@ -38,3 +38,38 @@ export const ndviAnalises = cache(async (): Promise<NdviAnalise[]> => {
   for (const a of data as NdviAnalise[]) if (!porAlvo.has(a.data_alvo)) porAlvo.set(a.data_alvo, a);
   return [...porAlvo.values()].sort((a, b) => a.data_alvo.localeCompare(b.data_alvo));
 });
+
+function mediana(valores: number[]): number | null {
+  if (valores.length === 0) return null;
+  const s = [...valores].sort((a, b) => a - b);
+  const meio = Math.floor(s.length / 2);
+  return s.length % 2 ? s[meio] : (s[meio - 1] + s[meio]) / 2;
+}
+
+/** Onde a classe 1 vira classe 2 (`CLASSE_ALTURA`: "abaixo de 10 cm" / "de 10 a
+ *  30 cm"). Vive aqui, e não em `dominio.ts`, porque só esta consulta soma
+ *  contra ela — se um segundo lugar precisar, ela sobe para lá. */
+const FRONTEIRA_CLASSE_1_2_CM = 10;
+
+/**
+ * A distância, em cm, entre a fronteira de 10 cm e a mediana das alturas
+ * finais previstas (`altura_inicial_cm + q50_cm`) entre os pares que
+ * partiram da classe 1 — o número que sustenta a frase de `Limitacoes` sobre
+ * a régua cortar perto da previsão típica do modelo. `null` quando a
+ * validação vigente não tem nenhum par partindo da classe 1 (não é o caso do
+ * Rodoanel hoje, mas a função nunca assume isso de outra validação).
+ */
+export const distanciaFronteiraClasse1 = cache(async (vigente: Validacao): Promise<number | null> => {
+  const { data, error } = await db
+    .from("validacao_pares")
+    .select("altura_inicial_cm, q50_cm")
+    .eq("validacao_id", vigente.id)
+    .eq("classe_inicial", 1)
+    .eq("incluido", true);
+  if (error) erro("a distância da fronteira de classe", error);
+  const finais = (data as { altura_inicial_cm: number | string; q50_cm: number | string }[]).map(
+    (p) => Number(p.altura_inicial_cm) + Number(p.q50_cm),
+  );
+  const medianaFinal = mediana(finais);
+  return medianaFinal == null ? null : Math.abs(medianaFinal - FRONTEIRA_CLASSE_1_2_CM);
+});

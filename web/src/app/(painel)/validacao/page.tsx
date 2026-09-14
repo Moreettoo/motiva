@@ -5,7 +5,7 @@ import { AvisoSomenteLeitura } from "@/components/ui/aviso-somente-leitura";
 import { Cartao, CartaoCabecalho, CartaoCorpo } from "@/components/ui/cartao";
 import { podeEscrever } from "@/lib/auth/permissoes";
 import { exigirCargo } from "@/lib/auth/sessao";
-import { ndviAnalises, validacaoVigente, validacoesSensibilidade } from "@/lib/validacao/queries";
+import { distanciaFronteiraClasse1, ndviAnalises, validacaoVigente, validacoesSensibilidade } from "@/lib/validacao/queries";
 
 import { Limitacoes } from "./_componentes/limitacoes";
 import { MatrizConfusao } from "./_componentes/matriz-confusao";
@@ -24,9 +24,10 @@ export default async function PaginaValidacao() {
   const sessao = await exigirCargo("super_admin", "admin", "analista");
   const escreve = podeEscrever(sessao.cargo);
   const vigente = await validacaoVigente();
-  const [sensibilidade, ndvi] = await Promise.all([
+  const [sensibilidade, ndvi, distanciaFronteira] = await Promise.all([
     vigente ? validacoesSensibilidade(vigente) : Promise.resolve([]),
     ndviAnalises(),
+    vigente ? distanciaFronteiraClasse1(vigente) : Promise.resolve(null),
   ]);
 
   return (
@@ -43,7 +44,7 @@ export default async function PaginaValidacao() {
             <ResumoValidacao v={vigente} />
             <div className="grid gap-4 lg:grid-cols-2">
               <MatrizConfusao v={vigente} />
-              <Limitacoes v={vigente} />
+              <Limitacoes v={vigente} distanciaFronteiraCm={distanciaFronteira} />
             </div>
             <Sensibilidade linhas={sensibilidade} />
           </>
