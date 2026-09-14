@@ -247,6 +247,39 @@ export const METODO_ROCADA: Record<string, { rotulo: string; icone: string }> = 
   "Spider, com ancoragem": { rotulo: "Spider com ancoragem (declive alto)", icone: "Anchor" },
 };
 
+export type InfoRocada = { registrado: true; rotulo: string; icone: string; areaM2: number } | { registrado: false };
+
+/**
+ * O que a tela pode afirmar sobre o método de roçada de um trecho, sem
+ * inventar.
+ *
+ * `metodo_rocada`/`area_rocada_m2` vêm `null` juntos (nunca um sem o outro,
+ * ver `pesquisa/rodoanel/supabase_io.py`) nos 6 marcos do Rodoanel sem
+ * polígono no KML de roçada da Motiva (km 2.500, 3.000, 7.500, 8.000, 29.000
+ * e 29.300). `registrado: false` é o único retorno honesto para esse caso: o
+ * cartão do trecho (Tarefa 18) que simplesmente omitisse a frase de roçada
+ * leria como um esquecimento de quem escreveu a tela, não como um fato sobre
+ * os dados; escrever `0 m²` mentiria "área roçável é zero" quando a área é
+ * DESCONHECIDA, o mesmo erro que a Fase de dados evitou ao gravar `null` em
+ * vez de `0.0` no banco.
+ *
+ * Um `metodo_rocada` fora dos quatro nomes de `METODO_ROCADA` (nunca visto em
+ * produção hoje, mas o parâmetro é uma `string` solta vinda do banco) ainda
+ * assim resolve: `rotulo` cai para a string bruta e `icone` cai para
+ * `CircleHelp` -- já registrado em `legenda.ICONES` desde a Tarefa 16 --, em
+ * vez de um ícone quebrado ou de a função lançar.
+ */
+export function infoRocada(metodoRocada: string | null, areaRocadaM2: number | string | null): InfoRocada {
+  if (!metodoRocada) return { registrado: false };
+  const token = METODO_ROCADA[metodoRocada];
+  return {
+    registrado: true,
+    rotulo: token?.rotulo ?? metodoRocada,
+    icone: token?.icone ?? "CircleHelp",
+    areaM2: Math.round(Number(areaRocadaM2 ?? 0)),
+  };
+}
+
 /**
  * Vocabulario do regime de manejo.
  *

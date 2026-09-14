@@ -58,11 +58,10 @@ export const ICONES: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
   // existe para evitar ("não sei" lendo como "ícone quebrado", não mais
   // "está tudo bem", mas ainda errado).
   CircleHelp,
-  // `METODO_ROCADA` (Tarefa 16): ainda sem tela que os use -- `TrechoStatus.
-  // metodo_rocada` chega da view, mas nenhum componente lê `METODO_ROCADA[...]`
-  // ainda. Registrados agora porque a Tarefa 18 (cartão do trecho) vai
-  // precisar, e é mais barato fazer aqui do que depois de descobrir a mesma
-  // bolinha vazia de novo.
+  // `METODO_ROCADA` (registrados na Tarefa 16, consumidos pela Tarefa 18 em
+  // `LevantamentoCampo`, via `infoRocada`/`dominio.ts`): registrar
+  // preventivamente, antes de existir tela, saiu mais barato do que descobrir
+  // a mesma bolinha vazia de novo.
   Tractor,
   Hand,
   Truck,

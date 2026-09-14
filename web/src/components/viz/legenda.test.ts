@@ -40,13 +40,13 @@ describe("legenda.ICONES cobre todo status/risco do dominio que passa por IconeD
     }
   });
 
-  it("CLASSE_ALTURA: todo icone resolve (mesma forma de TokenStatus que RISCO, ainda sem tela consumidora)", () => {
+  it("CLASSE_ALTURA: todo icone resolve (mesma forma de TokenStatus que RISCO; `ChipClasse`, Tarefa 17)", () => {
     for (const [chave, token] of Object.entries(CLASSE_ALTURA)) {
       expect(ICONES[token.icone], `CLASSE_ALTURA.${chave}.icone = "${token.icone}" não está em legenda.ICONES`).toBeDefined();
     }
   });
 
-  it("METODO_ROCADA: todo icone resolve (ainda sem tela consumidora -- a Tarefa 18 vai precisar)", () => {
+  it("METODO_ROCADA: todo icone resolve (`LevantamentoCampo`, Tarefa 18)", () => {
     for (const [chave, token] of Object.entries(METODO_ROCADA)) {
       expect(ICONES[token.icone], `METODO_ROCADA["${chave}"].icone = "${token.icone}" não está em legenda.ICONES`).toBeDefined();
     }

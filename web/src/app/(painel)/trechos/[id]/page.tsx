@@ -10,6 +10,7 @@ import { podeEscrever } from "@/lib/auth/permissoes";
 import { obterChamado } from "@/lib/chamados/queries";
 import { rotuloPrazo } from "@/lib/dominio";
 import { fmt, isoHoje } from "@/lib/format";
+import { levantamentosDoTrecho } from "@/lib/levantamentos/queries";
 import {
   agendamentosDoTrecho,
   execucoesDoTrecho,
@@ -28,6 +29,7 @@ import { EstadoAtual } from "../_componentes/estado-atual";
 import { FaixaIdentidade } from "../_componentes/faixa-identidade";
 import { GraficoAltura } from "../_componentes/grafico-altura";
 import { HistoricoTrecho } from "../_componentes/historico-trecho";
+import { LevantamentoCampo } from "../_componentes/levantamento-campo";
 import { RegistrarMedicao } from "../_componentes/registrar-medicao";
 import { TrechosVizinhos } from "../_componentes/trechos-vizinhos";
 
@@ -73,13 +75,14 @@ export default async function PaginaTrecho({ params }: { params: Promise<{ id: s
   const trecho = await obterTrecho(trechoId);
   if (!trecho) notFound();
 
-  const [medicoes, previsoes, agendamentos, execucoes, equipes, todosOsTrechos] = await Promise.all([
+  const [medicoes, previsoes, agendamentos, execucoes, equipes, todosOsTrechos, levantamentos] = await Promise.all([
     medicoesDoTrecho(trechoId),
     previsoesDoTrecho(trechoId),
     agendamentosDoTrecho(trechoId),
     execucoesDoTrecho(trechoId),
     listarEquipes(),
     listarTrechos(),
+    levantamentosDoTrecho(trechoId),
   ]);
 
   const hojeIso = isoHoje();
@@ -153,6 +156,8 @@ export default async function PaginaTrecho({ params }: { params: Promise<{ id: s
       <FaixaIdentidade trecho={trecho} />
 
       <EstadoAtual trecho={trecho} previsoes={previsoes} hojeIso={hojeIso} />
+
+      <LevantamentoCampo trecho={trecho} lev={levantamentos} />
 
       <GraficoAltura
         medicoes={medicoes}

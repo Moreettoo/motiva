@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   erroFaltaEquipe,
+  infoRocada,
+  METODO_ROCADA,
   ordemRisco,
   ORDEM_RISCO,
   piorRiscoDe,
@@ -148,5 +150,54 @@ describe("piorRiscoDe", () => {
       "critica",
     );
     expect(piorRiscoDe([{ risco: "media" as const }, { risco: "alta" as const }])).toBe("alta");
+  });
+});
+
+describe("infoRocada", () => {
+  /* Os 6 marcos do Rodoanel sem polígono no KML de roçada da Motiva (km
+     2.500, 3.000, 7.500, 8.000, 29.000 e 29.300) chegam com metodo_rocada E
+     area_rocada_m2 nulos -- o cartão do trecho (Tarefa 18) precisa mostrar
+     isso como um fato registrado sobre os dados, não como uma frase que some
+     da tela sem explicação. */
+  it("marca como não registrado quando o trecho não tem método (sem polígono no KML)", () => {
+    expect(infoRocada(null, null)).toEqual({ registrado: false });
+  });
+
+  it("não finge área zero quando a área não foi registrada", () => {
+    // `registrado: false` não carrega `areaM2` nenhum -- inventar `0` aqui
+    // afirmaria "área roçável é zero", quando ela é desconhecida.
+    const r = infoRocada(null, null);
+    expect(r).not.toHaveProperty("areaM2");
+  });
+
+  it("resolve rótulo, ícone e área para cada método real do domínio", () => {
+    // Itera `METODO_ROCADA` em vez de listar os quatro nomes à mão: uma
+    // entrada nova no vocabulário cai sob este teste sozinha.
+    for (const [chave, token] of Object.entries(METODO_ROCADA)) {
+      expect(infoRocada(chave, 1234.5)).toEqual({
+        registrado: true,
+        rotulo: token.rotulo,
+        icone: token.icone,
+        areaM2: 1235,
+      });
+    }
+  });
+
+  it("aceita area_rocada_m2 como string (numeric do Postgres) e arredonda", () => {
+    expect(infoRocada("Apenas manual", "999.6")).toEqual({
+      registrado: true,
+      rotulo: "Apenas manual",
+      icone: "Hand",
+      areaM2: 1000,
+    });
+  });
+
+  it("um método fora do vocabulário ainda resolve: rótulo cru, ícone cai para CircleHelp (já registrado em legenda.ICONES)", () => {
+    expect(infoRocada("Método novo não catalogado", 10)).toEqual({
+      registrado: true,
+      rotulo: "Método novo não catalogado",
+      icone: "CircleHelp",
+      areaM2: 10,
+    });
   });
 });

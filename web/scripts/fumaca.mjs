@@ -84,6 +84,23 @@ await checar(
 );
 await checar("zonas_clima", () => db.from("zonas_clima").select("*").limit(5), precisaTer(["rodovia", "extensao_km"]));
 
+/* `faixas`/`levantamentos` existem desde a Tarefa 11, mas so a Tarefa 18
+   (cartao "Levantamento de campo") le as duas direto -- `levantamentosDoTrecho`
+   (`levantamentos/queries.ts`) faz exatamente estas duas consultas. Mesmo
+   risco de forma do resto deste arquivo: um nome de coluna renomeado so
+   apareceria em runtime, nunca no `tsc`, porque `Faixa`/`Levantamento`
+   (`types.ts`) sao escritos a mao. */
+await checar(
+  "faixas",
+  () => db.from("faixas").select("*").order("ordem").limit(20),
+  precisaTer(["codigo", "nome", "lado", "em_escopo", "ordem"]),
+);
+await checar(
+  "levantamentos",
+  () => db.from("levantamentos").select("*").limit(5),
+  precisaTer(["trecho_id", "faixa_codigo", "data", "classe", "arquivo_origem"]),
+);
+
 /* A Tarefa 17 (`/validacao`) lê estas duas direto, sem view nem embed -- mas o
    mesmo risco de forma que motivou o resto deste arquivo vale aqui: um nome de
    coluna renomeado na migracao so aparece em runtime, nunca no `tsc`. */
