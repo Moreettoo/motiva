@@ -2,6 +2,7 @@ import "server-only";
 
 import { cache } from "react";
 
+import { lerPaginado } from "../paginar";
 import { db } from "../supabase";
 import type { Faixa, Levantamento } from "../types";
 import { agruparImportacoes, agruparLevantamentos, type LevantamentoImportado, type LevantamentosAgrupados } from "./agrupar";
@@ -47,7 +48,25 @@ export const levantamentosDoTrecho = cache(async (trechoId: number): Promise<Lev
  * data e é onde isso é testado sem banco.
  */
 export const levantamentosImportados = cache(async (): Promise<LevantamentoImportado[]> => {
-  const { data, error } = await db.from("levantamentos").select("data, arquivo_origem, trecho_id, importado_em").order("data");
-  if (error) throw new Error(`Falha ao ler os levantamentos importados: ${error.message}`);
-  return agruparImportacoes((data ?? []) as Pick<Levantamento, "data" | "arquivo_origem" | "trecho_id" | "importado_em">[]);
+  /* PAGINA. `ia.levantamentos` tem hoje 1.440 linhas em producao (2 datas x 60
+     trechos x 12 faixas) e cresce 720 a cada RA-RET importado. A leitura sem
+     `.range()` voltava HTTP 200, `error` nulo e `content-range: 0-999/*` --
+     1.000 das 1.440 linhas, medido contra producao. O cartao entao mostrava a
+     segunda data com 24 trechos e 280 linhas em vez de 60 e 720, contradizendo
+     na tela o "60 trechos cada" do relatorio ao cliente.
+
+     `.order("data").order("id")` e obrigatorio, nao enfeite: sem o desempate
+     por `id` a ordem entre paginas nao e estavel e a paginacao pode repetir uma
+     linha e perder outra. Ver `paginar.ts`. */
+  const linhas = await lerPaginado("os levantamentos importados", async (de, ate) => {
+    const { data, error } = await db
+      .from("levantamentos")
+      .select("data, arquivo_origem, trecho_id, importado_em")
+      .order("data")
+      .order("id")
+      .range(de, ate);
+    if (error) throw new Error(`Falha ao ler os levantamentos importados: ${error.message}`);
+    return (data ?? []) as Pick<Levantamento, "data" | "arquivo_origem" | "trecho_id" | "importado_em">[];
+  });
+  return agruparImportacoes(linhas);
 });

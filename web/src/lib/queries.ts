@@ -5,6 +5,7 @@ import { cache } from "react";
 import { db } from "./supabase";
 import { diasEntre, isoHoje, somarDias } from "./format";
 import { ordemRisco, piorRiscoDe, prioridadeExibida } from "./dominio";
+import { lerPaginado } from "./paginar";
 import { distanciaKm, groupBy, sum } from "./utils";
 import type {
   AgendamentoDetalhado,
@@ -256,17 +257,6 @@ export const trechosPorRodovia = cache(async () => {
 });
 
 /**
- * Tamanho da pagina do PostgREST.
- *
- * O `db-max-rows` do projeto corta a resposta em mil linhas e avisa APENAS no
- * cabecalho `content-range` (`0-999/1490`). `error` volta nulo: para o cliente,
- * uma consulta truncada e indistinguivel de uma consulta que acabou. Por isso
- * uma leitura que pode passar de mil linhas tem que PAGINAR, e nao so confiar
- * no `error`.
- */
-const PAGINA_POSTGREST = 1000;
-
-/**
  * Serie diaria de crescimento medio da malha nos ultimos N dias.
  * Uma linha por especie: sao 3, dentro do limite de series validado.
  */
@@ -285,23 +275,22 @@ export const serieCrescimentoPorEspecie = cache(async (dias = 45) => {
      entao o cartao "Crescimento medio" anunciava uma QUEDA -- com a seta verde
      de "isso e bom" -- que nunca aconteceu.
 
-     O teto de paginas e guarda-corpo, nao regra: 45 dias × 50 trechos cabe em
-     tres paginas, e parar em vinte evita um laco infinito se o servidor passar
-     a devolver pagina cheia para sempre. */
-  for (let pagina = 0; pagina < 20; pagina += 1) {
-    const de = pagina * PAGINA_POSTGREST;
-    const { data, error } = await db
-      .from("previsoes")
-      .select("data_previsao, crescimento_cm_dia, trecho_id, trechos!inner ( especie )")
-      .gte("data_previsao", desde)
-      .order("data_previsao")
-      .order("id")
-      .range(de, de + PAGINA_POSTGREST - 1);
-    if (error) erro("a serie de crescimento", error);
-    const lote = (data ?? []) as unknown as Linha[];
-    linhas.push(...lote);
-    if (lote.length < PAGINA_POSTGREST) break;
-  }
+     O laco em si mora em `paginar.ts`, com o mesmo `.order("data_previsao")
+     .order("id")` de sempre: era idioma copiado e agora e um so, testado sem
+     banco -- ver o cabecalho daquele modulo. */
+  linhas.push(
+    ...(await lerPaginado("a serie de crescimento", async (de, ate) => {
+      const { data, error } = await db
+        .from("previsoes")
+        .select("data_previsao, crescimento_cm_dia, trecho_id, trechos!inner ( especie )")
+        .gte("data_previsao", desde)
+        .order("data_previsao")
+        .order("id")
+        .range(de, ate);
+      if (error) erro("a serie de crescimento", error);
+      return (data ?? []) as unknown as Linha[];
+    })),
+  );
 
   const porData = groupBy(linhas, (l) => l.data_previsao);
   const especies = [...new Set(linhas.map((l) => l.trechos.especie))].sort();
