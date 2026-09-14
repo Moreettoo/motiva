@@ -34,6 +34,19 @@ function mm(cm: number): string {
  * 14/09/2026) continua fora do texto: `Validacao` não carrega essa largura, e
  * abrir uma consulta nova só para ela ficaria fora do que este componente já
  * lê. A frase fala "poucos centímetros" em vez de cravar o valor.
+ *
+ * O último item (corrigido em revisão na Tarefa 21) dizia "a acurácia [...]
+ * é medida a cada levantamento novo que entrar pelo importador" -- verdade
+ * só pela metade. O importador grava cada levantamento sozinho e sem
+ * duplicar mesmo se rodado de novo (idempotente, provado na Tarefa 13): essa
+ * parte é automática. Mas RECALCULAR esta validação com a janela nova (o
+ * levantamento novo contra o anterior) continua sendo um passo manual de um
+ * desenvolvedor -- ver `docs/operacao/importar-levantamento.md` -- não algo
+ * que acontece sozinho a cada importação. Esta é a página cujo propósito
+ * inteiro é não prometer mais do que o sistema faz; deixar essa frase dizer
+ * "é medida a cada levantamento" seria o mesmo exagero que o projeto
+ * persegue em outro lugar (o ícone com fallback silencioso, a calibração que
+ * entraria sem ser escolhida), só que cometido bem aqui.
  */
 function limitacoes(v: Validacao, distanciaFronteiraCm: number | null): string[] {
   return [
@@ -47,7 +60,7 @@ function limitacoes(v: Validacao, distanciaFronteiraCm: number | null): string[]
     "A calibração é do Rodoanel. O método transfere para outra rodovia; o número, não.",
     "Pixel de 10 m no satélite: faixas estreitas (dispositivos e marginais) ficam fora da leitura por segmento.",
     "53 roçadas inferidas em uma semana é amostra pequena para um detector automático de corte.",
-    "A acurácia não é prometida: é medida a cada levantamento novo que entrar pelo importador.",
+    "A acurácia não é prometida: é medida contra dado real de campo, e cada levantamento novo que o importador traz pode reconferi-la -- mas o recálculo é um passo que um desenvolvedor roda, não algo automático (docs/operacao/importar-levantamento.md).",
   ];
 }
 
