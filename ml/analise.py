@@ -31,6 +31,12 @@ import clima
 import modelo
 import solo
 
+#: Medicao (ou rocada) mais antiga que isto nao vira previsao. E o horizonte do
+#: modelo: alem de 120 dias `dias_periodo` satura no ultimo bin, e a janela
+#: [medicao, hoje) seria montada com menos dias do que passaram, em silencio.
+#: O trecho aparece como LACUNA no painel, nunca com numero inventado.
+VALIDADE_MEDICAO_DIAS = 120
+
 
 def resolver_ambiente(lat: float, lon: float, hoje: date):
     """(serie de clima, solo) para um ponto. As duas consultas externas."""
@@ -93,6 +99,8 @@ def analisar_trecho(sb, t: dict, serie: clima.Serie, terra: solo.Solo, hoje: dat
     # [medicao, hoje) esta inteira no passado da serie, entao o modelo ve
     # temperatura, chuva e agua no solo observadas, e nao uma media projetada.
     decorridos = (hoje - data_base).days
+    if decorridos > VALIDADE_MEDICAO_DIAS:
+        raise LookupError(f"medicao vencida ({decorridos} d, limite {VALIDADE_MEDICAO_DIAS})")
     fr_med, en_med = clima.balanco_solo(serie.dias, terra.capacidade_mm, altura_base)
     crescido = 0.0
     janela_medicao = 0

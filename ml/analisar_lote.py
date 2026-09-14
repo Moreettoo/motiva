@@ -387,7 +387,7 @@ def fechar_obsoletos(trecho_id, hoje):
 
 # ----------------------------------------------------------------------
 def main():
-    consulta = sb.table("trechos").select("*").order("id")
+    consulta = sb.table("trechos").select("*").eq("ativo", True).order("id")
     if TRECHO_ID is not None:
         consulta = consulta.eq("id", TRECHO_ID)
     trechos = consulta.execute().data
@@ -416,7 +416,7 @@ def main():
     # terco da malha podia envelhecer em silencio e a linha final dizia que estava
     # tudo bem. Contados em separado, "sem dados" aparece.
     gravados, descartados, erros = 0, 0, []
-    motivos = {"sem_dados": 0, "folgado": 0, "na_banda": 0, "ja_aprovado": 0}
+    motivos = {"sem_dados": 0, "vencida": 0, "folgado": 0, "na_banda": 0, "ja_aprovado": 0}
 
     for t in trechos:
         nome = f'{t["rodovia"]} km {t["km_inicio"]}-{t["km_fim"]}'
@@ -431,7 +431,7 @@ def main():
                 r = analise.analisar_trecho(sb, t, amb[0], amb[1], hoje)
             except LookupError as e:
                 print(f"  [{e}]  {nome}")
-                motivos["sem_dados"] += 1
+                motivos["vencida" if "vencida" in str(e) else "sem_dados"] += 1
                 continue
 
             dias, taxa, limite = r["dias"], r["taxa"], r["limite"]
@@ -561,6 +561,9 @@ def main():
         print(f"ATENCAO: {motivos['sem_dados']} trecho(s) SEM PREVISAO NOVA "
               f"(zona sem clima/solo, ou trecho sem medicao) - a agenda deles "
               f"esta velha")
+    if motivos["vencida"]:
+        print(f"ATENCAO: {motivos['vencida']} trecho(s) com MEDICAO VENCIDA (> {analise.VALIDADE_MEDICAO_DIAS} d) - "
+              f"sem previsao de proposito; o painel os lista como lacuna. Precisam de levantamento novo.")
     if analisados + len(erros) != len(trechos):
         print(f"ATENCAO: {analisados} contabilizado(s) + {len(erros)} com erro "
               f"!= {len(trechos)} trecho(s) pedidos")
