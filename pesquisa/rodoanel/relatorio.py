@@ -175,10 +175,12 @@ def _leitura_separacao(saida: dict, f) -> str:
     """Paragrafo interpretativo sobre a direcao da separacao AUC, exigido pela
     revisao: a tabela sozinha nao diz que um AUC < 0,5 significa uma inversao
     (capim mais alto lendo NDVI mais baixo), so um leitor especialista
-    infere isso. Todo numero aqui vem de `saida`; a frase de direcao e
-    escolhida por `auc < 0.5` por data, entao um resultado futuro com
-    auc >= 0.5 produz o texto oposto em vez de contradizer os dados (regra
-    do projeto: nenhum numero de relatorio digitado a mao).
+    infere isso. Todo numero aqui vem de `saida` ou de `planilha.PONTO_MEDIO_CM`
+    (constante do dominio, nao do resultado desta rodada, mas tambem nao
+    digitada solta neste arquivo); a frase de direcao e escolhida por
+    `auc < 0.5` por data, entao um resultado futuro com auc >= 0.5 produz o
+    texto oposto em vez de contradizer os dados (regra do projeto: nenhum
+    numero de relatorio digitado a mao).
     """
     coms = [r for r in saida["analises"] if not r.get("sem_imagem") and r.get("auc") is not None]
     if not coms:
@@ -186,10 +188,12 @@ def _leitura_separacao(saida: dict, f) -> str:
     itens = "; ".join(f"{r['data_alvo']} (AUC {f(r['auc'])}, p = {f(r['p_valor'], 4)})" for r in coms)
     invertidas = [r["data_alvo"] for r in coms if r["auc"] < 0.5]
     significativas = [r["data_alvo"] for r in coms if r["p_valor"] is not None and r["p_valor"] < 0.05]
+    cm3 = f"{planilha.PONTO_MEDIO_CM[3]:.0f}"
+    cm1 = f"{planilha.PONTO_MEDIO_CM[1]:.0f}"
     if len(invertidas) == len(coms):
-        direcao = ("**invertida em todas as datas com comparação possível**: a classe 3 (capim mais alto, "
-                    "~40 cm) lê NDVI **mais baixo** que a classe 1 (capim recém-roçado, ~5 cm) — o oposto da "
-                    "expectativa ingênua de que mais vegetação lê NDVI mais alto")
+        direcao = (f"**invertida em todas as datas com comparação possível**: a classe 3 (capim mais alto, "
+                    f"~{cm3} cm) lê NDVI **mais baixo** que a classe 1 (capim recém-roçado, ~{cm1} cm) — o oposto "
+                    "da expectativa ingênua de que mais vegetação lê NDVI mais alto")
     elif not invertidas:
         direcao = "no sentido esperado em todas as datas: a classe 3 lê NDVI mais alto que a classe 1"
     else:
@@ -239,7 +243,11 @@ def _leitura_delta(saida: dict, f) -> str:
     rocada treinado esta fora de escopo porque a amostra de eventos inferidos
     numa janela curta e pequena) usando o numero de segmentos rocados que
     saiu DESTE calculo (`n_segmentos_rocados`), nunca o "53" ilustrativo do
-    espec, que e de outro contexto.
+    espec, que e de outro contexto. `n_segmentos_rocados` (todos os rocados
+    inferidos no periodo) e `alvo['n_rocados']` (so os com NDVI valido nas
+    duas datas, que entram na comparacao) sao denominadores DIFERENTES por
+    definicao -- se vierem diferentes, uma clausula computada explica a
+    diferenca em vez de deixar dois numeros parecidos sem ligacao no texto.
     """
     alvo = next((r for r in saida["analises"] if r.get("n_rocados") is not None), None)
     if alvo is None:
@@ -248,10 +256,13 @@ def _leitura_delta(saida: dict, f) -> str:
     if significativo:
         return (f"O teste de corte ({alvo['data_alvo']}) encontrou diferença estatisticamente significativa de "
                  f"NDVI entre segmentos roçados e não roçados (p = {f(alvo['p_valor_delta'], 4)}).")
+    total_rocados = saida["n_segmentos_rocados"]
+    ponte = (f" ({alvo['n_rocados']} dos {total_rocados} tinham NDVI válido em ambas as datas, entrando nesta "
+             "comparação)" if alvo["n_rocados"] != total_rocados else "")
     return (f"O teste de corte **não encontrou** diferença de NDVI entre roçados (n = {alvo['n_rocados']}, ΔNDVI "
             f"mediano {f(alvo['delta_rocados'])}) e não roçados (n = {alvo['n_nao_rocados']}, ΔNDVI mediano "
             f"{f(alvo['delta_nao_rocados'])}) — p = {f(alvo['p_valor_delta'], 4)}. Consistente com o espec (seção "
-            f"14, fora de escopo): {saida['n_segmentos_rocados']} segmentos com roçada inferida no intervalo é "
+            f"14, fora de escopo): {total_rocados} segmentos com roçada inferida no intervalo{ponte} é "
             "amostra pequena para um detector treinado, e o mesmo tamanho de amostra limita o poder deste teste "
             "de diferença de medianas.")
 

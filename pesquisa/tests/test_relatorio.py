@@ -139,6 +139,22 @@ def test_ndvi_leitura_delta_nao_significativo_cita_o_numero_calculado_nao_o_53_d
     assert "38 segmentos com roçada inferida" in texto
     assert "53" not in texto
     assert "espec (seção 14" in texto
+    # revisao: 38 (total com rocada inferida) e 34 (n_rocados, so quem tem
+    # NDVI valido nas duas datas) sao denominadores diferentes por definicao
+    # -- o texto tem que dizer isso, com os dois numeros vindos do dado.
+    assert "34 dos 38 tinham NDVI válido em ambas as datas" in texto
+
+
+def test_ndvi_leitura_delta_nao_repete_ponte_quando_os_dois_numeros_sao_iguais():
+    """Contraprova da anterior: se `n_rocados` bater com `n_segmentos_rocados`
+    (todo segmento rocado tinha NDVI valido nas duas datas), a clausula-ponte
+    seria uma tautologia ("34 dos 34") e nao deve aparecer.
+    """
+    r = _analise_toy(auc=0.5, p_valor=0.5, data_alvo="2026-03-20", data_imagem="2026-03-21")
+    r.update(n_rocados=34, n_nao_rocados=10, delta_rocados=0.014, delta_nao_rocados=0.0145, p_valor_delta=0.6847)
+    texto = relatorio.ndvi(_saida_ndvi_toy([r], n_segmentos_rocados=34))
+    assert "tinham NDVI válido em ambas as datas" not in texto
+    assert "34 segmentos com roçada inferida" in texto
 
 
 def test_ndvi_leitura_delta_significativo_troca_a_frase():
@@ -166,6 +182,35 @@ def test_ndvi_leitura_separacao_diz_invertida_quando_auc_abaixo_de_0_5():
     # frase inteira faz "invertida..." perder o negrito no render, porque
     # markdown consome os `**` aos pares na ordem em que aparecem).
     assert "mas **invertida em todas as datas com comparação possível**:" in texto
+
+
+def test_ndvi_leitura_separacao_usa_ponto_medio_cm_do_dominio_nao_numero_digitado(monkeypatch):
+    """Revisao apontou "~40 cm" e "~5 cm" como literais soltos, enquanto
+    `planilha.PONTO_MEDIO_CM` ja tem esses numeros. Monkeypatcha a constante
+    para um valor diferente e confere que o texto muda junto -- prova que a
+    frase le a constante em vez de repetir um numero fixo escrito na string.
+    """
+    from pesquisa.rodoanel import planilha
+    monkeypatch.setattr(planilha, "PONTO_MEDIO_CM", {1: 7.0, 2: 20.0, 3: 45.0})
+    r1 = _analise_toy(auc=0.155, p_valor=0.0049, data_alvo="2026-03-13")
+    r2 = _analise_toy(auc=0.188, p_valor=0.0072, data_alvo="2026-03-20", data_imagem="2026-03-21")
+    texto = relatorio.ndvi(_saida_ndvi_toy([r1, r2]))
+    assert "~45 cm" in texto and "~7 cm" in texto
+    assert "~40 cm" not in texto and "~5 cm" not in texto
+
+
+def test_ndvi_leitura_separacao_ramo_misto_e_o_que_realmente_esta_em_producao():
+    """Revisao apontou que so os extremos (tudo invertido, tudo esperado)
+    tinham teste -- mas o documento real (2 de 3 datas invertidas e
+    significativas, 1 nao) cai exatamente no ramo misto de direcao E no
+    ramo misto de significancia, os dois sem cobertura ate aqui.
+    """
+    r1 = _analise_toy(auc=0.2, p_valor=0.01, data_alvo="2026-03-13")
+    r2 = _analise_toy(auc=0.3, p_valor=0.02, data_alvo="2026-03-20", data_imagem="2026-03-21")
+    r3 = _analise_toy(auc=0.7, p_valor=0.5, data_alvo="2025-03-28", data_imagem="2025-03-31")
+    texto = relatorio.ndvi(_saida_ndvi_toy([r1, r2, r3]))
+    assert "invertida em 2 de 3 datas (2026-03-13, 2026-03-20) e no sentido esperado nas demais" in texto
+    assert "estatisticamente significativa em 2026-03-13, 2026-03-20 (p < 0,05); não significativa nas demais" in texto
 
 
 def test_ndvi_leitura_separacao_diz_sentido_esperado_quando_auc_acima_de_0_5():

@@ -1,6 +1,6 @@
 # 03 · NDVI Sentinel-2 contra a verdade de campo
 
-Gerado por `pesquisa/ndvi/analisar_ndvi.py` em 14/09/2026 00:59 (commit 5a673a4).
+Gerado por `pesquisa/ndvi/analisar_ndvi.py` em 14/09/2026 01:12 (commit ca04174).
 
 Máscara: polígonos de roçada do KML por segmento. Coleção `COPERNICUS/S2_SR_HARMONIZED`, pixel válido com SCL fora de {3, 8, 9, 10, 11} e probabilidade de nuvem < 40%.
 Classe do segmento = pior faixa em escopo na data. A leitura de 28/03/2025 usa as classes de 13/03/2026 e serve só como sanidade da hipótese de data.
@@ -48,7 +48,7 @@ A separação entre classes é real, mas **invertida em todas as datas com compa
 
 A leitura de sanidade de 2025-03-28 (AUC 0,188) usa as classes de campo de 13/03/2026 sobre uma imagem de satélite de um ano antes, e mostra a mesma direção de 2026-03-13, 2026-03-20. Isso é uma pergunta em aberto, não uma explicação assentada: parte do efeito pode ser do **lugar** (faixas estreitas, sombra de árvore, vegetação diferente naquele trecho) em vez da altura do capim naquele mês específico — o único fator realmente comum entre a leitura de 2025 e as de 2026 é a etiqueta de classe por segmento, não a imagem nem a estação do ano.
 
-O teste de corte **não encontrou** diferença de NDVI entre roçados (n = 34, ΔNDVI mediano 0,014) e não roçados (n = 10, ΔNDVI mediano 0,014) — p = 0,6847. Consistente com o espec (seção 14, fora de escopo): 38 segmentos com roçada inferida no intervalo é amostra pequena para um detector treinado, e o mesmo tamanho de amostra limita o poder deste teste de diferença de medianas.
+O teste de corte **não encontrou** diferença de NDVI entre roçados (n = 34, ΔNDVI mediano 0,014) e não roçados (n = 10, ΔNDVI mediano 0,014) — p = 0,6847. Consistente com o espec (seção 14, fora de escopo): 38 segmentos com roçada inferida no intervalo (34 dos 38 tinham NDVI válido em ambas as datas, entrando nesta comparação) é amostra pequena para um detector treinado, e o mesmo tamanho de amostra limita o poder deste teste de diferença de medianas.
 
 ## Limitações
 
