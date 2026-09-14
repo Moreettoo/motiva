@@ -51,7 +51,7 @@ function mm(cm: number): string {
 function limitacoes(v: Validacao, distanciaFronteiraCm: number | null): string[] {
   return [
     "Duas datas apenas, ambas em março de 2026: a calibração vale para o fim da estação chuvosa em São Paulo.",
-    `Classes de altura, não centímetros: a banda q10–q90 do modelo prevê a altura dentro de poucos centímetros, e os ${pct(v.acuracia_classe)} de acurácia vêm de forçar essa previsão contínua sobre uma régua de três classes${
+    `Classes de altura, não centímetros: a banda q10–q90 do modelo tem poucos centímetros de largura — é a incerteza que ele declara de si mesmo, não o erro dele medido contra o campo, que três classes não permitem medir —, e os ${pct(v.acuracia_classe)} de acurácia vêm de forçar essa previsão contínua sobre uma régua de três classes${
       distanciaFronteiraCm == null
         ? ""
         : ` cuja fronteira mais próxima (10 cm, entre as classes 1 e 2) fica a ${mm(distanciaFronteiraCm)} da mediana das alturas finais previstas para quem começou na classe 1`
@@ -59,7 +59,7 @@ function limitacoes(v: Validacao, distanciaFronteiraCm: number | null): string[]
     `Dias desde a última roçada eram desconhecidos em ${fmt.dataMedia(v.janela_de)}: a premissa de 200 dias foi testada contra 30 e 60.`,
     "A calibração é do Rodoanel. O método transfere para outra rodovia; o número, não.",
     "Pixel de 10 m no satélite: faixas estreitas (dispositivos e marginais) ficam fora da leitura por segmento.",
-    "53 roçadas inferidas em uma semana é amostra pequena para um detector automático de corte.",
+    "38 roçadas inferidas em uma semana (de 53 pares com queda de classe) é amostra pequena para um detector automático de corte.",
     "A acurácia não é prometida: é medida contra dado real de campo, e cada levantamento novo que o importador traz pode reconferi-la — mas o recálculo é um passo que um desenvolvedor roda, não algo automático (docs/operacao/importar-levantamento.md).",
   ];
 }

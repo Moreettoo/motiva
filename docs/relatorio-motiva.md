@@ -169,10 +169,14 @@ crescimento ativo — NDVI mede verdor, não altura.
 favorável desta seção e ele estava subdeclarado.** Um AUC de 0,155 não é "nada": AUC é simétrico
 em torno de 0,5, então ler o sinal na direção certa (NDVI **baixo** = capim alto) dá **0,845** em
 13/03/2026 e **0,812** em 28/03/2025, com p = 0,005 e p = 0,007 — separação forte, não ruído. Em
-linguagem de operação: **nestas datas, o satélite conseguiu dizer onde o capim estava alto**, que
-é diretamente uma resposta ao quinto ponto do feedback da Motiva. A ressalva honesta vem junto e é
-grande: as amostras são minúsculas (7 contra 23 segmentos em 13/03; 17 contra 4 em 20/03 — a data
-que não deu significância; 11 contra 16 em 28/03/2025), são três datas de março, e uma leitura de
+linguagem de operação: **em 13/03/2026, o satélite conseguiu dizer onde o capim estava alto**,
+que é diretamente uma resposta ao quinto ponto do feedback da Motiva. A ressalva honesta vem
+junto e é grande. A leitura de 28/03/2025 **não é uma segunda data de campo**: ela aplica as
+classes medidas em 13/03/2026 sobre uma imagem de um ano antes, então parte do que ela separa
+pode ser o *lugar* (faixa estreita, sombra de árvore, vegetação diferente naquele trecho) e não
+a altura do capim naquele mês — ela reforça a direção, não confirma o resultado. As amostras são
+minúsculas (7 contra 23 segmentos em 13/03; 17 contra 4 em 20/03 — a data que não deu
+significância; 11 contra 16 em 28/03/2025), são três datas de março, e uma leitura de
 **nível** ("está alto agora") é coisa diferente de detectar **variação** ("foi roçado esta
 semana") — que é o que a operação precisa, e é o que deu nulo logo abaixo. Não se compra um
 monitoramento por satélite com esses n; mas vale um teste dirigido, e ele está na seção 9.
@@ -184,7 +188,7 @@ monitoramento por satélite com esses n; mas vale um teste dirigido, e ele está
 Isso não ficou como dúvida em aberto: rodamos a série histórica completa do satélite sobre os 54
 segmentos — **14.730 observações limpas, 2019 a 2026, 8 anos inteiros** — e testamos um detector
 de corte (queda de NDVI ≥ 0,15 em até 12 dias, partindo de NDVI ≥ 0,45) contra as 38 roçadas que
-sabemos que aconteceram em março de 2026. Resultado: **2 das 38 detectadas — recall de 5,3%**, com
+inferimos terem acontecido em março de 2026. Resultado: **2 das 38 detectadas — recall de 5,3%**, com
 1 falso positivo. Os 190 "cortes" que o detector encontra ao longo dos 8 anos são, com esse
 recall, muito mais prováveis de ser ruído sazonal do sensor do que roçadas de verdade — essa
 contagem por ano não deve ser lida como histórico de intervenção.
@@ -266,10 +270,11 @@ completas:
   exclusão favorece o modelo, porque o modelo só prevê crescimento: um par que "desceu" de classe
   seria erro garantido para ele. A leitura é defensável (capim não encolhe sozinho em 7 dias), mas
   não é a única: dos 53, **27 são 2 → 1**, tão compatíveis com divergência de critério entre as
-  duas equipes de campo quanto com roçada, e **3 são 1 → 3 em sete dias** (≈ 3 cm/dia), o que não
-  é crescimento plausível e é quase certamente erro de observação — e esses 3 estão dentro das 33
-  "transições" que o modelo é cobrado por detectar. Não houve teste de concordância entre
-  observadores. A exclusão infla **os dois** números da seção 4, os 60,5% e os 83,1%
+  duas equipes de campo quanto com roçada. E o ruído de observação não fica só nos pares
+  excluídos: entre as **33 transições** que o modelo é cobrado por detectar, **3 são 1 → 3 em sete
+  dias** (≈ 3 cm/dia), o que não é crescimento plausível e é quase certamente erro de medição.
+  Não houve teste de concordância entre observadores. A exclusão infla **os dois** números da
+  seção 4, os 60,5% e os 83,1%
   (`docs/pesquisa/01-consolidacao.md`).
 - 53 pares com queda de classe viraram **38 roçadas inferidas** por segmento, das quais **34** têm
   NDVI válido nas duas datas — amostra pequena para um detector automático, e a seção 6 mostra o
@@ -312,9 +317,10 @@ comando.
 
 Um item novo, que sai de um achado desta semana e não estava na lista original: **testar o
 satélite como leitura de NÍVEL, não de variação.** A seção 6 mostra que o NDVI separou capim alto
-de capim baixo com AUC efetivo de 0,845 (13/03/2026) e 0,812 (28/03/2025), p ≤ 0,007, lido na
-direção invertida — sinal forte, mas sobre 7 contra 23 e 11 contra 16 segmentos, em duas datas de
-março. O teste que fecha a questão é barato e não depende de mais nada da Motiva além do
+de capim baixo com AUC efetivo de 0,845 em 13/03/2026, p = 0,005, lido na direção invertida —
+sinal forte, mas sobre 7 contra 23 segmentos, numa única data de campo. (A leitura de 28/03/2025,
+AUC 0,812, aponta na mesma direção, mas usa as classes de 13/03/2026 sobre uma imagem de um ano
+antes: reforça, não confirma.) O teste que fecha a questão é barato e não depende de mais nada da Motiva além do
 levantamento que ela já faz: repetir a comparação em mais datas, cobrindo outras estações, e ver
 se o limiar de NDVI se sustenta como estimador de "está alto agora" por segmento. Se sustentar, o
 satélite vira uma segunda fonte de medição entre caminhadas — não de detecção de roçada, que a
