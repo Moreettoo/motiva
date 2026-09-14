@@ -6,6 +6,21 @@ Duas armadilhas medidas (docs/PLANO_MOTIVA.md 4.1 e 4.2):
     gravados estao deslocados: name="classe" traz a LATITUDE, name="KM" traz a
     LONGITUDE e name="Latitude" traz a AREA em m2. A classe verdadeira esta em
     <name> e o km inteiro em <description>.
+
+Buracos (aneis internos): 49 dos 642 placemarks tem <innerBoundaryIs>, somando
+~123.000 m2 (12,5% da area total) que precisam ser DESCONTADOS da area do anel
+externo. O campo area_m2 (Latitude deslocado) ja vem liquido -- ja desconta os
+buracos no proprio arquivo (conferido no placemark 17: area declarada 170,0 m2,
+anel externo sozinho 234,5 m2, externo menos interno 169,6 m2) -- entao
+area_rocada_m2 em producao nao muda com isso.
+
+O que muda e a GEOMETRIA. `aneis` guarda so os aneis externos, de proposito:
+a Tarefa 14 monta `ee.Geometry.MultiPolygon(coords=[[a] for a in lista])`, que
+trata cada anel da lista como um poligono externo independente. Se os buracos
+fossem simplesmente anexados em `aneis`, virariam area ADITIVA (pior que
+ignora-los: infla a mascara em vez de furar). Por isso os buracos ficam num
+campo separado, `aneis_internos`, para quem for montar a geometria descontar
+explicitamente -- nao para serem somados.
 """
 from __future__ import annotations
 
@@ -34,7 +49,8 @@ class Poligono:
     latitude: float
     longitude: float
     area_m2: float
-    aneis: tuple[tuple[tuple[float, float], ...], ...]   # cada anel: ((lon, lat), ...)
+    aneis: tuple[tuple[tuple[float, float], ...], ...]   # SO externos: ((lon, lat), ...) cada anel
+    aneis_internos: tuple[tuple[tuple[float, float], ...], ...]   # buracos a subtrair; ver docstring do modulo
 
 
 def _anel(texto: str) -> tuple[tuple[float, float], ...]:
@@ -57,12 +73,18 @@ def ler_poligonos(caminho: str | Path) -> list[Poligono]:
         aneis = tuple(_anel(c.text) for c in pm.findall(".//k:outerBoundaryIs//k:coordinates", NS))
         if not aneis:
             raise ValueError(f"placemark {i}: sem anel externo")
+        # Buracos (49 dos 642 placemarks): guardados a parte, nunca anexados a
+        # `aneis` -- ver a nota do docstring do modulo sobre por que isso e
+        # deliberado (area_rocada_m2 no arquivo ja e liquida; a geometria e
+        # que precisa da subtracao explicita, feita por quem consumir este campo).
+        aneis_internos = tuple(_anel(c.text) for c in pm.findall(".//k:innerBoundaryIs//k:coordinates", NS))
         saida.append(Poligono(
             indice=i, metodo=metodo, km_descricao=km,
             latitude=float(dados["classe"]),      # deslocado: e a latitude
             longitude=float(dados["KM"]),         # deslocado: e a longitude
             area_m2=float(dados["Latitude"]),     # deslocado: e a area
             aneis=aneis,
+            aneis_internos=aneis_internos,
         ))
     return saida
 
@@ -79,7 +101,19 @@ def marco_de(km_m: float) -> int:
 
 
 def atribuir(poligonos: list[Poligono], eixo: Eixo) -> dict[int, tuple[int, float]]:
-    """indice -> (marco, distancia do centroide ao eixo em m)."""
+    """indice -> (marco, distancia do centroide ao eixo em m).
+
+    Atencao entre os km 23 e 26: a Motiva nao tem marco nesse trecho (a maior
+    lacuna do eixo reordenado, ~2.042 m, fica entre os marcos originais 22 e
+    23 -- ver marcos.py), entao o eixo vira uma corda reta onde a rodovia de
+    verdade faz curva. A corda e mais curta que a estrada, o chainage arrasta
+    e a atribuicao de metodo/area por marco fica menos confiavel exatamente
+    nesse trecho (54 dos 70 poligonos que discordam da descricao continua do
+    km estao ali -- ver test_concordancia_continua_e_a_lacuna_do_eixo). Nao e
+    defeito de projecao (a pior distancia ao eixo do lote, poligono 596, fica
+    a so 18 m -- bem abaixo da mediana de 56 m); e limitacao de dado: 30
+    marcos nao da pra cobrir 29,3 km sem aproximar em algum trecho.
+    """
     saida = {}
     for p in poligonos:
         km_m, dist = eixo.km_planilha(p.latitude, p.longitude)

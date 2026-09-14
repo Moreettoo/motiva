@@ -92,24 +92,74 @@ def test_esquema_deslocado_bate_com_o_primeiro_placemark_do_arquivo_real(pols):
     assert math.isclose(primeiro_ponto[1], -23.4176621760433, abs_tol=1e-9)   # lat
 
 
+def _area_do_anel_m2(anel):
+    lat0 = anel[0][1]
+    kx = 111_320.0 * math.cos(math.radians(lat0))
+    ky = 110_574.0
+    pontos_m = [((lon - anel[0][0]) * kx, (lat - lat0) * ky) for lon, lat in anel]
+    soma = 0.0
+    for (x1, y1), (x2, y2) in zip(pontos_m, pontos_m[1:] + pontos_m[:1]):
+        soma += x1 * y2 - x2 * y1
+    return abs(soma) / 2.0
+
+
 def test_area_declarada_bate_com_a_area_geometrica_do_anel(pols):
     """area_m2 vem do SimpleData deslocado (name="Latitude"). Cruza com a area
     calculada a partir do proprio anel de coordenadas (formula do shoelace,
-    projetada em metros por um plano local equiretangular) para os 5 primeiros
-    poligonos -- confere que o campo realmente representa a area do poligono,
-    e nao outro numero plausivel qualquer.
+    projetada em metros por um plano local equiretangular), independente da
+    conta de ler_poligonos, para os 5 primeiros poligonos e para o poligono
+    17 (indice confirmado com buraco) -- confere que o campo realmente
+    representa a area do poligono, e nao outro numero plausivel qualquer.
+
+    Os 5 primeiros nao tem buraco (aneis_internos vazio), entao area externa
+    sozinha basta. O poligono 17 tem: area declarada 170,0 m2, anel externo
+    sozinho 234,5 m2, externo menos o buraco 169,6 m2 -- ou seja, comparar so
+    com o anel externo (sem subtrair aneis_internos) erraria por ~38% aqui.
+    Antes desta correcao o teste amostrava so pols[:5], nenhum dos quais tem
+    buraco: passava por sorte de ordenacao, sem nunca exercitar o caso que
+    aneis_internos existe para cobrir.
     """
-    for p in pols[:5]:
-        anel = p.aneis[0]
-        lat0 = anel[0][1]
-        kx = 111_320.0 * math.cos(math.radians(lat0))
-        ky = 110_574.0
-        pontos_m = [((lon - anel[0][0]) * kx, (lat - lat0) * ky) for lon, lat in anel]
-        soma = 0.0
-        for (x1, y1), (x2, y2) in zip(pontos_m, pontos_m[1:] + pontos_m[:1]):
-            soma += x1 * y2 - x2 * y1
-        area_geometrica = abs(soma) / 2.0
+    for p in [pols[0], pols[1], pols[2], pols[3], pols[4], pols[17]]:
+        area_externa = sum(_area_do_anel_m2(anel) for anel in p.aneis)
+        area_buracos = sum(_area_do_anel_m2(anel) for anel in p.aneis_internos)
+        area_geometrica = area_externa - area_buracos
         assert math.isclose(area_geometrica, p.area_m2, rel_tol=0.05, abs_tol=1.0)
+
+
+def test_aneis_internos_guarda_os_buracos_sem_infla_los_em_aneis(pols):
+    """aneis_internos e um campo separado por decisao de design (ver docstring
+    do modulo): a Tarefa 14 trata cada entrada de `aneis` como um poligono
+    externo independente, entao anexar buracos ali os tornaria area aditiva
+    em vez de subtrativa. Este teste fixa os dois lados dessa garantia contra
+    o arquivo real: um poligono sem buraco tem aneis_internos vazio (e aneis
+    continua so com o externo), e o poligono 17 (buraco confirmado) tem
+    exatamente 1 anel interno, com os pontos certos -- nao teria pego uma
+    implementacao que jogasse os buracos dentro de `aneis` por engano, ja que
+    nesse caso aneis_internos ficaria vazio para todo mundo (silenciosamente).
+    """
+    assert pols[0].aneis_internos == ()
+    assert len(pols[0].aneis) == 1
+
+    buracos = pols[17].aneis_internos
+    assert len(buracos) == 1
+    assert len(pols[17].aneis) == 1        # o buraco nao foi parar em aneis
+    assert len(buracos[0]) == 22
+    primeiro_ponto = buracos[0][0]
+    assert math.isclose(primeiro_ponto[0], -46.7347387146605, abs_tol=1e-9)   # lon
+    assert math.isclose(primeiro_ponto[1], -23.4081360882573, abs_tol=1e-9)   # lat
+
+
+def test_total_de_area_com_buraco_e_medido_em_13_09_2026(pols):
+    """Contagem e area total dos buracos medidos no arquivo real: 49 dos 642
+    placemarks tem <innerBoundaryIs>, somando ~123.000 m2 (12,5% da area
+    total de 981.817 m2). Nao afeta area_m2 (ja liquido no arquivo), mas
+    fixa o tamanho do problema que a geometria de `aneis` sozinha teria: uma
+    mascara so com aneis externos infla a area mascarada em ~12,5%.
+    """
+    com_buraco = [p for p in pols if p.aneis_internos]
+    area_buracos = sum(_area_do_anel_m2(a) for p in pols for a in p.aneis_internos)
+    assert len(com_buraco) == 49
+    assert math.isclose(area_buracos, 123_000, rel_tol=0.02)
 
 
 def test_marco_de():
@@ -131,6 +181,43 @@ def test_atribuicao_concorda_com_a_descricao(pols, eixo):
     # este arquivo especifico o numero real e 100% -- um resultado abaixo disso
     # e sinal de erro, nao motivo para relaxar o teste ate ele passar.
     assert concordam == len(pols)
+
+
+def test_concordancia_continua_e_a_lacuna_do_eixo(pols, eixo):
+    """A metrica acima (marco_de(km_m) // 1000, tolerancia de 1 km) e a do
+    espec e bate 100% -- mas ela passa por marco_de(), que ja arredonda para
+    baixo em passos de 500 m antes de comparar. Uma metrica continua (km_m
+    direto, sem passar por marco_de nem por floor/round, mesma tolerancia de
+    1 km) e bem mais exigente e da 572/642 (89,1%): nao e um numero pior por
+    acaso, e um numero explicavel.
+
+    Dos 70 poligonos que discordam nessa metrica continua, 54 (77%) tem
+    km_descricao em {23, 25, 26} -- exatamente o trecho onde o eixo reordenado
+    tem sua unica lacuna real (~2.042 m, entre os marcos originais 22 e 23,
+    equivalente a km_planilha ~23,67-25,73: ver marcos.py e o comentario em
+    atribuir()). Ali o eixo e uma corda reta onde a estrada de verdade faz
+    curva, entao o chainage arrasta. Nao e erro de projecao: a pior distancia
+    ao eixo do lote inteiro (poligono 596) fica a so 18 m, bem abaixo da
+    mediana geral de 56 m -- e 30 marcos para 29,3 km e o que da para fazer.
+
+    Este teste registra esse 572/642 como propriedade conhecida e explicada,
+    nao como meta a maximizar: se ela mudar, e sinal de que o eixo, a leitura
+    do <description> ou a escala mudaram, nao que a tolerancia deva ser
+    ajustada para continuar batendo.
+    """
+    discordantes = []
+    for p in pols:
+        km_m_continuo, _dist = eixo.km_planilha(p.latitude, p.longitude)
+        continuo = km_m_continuo / 1000.0
+        if abs(continuo - p.km_descricao) > 1:
+            discordantes.append(p)
+
+    concordam_continuo = len(pols) - len(discordantes)
+    assert concordam_continuo == 572
+
+    na_lacuna = sum(1 for p in discordantes if p.km_descricao in (23, 25, 26))
+    assert na_lacuna == 54
+    assert na_lacuna / len(discordantes) > 0.75
 
 
 def test_distancia_ao_eixo_bate_com_a_mediana_p90_e_maximo_medidos(pols, eixo):
