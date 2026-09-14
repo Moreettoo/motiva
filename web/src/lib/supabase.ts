@@ -16,7 +16,11 @@ import { createClient } from "@supabase/supabase-js";
 const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
 // Chave secreta nova (`sb_secret_...`). A `service_role` legada continua aceita
 // ate o fim de 2026, quando o Supabase a desliga; ate la as duas funcionam aqui.
-const key = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_KEY;
+// `||`, nao `??`: SUPABASE_SECRET_KEY pode existir e vir vazia (documentado em
+// docs/operacao/preparacao-dados-reais.md), e string vazia nao e credencial
+// valida. `??` so cai para o fallback em null/undefined, entao a variavel
+// vazia venceria a SUPABASE_SERVICE_KEY valida e quebraria o build.
+const key = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_KEY;
 
 if (!url || !key) {
   throw new Error(
