@@ -1,0 +1,48 @@
+{
+ "gerado_em": "14/09/2026 00:18",
+ "commit": "5c15cf1",
+ "analises": [
+  {
+   "data_alvo": "2026-03-13",
+   "data_imagem": "2026-03-16",
+   "defasagem_dias": 3,
+   "nuvem_pct_media": 0.20831111111111109,
+   "n_classe1": 7,
+   "n_classe3": 23,
+   "ndvi_mediana_c1": 0.5839211469295319,
+   "ndvi_mediana_c3": 0.5015567653085145,
+   "auc": 0.15527950310559005,
+   "p_valor": 0.004918950781019746
+  },
+  {
+   "data_alvo": "2026-03-20",
+   "data_imagem": "2026-03-21",
+   "defasagem_dias": 1,
+   "nuvem_pct_media": 0.22497407407407408,
+   "n_classe1": 17,
+   "n_classe3": 4,
+   "ndvi_mediana_c1": 0.5724523114626384,
+   "ndvi_mediana_c3": 0.4829029715257773,
+   "auc": 0.25,
+   "p_valor": 0.14402673350041773,
+   "n_rocados": 34,
+   "n_nao_rocados": 10,
+   "delta_rocados": 0.014036968251807475,
+   "delta_nao_rocados": 0.014472837513297032,
+   "p_valor_delta": 0.6846829208607867
+  },
+  {
+   "data_alvo": "2025-03-28",
+   "data_imagem": "2025-03-31",
+   "defasagem_dias": 3,
+   "nuvem_pct_media": 0.4535777777777778,
+   "n_classe1": 11,
+   "n_classe3": 16,
+   "ndvi_mediana_c1": 0.5494463535700649,
+   "ndvi_mediana_c3": 0.4102474530878133,
+   "auc": 0.1875,
+   "p_valor": 0.00715854039875032
+  }
+ ],
+ "n_segmentos_rocados": 38
+}

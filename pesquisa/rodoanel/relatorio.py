@@ -169,3 +169,27 @@ escala para o km da planilha **{eixo.escala:.4f}**.
   pior classe apenas dentre as **{len(planilha.CODIGOS_EM_ESCOPO)}** faixas em escopo (canteiro
   lateral e central, interno e externo).
 """
+
+
+def ndvi(saida: dict) -> str:
+    def f(v, casas=3):
+        return "—" if v is None else f"{v:.{casas}f}".replace(".", ",")
+    blocos = []
+    for r in saida["analises"]:
+        if r.get("sem_imagem"):
+            blocos.append(f"### {r['data_alvo']}\n\nNenhuma imagem com nuvem média abaixo de 50% em ±7 dias. Resultado registrado: a cobertura de nuvem inviabilizou a leitura nesta data.")
+            continue
+        texto = (f"### {r['data_alvo']}\n\nImagem de **{r['data_imagem']}** (defasagem {r['defasagem_dias']:+d} d, nuvem média {f(r['nuvem_pct_media'], 2)}).\n\n"
+                 f"| | classe 1 | classe 3 |\n|---|---|---|\n| segmentos | {r['n_classe1']} | {r['n_classe3']} |\n"
+                 f"| NDVI mediano | {f(r['ndvi_mediana_c1'])} | {f(r['ndvi_mediana_c3'])} |\n\n"
+                 f"AUC (classe 3 acima da 1) = **{f(r['auc'])}** · p = {f(r['p_valor'], 4)}.")
+        if r.get("n_rocados") is not None:
+            texto += (f"\n\nΔNDVI 13→20/03: roçados (n = {r['n_rocados']}) **{f(r['delta_rocados'])}** · "
+                      f"não roçados (n = {r['n_nao_rocados']}) **{f(r['delta_nao_rocados'])}** · p = {f(r['p_valor_delta'], 4)}.")
+        blocos.append(texto)
+    return (f"# 03 · NDVI Sentinel-2 contra a verdade de campo\n\nGerado por `pesquisa/ndvi/analisar_ndvi.py` em {saida['gerado_em']} (commit {saida['commit']}).\n\n"
+            "Máscara: polígonos de roçada do KML por segmento. Coleção `COPERNICUS/S2_SR_HARMONIZED`, pixel válido com SCL fora de {3, 8, 9, 10, 11} e probabilidade de nuvem < 40%.\n"
+            "Classe do segmento = pior faixa em escopo na data. A leitura de 28/03/2025 usa as classes de 13/03/2026 e serve só como sanidade da hipótese de data.\n\n"
+            + "\n\n".join(blocos)
+            + f"\n\n## Leitura\n\nAUC 0,5 = o satélite não separa; 1,0 = separa perfeitamente. {saida['n_segmentos_rocados']} segmentos tiveram roçada inferida no intervalo.\n\n"
+            "## Limitações\n\n- Pixel de 10 m e polígonos estreitos: segmentos com poucos pixels válidos pesam igual aos largos.\n- Uma data por levantamento, com defasagem de até 7 dias.\n- NDVI mede verdor, não altura: capim alto e seco pode ler baixo.\n")
