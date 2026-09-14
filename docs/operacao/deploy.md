@@ -1,11 +1,15 @@
 # Publicar o painel na Vercel
 
-Como uma versão nova do `web/` chega a `https://motiva-highwai.vercel.app`, quais variáveis
-precisam existir antes, e por que o caminho é manual.
+Como uma versão nova do `web/` chega a **`https://www.highwai.pro`**, quais variáveis precisam
+existir antes, e por que o caminho é manual.
 
-> **Estado em 11/09/2026:** produção serve o commit `336d9db` (fim da Onda 3), publicado pelo
-> procedimento abaixo. As 13 variáveis estão cadastradas em Production e Preview. Antes desta
-> data o endereço público servia um build de 20/08 — sem login, sem chamados, sem app de campo.
+> **Estado em 14/09/2026:** o alias primário do projeto é **`www.highwai.pro`** (domínio próprio,
+> verificado desde 13/09/2026), não mais `motiva-highwai.vercel.app` — os dois continuam
+> funcionando e apontam para o mesmo deployment (`vercel inspect` lista os quatro aliases:
+> `www.highwai.pro`, `highwai.pro`, `motiva-highwai.vercel.app`), mas `www.highwai.pro` é o
+> endereço a divulgar e o que a saída do CLI mostra primeiro (`▲ Aliased https://www.highwai.pro`).
+> Produção roda os dados reais do Rodoanel, publicados pelo procedimento abaixo. As 13 variáveis
+> estão cadastradas em Production e Preview.
 
 ---
 
@@ -36,32 +40,44 @@ começo são o motivo de existir esta seção:
 - **Não use a ferramenta `deploy_to_vercel` do MCP.** Ela não dá conta do
   `web/src/lib/modelo/modelo.json`, que tem 6 MB.
 
+## No macOS
+
+A máquina de deploy atual é um Mac; os comandos abaixo (usados desde a Tarefa 19) usam
+`/tmp/motiva-deploy`. Em outra máquina (Windows, outro Mac), troque `/tmp/motiva-deploy` e o
+diretório do repositório pelo equivalente local — o mecanismo é o mesmo em qualquer sistema.
+
 ```bash
-cd /e/motiva-ondas/a-producao          # ou o worktree que carrega o commit a publicar
+cd /Users/enzomoretto/Desktop/motiva/motiva   # ou o worktree/checkout que carrega o commit a publicar
 
-rm -rf /c/Users/enzom/AppData/Local/Temp/motiva-deploy
-mkdir -p /c/Users/enzom/AppData/Local/Temp/motiva-deploy
-git archive HEAD | tar -x -C /c/Users/enzom/AppData/Local/Temp/motiva-deploy
+rm -rf /tmp/motiva-deploy
+mkdir -p /tmp/motiva-deploy/.vercel
+git archive HEAD | tar -x -C /tmp/motiva-deploy
+cp .vercel/project.json /tmp/motiva-deploy/.vercel/
 
-mkdir -p /c/Users/enzom/AppData/Local/Temp/motiva-deploy/.vercel
-cp /e/motiva/.vercel/project.json /c/Users/enzom/AppData/Local/Temp/motiva-deploy/.vercel/
-
-cd /c/Users/enzom/AppData/Local/Temp/motiva-deploy && vercel --prod --yes
+cd /tmp/motiva-deploy && vercel --prod --yes
 ```
 
+**Se `vercel --prod --yes` responder `"Not authorized"` na primeira tentativa, repita o mesmo
+comando antes de investigar mais fundo.** Já aconteceu no deploy da Tarefa 19: `vercel whoami` e
+`vercel project inspect motiva` confirmaram a mesma sessão e o mesmo `projectId` de
+`.vercel/project.json` (sem mismatch de escopo), e uma repetição **idêntica** do comando, sem
+trocar nada, funcionou. É uma falha transitória do CLI, não um problema de credencial ou de
+projeto.
+
 `git archive HEAD` é o que garante que sobe **exatamente o commit**, sem arquivo não
-versionado e sem alteração pendente. O staging fica em ~16 MB; se ele passar disso, alguma
+versionado e sem alteração pendente. O staging fica em ~16–19 MB; se ele passar bem disso, alguma
 coisa não versionada entrou no archive e vale olhar antes de enviar:
 
 ```bash
-du -sh /c/Users/enzom/AppData/Local/Temp/motiva-deploy
-find /c/Users/enzom/AppData/Local/Temp/motiva-deploy -type f -size +2M -printf '%s %p\n' | sort -rn
+du -sh /tmp/motiva-deploy
+find /tmp/motiva-deploy -type f -size +2M -exec ls -la {} \;
 ```
 
 Os dois únicos arquivos acima de 2 MB que devem aparecer são `web/src/lib/modelo/modelo.json`
 (6,3 MB, as 1.200 árvores) e `ml/modelo_gramas.pkl` (5,5 MB).
 
-O `project.json` copiado de `/e/motiva/.vercel/` é o que liga o diretório ao projeto certo:
+O `project.json` copiado de `.vercel/` (na raiz do repositório) é o que liga o diretório ao
+projeto certo:
 
 | campo | valor |
 |---|---|
@@ -87,10 +103,13 @@ list_deployments(projectId=prj_KPYfRF46NaX33VWEBhYSY85fweVG,
 ```
 
 O deployment novo tem que estar no topo, com `"state": "READY"` e `"target": "production"`.
-Um `vercel --prod` bem-sucedido também escreve o alias `motiva-highwai.vercel.app`; sem essa
-linha, o deploy existe mas o endereço público continua no anterior.
+Um `vercel --prod` bem-sucedido também escreve os aliases — a saída do CLI mostra
+`▲ Aliased https://www.highwai.pro` primeiro, e `motiva-highwai.vercel.app`/`highwai.pro` continuam
+apontando para o mesmo deployment; sem essa linha, o deploy existe mas o endereço público continua
+no anterior.
 
-Prova de 10 segundos, sem navegador:
+Prova de 10 segundos, sem navegador (qualquer um dos três aliases serve; `motiva-highwai.vercel.app`
+é usado abaixo por ser o mais antigo e o que os scripts de conferência já citam):
 
 ```bash
 curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" https://motiva-highwai.vercel.app/
@@ -128,7 +147,7 @@ não conte com isso em outro lugar).
 ### Conferir e cadastrar
 
 ```bash
-cd /c/Users/enzom/AppData/Local/Temp/motiva-deploy   # ou outro diretório com o .vercel/
+cd /tmp/motiva-deploy   # ou outro diretório com o .vercel/ (na máquina de deploy)
 vercel env ls production
 vercel env ls preview
 vercel env add NOME production,preview --no-sensitive --value "…" --yes
