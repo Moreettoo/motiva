@@ -4,10 +4,7 @@ from collections import Counter, defaultdict
 import pytest
 
 from pesquisa.rodoanel import ARQ_MARCOS, ARQ_POLIGONOS, marcos, poligonos
-
-# A Tarefa 6 ainda nao existe: `from pesquisa.rodoanel.segmentos import MARCOS` falharia.
-# Ate la, o substituto literal indicado no brief (mesmo conjunto de marcos: 0, 500, ..., 29000, 29300).
-MARCOS = set(range(0, 29_001, 500)) | {29_300}
+from pesquisa.rodoanel.segmentos import MARCOS
 
 
 @pytest.fixture(scope="module")
@@ -250,7 +247,7 @@ def test_resumo_por_marco(pols, eixo):
     resumo = poligonos.resumo_por_marco(pols, atrib)
     assert abs(sum(r["area_total_m2"] for r in resumo.values()) - 981_817) < 1.0
     assert all(r["metodo_dominante"] in poligonos.METODOS for r in resumo.values())
-    assert set(resumo) <= MARCOS
+    assert set(resumo) <= set(MARCOS)
     # n_poligonos por marco tem que bater com uma contagem independente feita
     # aqui a partir de atrib, e a soma tem que cobrir os 642 poligonos: pega um
     # resumo_por_marco que perca ou duplique poligonos ao agrupar.

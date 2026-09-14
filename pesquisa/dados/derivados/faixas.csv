@@ -1,0 +1,13 @@
+codigo,nome,linha_planilha,lado,em_escopo,ordem
+cant_dispositivo_ext,CANT. DISPOSITIVO EXT.,10,externa,0,1
+cant_marginal_externa,CANT. MARGINAL EXTERNA,11,externa,0,2
+marginal_externa,MARGINAL EXTERNA,12,externa,0,3
+cant_lateral_externa,CANT. LATERAL EXTERNA,14,externa,1,4
+pista_externa,PISTA EXTERNA,15,externa,0,5
+cant_central_externa,CANT. CENTRAL EXTERNA,17,externa,1,6
+cant_central_interna,CANT. CENTRAL INTERNA,18,interna,1,7
+pista_interna,PISTA INTERNA,19,interna,0,8
+cant_lateral_interna,CANT. LATERAL INTERNA,21,interna,1,9
+marginal_interna,MARGINAL INTERNA,22,interna,0,10
+cant_marginal_interna,CANT. MARGINAL INTERNA,24,interna,0,11
+cant_dispositivo_int,CANT. DISPOSITIVO INT.,25,interna,0,12
