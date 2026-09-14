@@ -1,22 +1,43 @@
 """relatorio.py nao tinha nenhum teste no brief (nem escrever, nem diario, nem
 consolidacao): as tres funcoes listadas em Produces ficavam cobertas so
 indiretamente, rodando `pesquisa.consolidar` manualmente. Este arquivo cobre
-as tres direto.
+as tres direto -- e, na Tarefa 9, tambem `relatorio.validacao`, que o brief
+tao pouco cobria (mais um Produces sem teste nenhum).
 """
 from __future__ import annotations
 
+from dataclasses import asdict
 from datetime import date
 
+import numpy as np
+
 from pesquisa.rodoanel import planilha, relatorio, segmentos
+from pesquisa.rodoanel import validacao as validacao_mod
 from pesquisa.rodoanel.marcos import Eixo
 from pesquisa.rodoanel.planilha import Levantamento, Observacao
 from pesquisa.rodoanel.poligonos import Poligono
+from pesquisa.rodoanel.validacao import Linha, Parametros
 
 
 def test_escrever_cria_diretorios_que_nao_existem_e_grava_utf8(tmp_path):
     caminho = tmp_path / "sub" / "dir" / "relatorio.md"
     relatorio.escrever(caminho, "conteudo com acento: é, ç, ã")
     assert caminho.read_text(encoding="utf-8") == "conteudo com acento: é, ç, ã"
+
+
+def test_num_formata_no_padrao_br_ponto_de_milhar_virgula_decimal():
+    """Pina os dois bugs de formatacao que motivaram o helper central `_num`
+    (usado por `_br` e por `_tabela`): o eixo tem 29.025 m (29 mil, ponto de
+    milhar), nao "29,025 m" (que um leitor BR le como vinte e nove virgula
+    zero-dois-cinco); e 98,2 ha (virgula decimal), nao "98.2 ha" (ponto onde
+    o BR usa virgula). Mais um caso misto (milhar E decimal juntos) para
+    fechar a cobertura.
+    """
+    assert relatorio._num(29_025.0, 0) == "29.025"
+    assert relatorio._num(98.2, 1) == "98,2"
+    assert relatorio._num(1_234.5, 1) == "1.234,5"
+    assert relatorio._br(29_025.0, 0) == "29.025"
+    assert relatorio._br(98.2, 1) == "98,2"
 
 
 def test_diario_acrescenta_uma_linha_por_chamada_no_formato_esperado(tmp_path, monkeypatch):
@@ -93,8 +114,14 @@ def test_consolidacao_nao_digita_numero_a_mao_bate_com_as_contagens_de_entrada()
     assert len(faltando) == 59
     assert f"**{len(faltando)}** dos **{len(segs)}** segmentos" in texto
     assert "km 0,50–29,30" in texto
-    # decimais em virgula (padrao BR), nao ponto -- ver auditoria de decimais
-    assert "0.50" not in texto and "29.30" not in texto
+    # decimais em virgula (padrao BR), nao ponto, no proprio trecho -- ancorado
+    # ao contexto ("km "/"–") para nao colidir com "29.300 m" (comprimento do
+    # eixo, que E "29.300" de proposito: ponto de milhar, nao decimal errado --
+    # ver a correcao central de formatacao em `_num`/`_br`).
+    assert "km 0.50" not in texto and "–29.30" not in texto
+    # comprimento do eixo deste cenario de teste e 29_300 m: pina o ponto de
+    # milhar correto (nao a virgula que o bug original produzia).
+    assert "comprimento **29.300 m**" in texto
 
 
 def test_paragrafo_sem_poligono_quando_todos_os_segmentos_tem_poligono():
@@ -128,3 +155,83 @@ def test_paragrafo_sem_poligono_agrupa_trechos_nao_adjacentes_separadamente():
     assert "km 0,50–1,00" in texto
     assert "km 2,00–2,50" in texto
     assert "km 0,50–2,50" not in texto   # nao pode fundir os dois trechos
+
+
+def _linha_toy(km, c1, c2, h0=None):
+    h0 = {1: 5.0, 2: 20.0, 3: 40.0}[c1] if h0 is None else h0
+    return Linha(km, "cant_lateral_externa", c1, c2, h0, {})
+
+
+def _saida_validacao_toy() -> dict:
+    """Um `saida` minusculo e conhecido (mesmo cenario de
+    `test_avaliar_caso_construido` em test_validacao.py) para conferir que
+    `relatorio.validacao` so LE o dicionario -- nenhum numero do texto pode
+    vir digitado a mao na propria funcao de relatorio.
+    """
+    linhas = [_linha_toy(0, 1, 2), _linha_toy(500, 1, 1), _linha_toy(1000, 2, 2), _linha_toy(1500, 2, 3)]
+    Q = np.array([[3.0, 6.0, 9.0], [1.0, 2.0, 3.0], [2.0, 4.0, 6.0], [4.0, 8.0, 12.0]])
+    resultado = validacao_mod.rodar(linhas, Q)
+    p = Parametros()
+    sens = validacao_mod.avaliar(linhas, Q, 1.0)
+    sens.pop("por_par")
+    sem_premissa = validacao_mod.avaliar(linhas[:3], Q[:3], 1.0)
+    sem_premissa.pop("por_par")
+    return {
+        "gerado_em": "14/09/2026 00:00", "commit": "abc1234",
+        "parametros": asdict(p),
+        "resultado": resultado,
+        "sensibilidade": [{"rotulo": p.rotulo(), "parametros": asdict(p), **sens}],
+        "solo_premissa": {
+            "n_marcos_premissa": 1, "n_marcos_total": 4, "n_pares_premissa": 1, "n_pares_total": 4,
+            "fertilidade_premissa": [0.35], "fertilidade_medida_min": 0.5, "fertilidade_medida_max": 0.6,
+            "capacidade_premissa": [60.0], "capacidade_medida_min": 58.0, "capacidade_medida_max": 62.0,
+            "sem_premissa": sem_premissa,
+        },
+        "fila_retrospectiva": {"segmentos_avaliados": 4, "marcados": [0], "cruzaram": [0, 1500],
+                               "acertos": [0], "n_marcados": 1, "n_cruzaram": 2, "n_acertos": 1},
+    }
+
+
+def test_validacao_nao_digita_numero_a_mao():
+    saida = _saida_validacao_toy()
+    texto = relatorio.validacao(saida)
+    res = saida["resultado"]
+
+    assert texto.startswith("# 02")
+    assert saida["gerado_em"] in texto and saida["commit"] in texto
+    # os numeros centrais (n, acuracia, transicoes, alarmes, J) tem que vir do
+    # proprio `resultado`, com virgula decimal (padrao BR) -- nao hardcoded.
+    assert f"**{res['sem_calibracao']['n']}**" in texto
+    assert "83,1%" not in texto   # este cenario de teste NAO e o dos 195 pares reais
+    assert f"{res['sem_calibracao']['transicoes_detectadas']} de {res['sem_calibracao']['transicoes_total']}" in texto
+    assert f"{res['sem_calibracao']['alarmes_falsos']} de {res['sem_calibracao']['estaveis_total']}" in texto
+    # o fator vigente tem que aparecer com VIRGULA decimal (o bug original do
+    # brief usava `.replace` so em alguns lugares e deixava outros com ponto).
+    fator_txt = f"{res['fator_vigente']:.2f}".replace(".", ",")
+    assert f"fator vigente {fator_txt}" in texto and f"Vigente: **{fator_txt}**" in texto
+    assert ".2f" not in texto and "0.0" not in texto   # nenhum ponto decimal escapou
+
+    # sensibilidade ao solo assumido: os numeros vem do dict `solo_premissa`,
+    # nao digitados na funcao de relatorio -- muda o dict, muda o texto.
+    sp = saida["solo_premissa"]
+    assert f"({sp['n_marcos_premissa']} de {sp['n_marcos_total']})" in texto
+    assert f"**{sp['n_pares_premissa']}** dos **{sp['n_pares_total']}**" in texto
+    assert "0,430–0,702" not in texto   # numero do Rodoanel real, nao deste cenario de teste
+    assert "0,500–0,600" in texto or "0,5–0,6" in texto or f"{sp['fertilidade_medida_min']:.3f}".replace(".", ",") in texto
+
+    # fila retrospectiva: os 3 numeros vem do dict, nao hardcoded.
+    fila = saida["fila_retrospectiva"]
+    assert f"**{fila['n_marcados']}**" in texto and f"**{fila['n_cruzaram']}**" in texto and f"**{fila['n_acertos']}**" in texto
+
+
+def test_validacao_reflete_mudanca_no_dict_nao_e_texto_fixo():
+    """O mesmo `saida`, com o fator vigente trocado, tem que produzir um
+    texto DIFERENTE no lugar certo -- se `relatorio.validacao` tivesse algum
+    numero fixo em vez de ler o dict, esta troca nao apareceria.
+    """
+    saida = _saida_validacao_toy()
+    texto_original = relatorio.validacao(saida)
+    saida["resultado"] = {**saida["resultado"], "fator_vigente": 2.5}
+    texto_alterado = relatorio.validacao(saida)
+    assert "Vigente: **2,50**" in texto_alterado
+    assert "Vigente: **2,50**" not in texto_original

@@ -38,19 +38,40 @@ def diario(linha: str) -> None:
         f.write(f"- {agora} · {linha} · commit {_commit()}\n")
 
 
+def _num(v: float, casas: int = 0) -> str:
+    """Formata um numero no padrao BR: ponto de milhar, virgula decimal.
+
+    Usa o truque classico de troca dupla: `f"{v:,.Nf}"` do Python ja separa
+    milhar por virgula e decimal por ponto (convencao EUA); trocar virgula<->ponto
+    da o padrao BR sem reimplementar o agrupamento de milhares.
+
+    E o helper CENTRAL de formatacao numerica do modulo -- antes deste fix
+    cada callsite formatava a sua propria maneira, e pelo menos duas
+    divergiam do padrao BR de um jeito que muda o SIGNIFICADO do numero para
+    quem le: `f"{eixo.comprimento_m:,.0f}"` imprimia "29,025 m" (o eixo tem
+    29 mil metros, nao 29; um leitor BR le "29,025" como vinte e nove
+    virgula zero-dois-cinco) e `f"{...:.1f} ha"` imprimia "98.2 ha" com ponto
+    onde o BR usa virgula. Central para nao ter que repetir a correcao nos
+    dois relatorios que ainda vem (`03-ndvi.md` e `04-producao.md`).
+    """
+    txt = f"{v:,.{casas}f}"
+    return txt.translate(str.maketrans(",.", ".,"))
+
+
 def _tabela(cabecalho: list[str], linhas: list[list]) -> str:
-    fmt = lambda v: f"{v:.3f}".replace(".", ",") if isinstance(v, float) else str(v)
+    fmt = lambda v: _num(v, 3) if isinstance(v, float) else str(v)
     out = ["| " + " | ".join(cabecalho) + " |", "|" + "---|" * len(cabecalho)]
     out += ["| " + " | ".join(fmt(v) for v in l) + " |" for l in linhas]
     return "\n".join(out)
 
 
 def _br(v: float, casas: int = 2) -> str:
-    """Formata um float com virgula decimal (padrao BR) fora de tabela --
-    mesma conversao que _tabela ja aplica por celula, reaproveitada na prosa
-    corrida do relatorio (que e a unica parte deste modulo com acentuacao
-    normal em portugues -- ver o docstring do modulo)."""
-    return f"{v:.{casas}f}".replace(".", ",")
+    """Formata um float com virgula decimal e ponto de milhar (padrao BR) fora
+    de tabela -- mesma conversao que `_tabela` ja aplica por celula (via
+    `_num`), reaproveitada na prosa corrida do relatorio (que e a unica parte
+    deste modulo com acentuacao normal em portugues -- ver o docstring do
+    modulo)."""
+    return _num(v, casas)
 
 
 def _lacuna_do_eixo(eixo) -> tuple[float, float, float]:
@@ -89,7 +110,7 @@ def _paragrafo_lacuna(eixo, poligonos, mediana_dist_m: float) -> str:
     faixa = range(math.floor(km_ini), math.ceil(km_fim) + 1)
     discordantes = _discordancia_poligonos(eixo, poligonos)
     base = (f"O eixo (`Marco km_rodoanel 2.kmz`) tem 2 marcos fora de ordem no arquivo, corrigidos "
-            f"por `marcos.ORDEM_CORRIGIDA`; mesmo corrigido, resta uma lacuna real de **{lacuna_m:,.0f} m** "
+            f"por `marcos.ORDEM_CORRIGIDA`; mesmo corrigido, resta uma lacuna real de **{_br(lacuna_m, 0)} m** "
             f"sem marco intermediário, entre os km de planilha **{_br(km_ini)}** e **{_br(km_fim)}** "
             f"(entre os km {faixa.start} e {faixa.stop - 1}). Nesse trecho o eixo reordenado vira uma "
             f"corda reta onde a rodovia de verdade faz curva, e a atribuição de polígono → marco "
@@ -101,10 +122,10 @@ def _paragrafo_lacuna(eixo, poligonos, mediana_dist_m: float) -> str:
     pior = max(discordantes, key=lambda d: d[1])
     return (f"{base}: **{len(na_lacuna)}** dos **{len(discordantes)}** polígonos cujo centróide "
             f"diverge por mais de 1 km do seu km descrito caem nesse trecho "
-            f"(**{100 * len(na_lacuna) / len(discordantes):.0f}%**). Não é erro de projeção: mesmo o "
+            f"(**{_br(100 * len(na_lacuna) / len(discordantes), 0)}%**). Não é erro de projeção: mesmo o "
             f"pior caso (polígono {pior[0].indice}, descrito no km {pior[0].km_descricao}, projetando "
-            f"a {_br(pior[1])} km de distância disso) fica a só **{pior[2]:.0f} m** do eixo — bem abaixo "
-            f"da mediana geral de **{mediana_dist_m:.0f} m**. É lacuna de levantamento da Motiva, não "
+            f"a {_br(pior[1])} km de distância disso) fica a só **{_br(pior[2], 0)} m** do eixo — bem abaixo "
+            f"da mediana geral de **{_br(mediana_dist_m, 0)} m**. É lacuna de levantamento da Motiva, não "
             f"defeito de projeção: **{len(eixo.pontos)}** marcos não dá para cobrir os "
             f"**{_br(eixo.comprimento_m * eixo.escala / 1000, 1)} km** da planilha sem aproximar em algum "
             f"trecho. Ver o docstring de `poligonos.atribuir`.")
@@ -167,7 +188,7 @@ Adotam-se as datas dos nomes.
 
 ## Eixo
 
-30 marcos reordenados (`{list(eixo.pontos[0])}` … `{list(eixo.pontos[-1])}`), comprimento **{eixo.comprimento_m:,.0f} m**,
+30 marcos reordenados (`{list(eixo.pontos[0])}` … `{list(eixo.pontos[-1])}`), comprimento **{_br(eixo.comprimento_m, 0)} m**,
 escala para o km da planilha **{_br(eixo.escala, 4)}**.
 
 ## Pares de observação (13/03 → 20/03)
@@ -180,7 +201,7 @@ escala para o km da planilha **{_br(eixo.escala, 4)}**.
 
 ## Polígonos de roçada
 
-{len(poligonos)} polígonos, {sum(area_por_metodo.values())/10000:.1f} ha. Distância do centróide ao eixo: mediana {dist[len(dist)//2]:.0f} m, p90 {dist[int(len(dist)*0.9)]:.0f} m, máximo {dist[-1]:.0f} m.
+{len(poligonos)} polígonos, {_br(sum(area_por_metodo.values())/10000, 1)} ha. Distância do centróide ao eixo: mediana {_br(dist[len(dist)//2], 0)} m, p90 {_br(dist[int(len(dist)*0.9)], 0)} m, máximo {_br(dist[-1], 0)} m.
 
 {_tabela(["método", "polígonos", "ha"], [[m, metodos[m], round(area_por_metodo[m]/10000, 1)] for m in metodos])}
 
@@ -203,4 +224,83 @@ escala para o km da planilha **{_br(eixo.escala, 4)}**.
   ficam fora do escopo contratual (ver `planilha.CODIGOS_EM_ESCOPO`): a medição derivada usa a
   pior classe apenas dentre as **{len(planilha.CODIGOS_EM_ESCOPO)}** faixas em escopo (canteiro
   lateral e central, interno e externo).
+"""
+
+
+# ----------------------------------------------------------------------
+# 02 · Validação (Tarefa 9) -- funcao independente, so usa os helpers do topo
+# (_br, _tabela); nao depende de nenhum estado de `consolidacao`/`ndvi`.
+# ----------------------------------------------------------------------
+def _pct(x):
+    return "—" if x is None else f"{_br(100 * x, 1)}%"
+
+
+def _metricas(r: dict, nome: str) -> list:
+    return [nome, r["n"], _br(r["fator"], 2), _pct(r["acuracia"]),
+            f"{r['transicoes_detectadas']} de {r['transicoes_total']}",
+            f"{r['alarmes_falsos']} de {r['estaveis_total']}", _br(r["J"], 3), _pct(r["cobertura_banda"])]
+
+
+def validacao(saida: dict) -> str:
+    res = saida["resultado"]
+    base, final = res["sem_calibracao"], res["final"]
+    lb = res["linha_de_base"]
+    cab = ["cenário", "n", "fator", "acurácia de classe", "transições detectadas", "alarmes falsos", "J", "cobertura da banda"]
+    linhas = [["linha de base: nada muda", base["n"], "—", _pct(lb["acuracia"]), f"0 de {base['transicoes_total']}", f"0 de {base['estaveis_total']}", "0,000", "—"],
+              _metricas(base, "modelo sem calibração"),
+              _metricas(final, f"modelo calibrado (fator vigente {_br(res['fator_vigente'], 2)})")]
+    tk = res["teste_km_impares"]
+    matriz = final["matriz"]
+    m_linhas = [[f"observada {a}", matriz[str(a)]["1"], matriz[str(a)]["2"], matriz[str(a)]["3"]] for a in (1, 2, 3)]
+    sens = [[s["rotulo"], s["n"], _pct(s["acuracia"]), f"{s['transicoes_detectadas']} de {s['transicoes_total']}",
+             f"{s['alarmes_falsos']} de {s['estaveis_total']}", _br(s["J"], 3)] for s in saida["sensibilidade"]]
+    fila = saida["fila_retrospectiva"]
+    p = saida["parametros"]
+    sp = saida["solo_premissa"]
+    sp_base = sp["sem_premissa"]
+    pct_marcos_premissa = 100 * sp["n_marcos_premissa"] / sp["n_marcos_total"]
+    fert_premissa_txt = ", ".join(_br(v, 2) for v in sp["fertilidade_premissa"])
+    cap_premissa_txt = ", ".join(_br(v, 1) for v in sp["capacidade_premissa"])
+    return f"""# 02 · Validação do modelo contra o levantamento da Motiva
+
+Gerado por `pesquisa/validar.py` em {saida['gerado_em']} (commit {saida['commit']}).
+
+Janela **13 → 20/03/2026** (7 dias). Pares usados: **{base['n']}** dos 248 (os 53 com queda de classe são roçada e ficam fora).
+Premissas do cenário vigente: espécie **{p['especie']}**, classe 3 = **{p['ponto_medio_c3_cm']:g} cm**, dias desde a roçada = **{p['dias_desde_rocada']:g}**.
+
+## O número
+
+{_tabela(cab, linhas)}
+
+`J` = fração das transições detectadas − fração de alarmes falsos. A linha de base acerta {_pct(lb['acuracia'])} sem prever nada: **acurácia total não é o critério**; transições detectadas e alarmes falsos são.
+
+## Calibração honesta: ajuste nos km pares, teste nos km ímpares
+
+- Ajuste (n = {res['ajuste_km_pares']['n']}): fator **{_br(res['ajuste_km_pares']['fator'], 2)}**, J = {_br(res['ajuste_km_pares']['J'], 3)}
+- Teste (n = {tk['n']}): J sem calibração = {_br(tk['sem']['J'], 3)} → com o fator do ajuste = {_br(tk['com']['J'], 3)}
+- Reajuste em todos: fator {_br(res['calibracao_todos']['fator'], 2)}, J = {_br(res['calibracao_todos']['J'], 3)}. Vigente: **{_br(res['fator_vigente'], 2)}**{" (a calibração não melhorou o critério; fica 1,00)" if res['fator_vigente'] == 1.0 else ""}.
+
+## Matriz de confusão do cenário vigente (linhas = observado em 20/03, colunas = previsto)
+
+{_tabela(["", "prevista 1", "prevista 2", "prevista 3"], m_linhas)}
+
+## Sensibilidade às premissas (sem calibração)
+
+{_tabela(["cenário", "n", "acurácia", "transições detectadas", "alarmes falsos", "J"], sens)}
+
+## Sensibilidade ao solo assumido
+
+**{_br(pct_marcos_premissa, 0)}%** dos marcos ({sp['n_marcos_premissa']} de {sp['n_marcos_total']}) não têm solo medido pelo SoilGrids: caem na premissa do Rodoanel, com fertilidade **{fert_premissa_txt}** e capacidade **{cap_premissa_txt} mm** — a fertilidade fica ABAIXO do mínimo realmente medido nos outros {sp['n_marcos_total'] - sp['n_marcos_premissa']} marcos (**{_br(sp['fertilidade_medida_min'], 3)}–{_br(sp['fertilidade_medida_max'], 3)}**), não é um valor médio. Isso responde por **{sp['n_pares_premissa']}** dos **{sp['n_pares_total']}** pares desta validação. Sem calibração e excluindo esses pares: acurácia {_pct(sp_base['acuracia'])}, transições detectadas {sp_base['transicoes_detectadas']} de {sp_base['transicoes_total']}, alarmes falsos {sp_base['alarmes_falsos']} de {sp_base['estaveis_total']}, J = {_br(sp_base['J'], 3)} — contra {_pct(base['acuracia'])} e J = {_br(base['J'], 3)} com os {base['n']} pares inteiros (premissa incluída). Precisão por segmento de solo não é o que estes dados sustentam para os **{_br(pct_marcos_premissa, 0)}%** da rodovia onde o solo é assumido, não medido.
+
+## Fila retrospectiva
+
+Em 13/03, com o fator vigente, o sistema marcaria **{fila['n_marcados']}** segmento(s) como "cruza 30 cm em até 7 dias" entre os {fila['segmentos_avaliados']} com faixa em escopo; **{fila['n_cruzaram']}** de fato chegaram à classe 3 em 20/03; acertos: **{fila['n_acertos']}**.
+
+## Limitações
+
+- Duas datas, ambas em março: vale para o fim da estação chuvosa em São Paulo.
+- Classes ordinais, não altura; o ponto médio é aproximação (ver sensibilidade).
+- Dias desde a roçada desconhecidos: premissa de {p['dias_desde_rocada']:g} dias, testada em 30 e 60.
+- 33 transições é amostra pequena; o fator é local ao Rodoanel.
+- Solo assumido, não medido, em **{_br(pct_marcos_premissa, 0)}%** dos marcos (ver "Sensibilidade ao solo assumido"): não dá para reivindicar precisão por segmento de solo nessa fração da rodovia.
 """
