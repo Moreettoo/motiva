@@ -5,8 +5,10 @@ import { AvisoSomenteLeitura } from "@/components/ui/aviso-somente-leitura";
 import { Cartao, CartaoCabecalho, CartaoCorpo } from "@/components/ui/cartao";
 import { podeEscrever } from "@/lib/auth/permissoes";
 import { exigirCargo } from "@/lib/auth/sessao";
+import { levantamentosImportados } from "@/lib/levantamentos/queries";
 import { distanciaFronteiraClasse1, ndviAnalises, validacaoVigente, validacoesSensibilidade } from "@/lib/validacao/queries";
 
+import { LevantamentosImportados } from "./_componentes/levantamentos-importados";
 import { Limitacoes } from "./_componentes/limitacoes";
 import { MatrizConfusao } from "./_componentes/matriz-confusao";
 import { NdviSeparacao } from "./_componentes/ndvi-separacao";
@@ -24,10 +26,11 @@ export default async function PaginaValidacao() {
   const sessao = await exigirCargo("super_admin", "admin", "analista");
   const escreve = podeEscrever(sessao.cargo);
   const vigente = await validacaoVigente();
-  const [sensibilidade, ndvi, distanciaFronteira] = await Promise.all([
+  const [sensibilidade, ndvi, distanciaFronteira, importados] = await Promise.all([
     vigente ? validacoesSensibilidade(vigente) : Promise.resolve([]),
     ndviAnalises(),
     vigente ? distanciaFronteiraClasse1(vigente) : Promise.resolve(null),
+    levantamentosImportados(),
   ]);
 
   return (
@@ -55,6 +58,7 @@ export default async function PaginaValidacao() {
           </Cartao>
         )}
         <NdviSeparacao analises={ndvi} />
+        <LevantamentosImportados linhas={importados} />
       </div>
     </div>
   );

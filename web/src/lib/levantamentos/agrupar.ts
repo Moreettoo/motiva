@@ -39,3 +39,39 @@ export function agruparLevantamentos(
   }
   return { datas: [...datas].sort(), classes, arquivos };
 }
+
+export type LevantamentoImportado = { data: string; arquivo: string; trechos: number; importado_em: string };
+
+/**
+ * Agrupa as linhas cruas de `ia.levantamentos` por DATA de importação, para
+ * o cartão "Levantamentos importados" (`validacao/_componentes/
+ * levantamentos-importados.tsx`): um RA-RET vira uma linha, não cada
+ * trecho x faixa vira uma. Com 12 faixas x 60 trechos por arquivo são 720
+ * linhas cruas por importação -- `trechos` aqui PRECISA ser a contagem de
+ * marcos DISTINTOS (`Set`, no máximo 60), nunca `linhas.length` (720) nem a
+ * contagem de linhas do grupo: um `.length` ingênuo contaria cada faixa do
+ * mesmo trecho de novo e mostraria "720 trechos" numa rodovia de 60.
+ *
+ * Extraída pura e sem `server-only`, no mesmo molde de `agruparLevantamentos`
+ * acima, porque `levantamentosImportados` (`queries.ts`, ao lado) não pode
+ * ser importada de um `.test.ts` -- e sem isso o bug do parágrafo anterior
+ * seria visível só em produção, nunca num teste.
+ *
+ * `importado_em` fica o mais recente das linhas do grupo. Na prática todas
+ * as linhas de uma importação gravam no mesmo instante (o `upsert` do
+ * publicador é uma única chamada em lote), mas nada no schema obriga isso --
+ * um reprocessamento parcial deixaria `importado_em` divergente dentro da
+ * mesma data, e mostrar o mais antigo esconderia a correção mais recente.
+ */
+export function agruparImportacoes(
+  linhas: Pick<Levantamento, "data" | "arquivo_origem" | "trecho_id" | "importado_em">[],
+): LevantamentoImportado[] {
+  const grupos = new Map<string, { data: string; arquivo: string; trechos: Set<number>; importado_em: string }>();
+  for (const l of linhas) {
+    const g = grupos.get(l.data) ?? { data: l.data, arquivo: l.arquivo_origem, trechos: new Set<number>(), importado_em: l.importado_em };
+    g.trechos.add(l.trecho_id);
+    if (l.importado_em > g.importado_em) g.importado_em = l.importado_em;
+    grupos.set(l.data, g);
+  }
+  return [...grupos.values()].map((g) => ({ data: g.data, arquivo: g.arquivo, trechos: g.trechos.size, importado_em: g.importado_em }));
+}

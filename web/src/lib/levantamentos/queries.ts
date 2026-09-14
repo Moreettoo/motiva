@@ -4,7 +4,9 @@ import { cache } from "react";
 
 import { db } from "../supabase";
 import type { Faixa, Levantamento } from "../types";
-import { agruparLevantamentos, type LevantamentosAgrupados } from "./agrupar";
+import { agruparImportacoes, agruparLevantamentos, type LevantamentoImportado, type LevantamentosAgrupados } from "./agrupar";
+
+export type { LevantamentoImportado };
 
 export type LevantamentosDoTrecho = LevantamentosAgrupados & { faixas: Faixa[] };
 
@@ -30,4 +32,17 @@ export const levantamentosDoTrecho = cache(async (trechoId: number): Promise<Lev
     faixas: (faixas ?? []) as Faixa[],
     ...agruparLevantamentos((linhas ?? []) as Levantamento[]),
   };
+});
+
+/**
+ * Uma linha por RA-RET importado (não uma por trecho x faixa): a evidência,
+ * no painel, de que a acurácia medida em `/validacao` não é um número de uma
+ * rodada só, mas um mecanismo permanente -- cada levantamento semanal novo
+ * da Motiva volta a reconferir o modelo. `agruparImportacoes` (`agrupar.ts`,
+ * ao lado) faz o agrupamento por data e é onde isso é testado sem banco.
+ */
+export const levantamentosImportados = cache(async (): Promise<LevantamentoImportado[]> => {
+  const { data, error } = await db.from("levantamentos").select("data, arquivo_origem, trecho_id, importado_em").order("data");
+  if (error) throw new Error(`Falha ao ler os levantamentos importados: ${error.message}`);
+  return agruparImportacoes((data ?? []) as Pick<Levantamento, "data" | "arquivo_origem" | "trecho_id" | "importado_em">[]);
 });
