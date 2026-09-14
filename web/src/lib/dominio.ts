@@ -87,12 +87,21 @@ export const RISCO: Record<Risco, TokenStatus> = {
   },
   /**
    * NAO e uma quinta faixa de urgencia: e a ausencia de uma previsao para
-   * classificar. A view emite isto quando `dias_ate_limite` e nulo por falta
-   * de previsao (medicao vencida ha mais de 120 dias, ou nenhuma medicao
-   * ainda) -- ver `20260914120000_risco_sem_dados.sql`. Antes disso a view
-   * carimbava `baixa`, e o painel inteiro lia "sem informacao nenhuma" como
-   * "seguro". Por isso o tom aqui e neutro (cinza de `--ink-3`, o mesmo do
-   * chip "Sugerido" em `STATUS`), nunca verde: "nao sei" nao e "esta bem".
+   * classificar. A view emite isto quando NAO HA PREVISAO NENHUMA para o
+   * trecho (`p.id is null` no CASE: medicao vencida ha mais de 120 dias, ou
+   * nenhuma medicao ainda) -- ver `20260914120000_risco_sem_dados.sql`.
+   * Antes disso a view carimbava `baixa`, e o painel inteiro lia "sem
+   * informacao nenhuma" como "seguro". Por isso o tom aqui e neutro (cinza de
+   * `--ink-3`, o mesmo do chip "Sugerido" em `STATUS`), nunca verde: "nao
+   * sei" nao e "esta bem".
+   *
+   * Distinto de `p.dias_ate_limite is null` com `p.id` preenchido -- previsao
+   * REAL que nunca cruza o limite no horizonte, o caso mais tranquilizador
+   * que existe -- que a view carimba `baixa`, nao `sem_dados`. A primeira
+   * versao desta migracao (20260914120000) nao distinguia os dois e colapsava
+   * "sei que esta bem" em `sem_dados`, o espelho invertido do bug original;
+   * corrigido em `20260914130000_risco_sem_previsao.sql`, medido contra 205
+   * das 2.584 previsoes reais que caem nesse segundo caso.
    */
   sem_dados: {
     rotulo: "Sem dados",
@@ -299,17 +308,21 @@ export const SEQUENCIAL = [
 
 /**
  * Risco a partir do prazo. Mesma regra que a view `ia.vw_trecho_status`
- * aplicava ANTES da migração `risco_sem_dados`, repetida aqui porque o
- * cliente precisa reclassificar ao simular datas.
+ * aplica aos QUATRO ramos finais do CASE (o que fazer com um
+ * `dias_ate_limite`, nulo ou nao), repetida aqui porque o cliente precisa
+ * reclassificar ao simular datas.
  *
- * Devolve `Prioridade`, não `Risco`, de proposito: `sem_dados` e o que a view
- * emite quando NAO HA PREVISAO NENHUMA (medicao vencida ou ausente), e essa
- * pergunta nunca chega aqui -- quem chama esta funcao sempre tem um numero de
- * dias em mãos (uma previsão real do lote, ou a curva que o simulador acabou
- * de calcular). Um período sem crescimento suficiente para cruzar o limite
- * DENTRO do horizonte simulado é `baixa` de verdade (folgado, conhecido), não
- * "não sei nada" -- a mesma distinção que `cruzamento()`, em `ml/modelo.py`,
- * documenta para `dias_ate_limite is None`.
+ * Devolve `Prioridade`, não `Risco`, de proposito: falta so o PRIMEIRO ramo
+ * da view, `p.id is null then 'sem_dados'` (nenhuma previsao existe -- ver
+ * `20260914130000_risco_sem_previsao.sql`), e essa pergunta nunca chega
+ * aqui -- quem chama esta funcao sempre tem um numero de dias em mãos (uma
+ * previsão real do lote, ou a curva que o simulador acabou de calcular). Um
+ * período sem crescimento suficiente para cruzar o limite DENTRO do
+ * horizonte simulado é `baixa` de verdade (previsão real, folgado,
+ * conhecido) -- exatamente o segundo ramo da view (`p.dias_ate_limite is
+ * null then 'baixa'`, com `p.id` preenchido), não "não sei nada". A mesma
+ * distinção que `cruzamento()`, em `ml/modelo.py`, documenta para
+ * `dias_ate_limite is None`.
  */
 export function riscoPorPrazo(diasAteLimite: number | null | undefined): Prioridade {
   if (diasAteLimite == null) return "baixa";

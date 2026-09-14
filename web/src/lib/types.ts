@@ -172,10 +172,12 @@ export type ChamadoDetalhado = Chamado & {
  * migracao `20260914120000_risco_sem_dados.sql`, e um `Risco` novo vazava
  * direto para `Prioridade` (a prioridade que a LLM escolhe num agendamento),
  * onde "sem dados" nao faz sentido nenhum -- um agendamento sempre tem uma
- * prioridade registrada. `sem_dados` e o que a view emite quando
- * `dias_ate_limite` e nulo por falta de previsao (medicao vencida ou nenhuma
- * medicao), em vez de carimbar `baixa` e fingir que o trecho esta seguro. Ver
- * `RISCO.sem_dados` em `dominio.ts` para o rotulo e a cor.
+ * prioridade registrada. `sem_dados` e o que a view emite quando NAO HA
+ * PREVISAO NENHUMA para o trecho (medicao vencida ou nenhuma medicao), em vez
+ * de carimbar `baixa` e fingir que o trecho esta seguro -- distinto de uma
+ * previsao REAL que so nao cruza o limite no horizonte, que continua `baixa`
+ * (ver `20260914130000_risco_sem_previsao.sql`, a correcao que separou os
+ * dois casos). Ver `RISCO.sem_dados` em `dominio.ts` para o rotulo e a cor.
  */
 export type Risco = Prioridade | "sem_dados";
 
