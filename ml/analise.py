@@ -25,8 +25,9 @@ O `modelo_gramas.pkl` responde `crescimento_total_cm` do PERIODO, em intervalo
                     primeiro que cruza (`modelo.curva` + `modelo.cruzamento`).
 """
 
-from datetime import date
+from datetime import date, timedelta
 
+import calibracao
 import clima
 import modelo
 import solo
@@ -43,7 +44,8 @@ def resolver_ambiente(lat: float, lon: float, hoje: date):
     return clima.buscar_serie(lat, lon, hoje), solo.buscar(lat, lon)
 
 
-def analisar_trecho(sb, t: dict, serie: clima.Serie, terra: solo.Solo, hoje: date) -> dict:
+def analisar_trecho(sb, t: dict, serie: clima.Serie, terra: solo.Solo, hoje: date,
+                    calib: calibracao.Calibracao = calibracao.SEM, mobilizacao_dias: int = 7) -> dict:
     """Roda o modelo para um trecho. Devolve os numeros, sem gravar nada.
 
     Levanta `LookupError` quando falta o dado de entrada (medicao), que e o
@@ -114,7 +116,7 @@ def analisar_trecho(sb, t: dict, serie: clima.Serie, terra: solo.Solo, hoje: dat
             fertilidade=terra.fertilidade, capacidade_mm=terra.capacidade_mm,
             fracoes=fr_med, encharcado=en_med)
         janela_medicao = linha["dias_periodo"]
-        crescido = float(modelo.prever([linha])[0, 1])
+        crescido = float(modelo.prever([linha])[0, 1]) * calib.fator
 
     altura_hoje = max(altura_base + crescido, 0.5)
 
@@ -128,7 +130,9 @@ def analisar_trecho(sb, t: dict, serie: clima.Serie, terra: solo.Solo, hoje: dat
             fertilidade=terra.fertilidade, capacidade_mm=terra.capacidade_mm,
             fracoes=fr, encharcado=en)
 
-    Q = modelo.curva(montar)
+    # O fator de calibracao entra AQUI, nos tres quantis, e nao dentro do modelo:
+    # e a distancia medida entre a simulacao e o campo do Rodoanel (ia.calibracoes).
+    Q = modelo.curva(montar) * calib.fator
     if len(Q) == 0:
         raise RuntimeError("a serie de clima nao cobre nem um dia a frente")
 
@@ -157,6 +161,9 @@ def analisar_trecho(sb, t: dict, serie: clima.Serie, terra: solo.Solo, hoje: dat
         "horizonte_intervalo": onde, "q10": q10, "q50": q50, "q90": q90,
         "dias_rocada": dias_rocada_hoje, "data_rocada": data_rocada,
         "janela": montar(onde), "n_horizontes": len(Q), "solo": terra,
+        "fator": calib.fator, "calibracao": calib, "mobilizacao_dias": mobilizacao_dias,
+        # Dia ideal = cruzar o limite menos o tempo de mobilizar a equipe; nunca antes de hoje.
+        "data_ideal": (None if dias is None else max(hoje, hoje + timedelta(days=dias - mobilizacao_dias))),
     }
 
 
@@ -220,6 +227,18 @@ def contexto_para_llm(t: dict, r: dict, hoje: date) -> dict:
         },
         "observacoes_do_trecho": t.get("observacoes") or "sem observacoes",
         "data_de_hoje": hoje.isoformat(),
+        "dia_ideal_rocada": r["data_ideal"].isoformat() if r["data_ideal"] else None,
+        "tempo_mobilizacao_dias": r["mobilizacao_dias"],
+        "metodo_rocada": t.get("metodo_rocada"),
+        "area_rocada_m2": t.get("area_rocada_m2"),
+        "origem_da_medicao": t.get("medicao_origem_texto"),
+        "calibracao": {
+            "fator": round(r["fator"], 2),
+            "origem": ("medido contra pares reais do levantamento da concessionaria"
+                       if r["calibracao"].origem == "medida" else "sem calibracao medida: modelo sintetico puro"),
+            "n_pares_reais": r["calibracao"].n_pares,
+            "validada_em": r["calibracao"].validada_em,
+        },
     }
 
 
@@ -233,4 +252,5 @@ def linha_de_previsao(trecho_id: int, r: dict) -> dict:
         "dias_ate_limite": r["dias"],
         "temperatura_media_c": round(r["janela"]["temperatura_media_c"], 2),
         "chuva_total_mm": round(r["janela"]["precipitacao_total_mm"], 2),
+        "fator_calibracao": round(r["fator"], 4),
     }

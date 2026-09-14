@@ -59,6 +59,7 @@ except ImportError:
     from supabase.lib.client_options import ClientOptions
 
 import analise
+import calibracao
 import clima
 import modelo
 import solo
@@ -268,6 +269,12 @@ Considere alem dos numeros:
 - Trecho recem-roçado rebrota devagar no comeco; trecho ha muito sem roçada ja
   esta na fase rapida da curva.
 
+O campo `dia_ideal_rocada` ja desconta o tempo de mobilizacao da equipe: `data_sugerida`
+deve ser ele, salvo impedimento operacional que voce deve nomear na justificativa
+(chuva prevista, curva com visibilidade, acesso). `calibracao` diz se o numero foi
+medido contra observacao real da concessionaria ou e simulacao pura; mencione isso
+em uma frase quando for simulacao pura.
+
 Prioridade e funcao PURA de `dias_ate_atingir_limite`, sem excecao:
   dias <= 7             -> critica   (inclui ja estar acima do limite)
   8 <= dias <= 20       -> alta
@@ -387,7 +394,7 @@ def fechar_obsoletos(trecho_id, hoje):
 
 # ----------------------------------------------------------------------
 def main():
-    consulta = sb.table("trechos").select("*").eq("ativo", True).order("id")
+    consulta = sb.table("trechos").select("*, concessionarias(mobilizacao_dias)").eq("ativo", True).order("id")
     if TRECHO_ID is not None:
         consulta = consulta.eq("id", TRECHO_ID)
     trechos = consulta.execute().data
@@ -406,6 +413,10 @@ def main():
           f"cria<={LIMIAR_DIAS}d fecha>{LIMIAR_FECHAR_DIAS}d\n")
 
     zonas, ambiente = montar_zonas(trechos, hoje)
+
+    calibs = calibracao.carregar(sb)
+    print(f"Calibracoes ativas: {len(calibs)}" + "".join(
+        f"\n  {c.get('rodovia') or 'qualquer rodovia'} / {c.get('especie') or 'qualquer especie'}: fator {float(c['fator']):.2f}" for c in calibs) + "\n")
 
     # `pulados` era UM numero, e ele juntava coisas que nao sao a mesma: trecho
     # folgado (nao precisa mesmo), trecho na banda de histerese, trecho que JA TEM
@@ -428,7 +439,16 @@ def main():
                 continue
 
             try:
-                r = analise.analisar_trecho(sb, t, amb[0], amb[1], hoje)
+                # Solo do proprio trecho quando existe (SoilGrids no marco, gravado pelo
+                # publicador); senao o da zona, como sempre.
+                terra = amb[1]
+                if t.get("fertilidade_solo") is not None and t.get("capacidade_agua_solo_mm") is not None:
+                    terra = solo.Solo(float(t["fertilidade_solo"]), float(t["capacidade_agua_solo_mm"]),
+                                      t.get("solo_fonte") or "soilgrids")
+                calib = calibracao.escolher(calibs, t["rodovia"], t["especie"])
+                conc = t.get("concessionarias") or {}
+                mob = int(conc.get("mobilizacao_dias") or 7)
+                r = analise.analisar_trecho(sb, t, amb[0], terra, hoje, calib=calib, mobilizacao_dias=mob)
             except LookupError as e:
                 print(f"  [{e}]  {nome}")
                 motivos["vencida" if "vencida" in str(e) else "sem_dados"] += 1
