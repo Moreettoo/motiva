@@ -80,7 +80,7 @@ def test_linha_trecho():
 
 
 def test_linha_trecho_sem_solo_medido_fica_com_solo_nulo():
-    seg = Segmento(0, 0.0, 0.5, -23.4, -46.7, "Roçadeira costal", 500.0, {})
+    seg = Segmento(0, 0.0, 0.5, -23.4, -46.7, "Apenas manual", 500.0, {})
     t = supabase_io.linha_trecho(seg, None, 5)
     assert t["fertilidade_solo"] is None and t["capacidade_agua_solo_mm"] is None and t["solo_fonte"] is None
 

@@ -1,9 +1,9 @@
-"""Dublê minimo de um client supabase-py, so o suficiente para os metodos que
+"""Duble minimo de um client supabase-py, so o suficiente para os metodos que
 `pesquisa.rodoanel.supabase_io` usa (select/eq/not_.is_/in_/insert/upsert/update/delete/execute)
 sobre um dict em memoria. Sem rede, sem depender do schema real -- prova a LOGICA de
 idempotencia (o que e apagado antes de o que e inserido) sem tocar o Supabase de verdade.
 
-Nao e um dublê genérico de postgrest: implementa so o que os callsites de supabase_io.py
+Nao e um duble generico de postgrest: implementa so o que os callsites de supabase_io.py
 realmente encadeiam. Se um metodo novo for usado la e faltar aqui, o teste quebra alto e
 claro (AttributeError), nao silenciosamente.
 """

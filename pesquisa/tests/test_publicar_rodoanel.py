@@ -4,7 +4,7 @@ ensaio que a Tarefa 13 faz contra o banco de producao (ver task-13-report.md), s
 aqui e rapido, repetivel e nao arrisca nada: prova a idempotencia ANTES de tocar o
 Supabase de verdade.
 
-So o cliente Supabase e trocado por dublê -- `marcos.carregar`, `planilha.ler`,
+So o cliente Supabase e trocado por duble -- `marcos.carregar`, `planilha.ler`,
 `solo_km.carregar_ou_buscar` (cache completo, ver pesquisa/dados/derivados/solo_por_marco.json)
 e `banco.ler_csv` continuam lendo os arquivos reais do repo, sem rede nenhuma.
 """
