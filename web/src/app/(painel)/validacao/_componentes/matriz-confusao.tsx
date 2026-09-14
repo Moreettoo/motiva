@@ -12,7 +12,11 @@ const CLASSES: ClasseAltura[] = [1, 2, 3];
 export function MatrizConfusao({ v }: { v: Validacao }) {
   return (
     <Cartao>
-      <CartaoCabecalho icone={<Grid3x3 />} titulo="Matriz de confusão" descricao="Linhas: o que a equipe viu em 20/03. Colunas: o que o modelo previu a partir de 13/03." />
+      <CartaoCabecalho
+        icone={<Grid3x3 />}
+        titulo="Matriz de confusão"
+        descricao={`Linhas: o que a equipe viu em ${fmt.dataMedia(v.janela_ate)}. Colunas: o que o modelo previu a partir de ${fmt.dataMedia(v.janela_de)}.`}
+      />
       <CartaoCorpo>
         <Tabela rotulo="Matriz de confusão observado por previsto">
           <TabelaCabecalho>

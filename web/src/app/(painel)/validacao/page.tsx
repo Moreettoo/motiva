@@ -43,7 +43,7 @@ export default async function PaginaValidacao() {
             <ResumoValidacao v={vigente} />
             <div className="grid gap-4 lg:grid-cols-2">
               <MatrizConfusao v={vigente} />
-              <Limitacoes />
+              <Limitacoes v={vigente} />
             </div>
             <Sensibilidade linhas={sensibilidade} />
           </>
