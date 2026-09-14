@@ -59,6 +59,13 @@ HORIZONTE_DIAS = 120
 
 TIMEOUT_S = 45.0
 PAUSA_S = 0.6
+#: Tentativas por consulta. Ver `_pedir`: o estrangulamento do IP do CI so
+#: aparece da segunda chamada em diante, entao uma tentativa nao basta.
+TENTATIVAS = 3
+
+
+class _Recusa(Exception):
+    """A API respondeu e disse nao. Sinaliza ao laco de `_pedir` para desistir."""
 
 # Parametros por especie que entram nas CONTAS das features (nao no modelo).
 # Copiados de `gerador_v3_1_rebrota.py`. `t_base` e `t_ot2` definem os graus-dia
@@ -109,12 +116,39 @@ class Serie(NamedTuple):
 # Busca
 # ----------------------------------------------------------------------
 def _pedir(url: str, params: dict) -> dict:
-    r = httpx.get(url, params=params, timeout=TIMEOUT_S)
-    r.raise_for_status()
-    corpo = r.json()
-    if corpo.get("error"):
-        raise RuntimeError(corpo.get("reason", "Open-Meteo recusou a consulta."))
-    return corpo
+    """Uma consulta ao Open-Meteo, com repeticao em falha de transporte.
+
+    Espelha de proposito o laco de `solo._consultar`, que ja repetia. A
+    assimetria entre os dois era o defeito: no IP COMPARTILHADO do GitHub
+    Actions a SEGUNDA zona de uma rodada leva estrangulamento e o handshake
+    TLS expira, e sem repeticao a zona inteira cai -- levando junto trechos
+    que ja tem `fertilidade_solo` no banco e so precisavam do clima.
+
+    Medido em 14/09/2026, duas execucoes seguidas do lote: a zona km 0-15
+    passou e a km 15-30 morreu com ConnectTimeout nas duas, enquanto as
+    MESMAS coordenadas respondem em 3,5 s a partir de uma rede domestica.
+    Nao e a coordenada, e a segunda chamada.
+
+    A recusa da propria API (campo `error` no corpo) nao repete: e resposta
+    valida dizendo que a consulta esta errada, e insistir so gasta tempo.
+    """
+    ultimo: Exception | None = None
+    for tentativa in range(TENTATIVAS):
+        if tentativa:
+            time.sleep(PAUSA_S * (2 ** tentativa))   # 1,2 s e depois 2,4 s
+        try:
+            r = httpx.get(url, params=params, timeout=TIMEOUT_S)
+            r.raise_for_status()
+            corpo = r.json()
+            if corpo.get("error"):
+                raise _Recusa(corpo.get("reason", "Open-Meteo recusou a consulta."))
+            return corpo
+        except _Recusa as e:
+            raise RuntimeError(str(e)) from None
+        except Exception as e:
+            ultimo = e
+    assert ultimo is not None
+    raise ultimo
 
 
 def _ler(corpo: dict, fonte: str) -> list[Dia]:
