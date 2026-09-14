@@ -260,12 +260,35 @@ def contexto_para_llm(t: dict, r: dict, hoje: date) -> dict:
         "origem_da_medicao": t.get("medicao_origem_texto"),
         "calibracao": {
             "fator": round(r["fator"], 2),
-            "origem": ("medido contra pares reais do levantamento da concessionaria"
-                       if r["calibracao"].origem == "medida" else "sem calibracao medida: modelo sintetico puro"),
+            # `origem == "medida"` quer dizer que EXISTE uma linha de calibracao vinda de
+            # uma validacao contra campo -- nao que o fator dela esteja corrigindo alguma
+            # coisa. No Rodoanel o fator vigente e 1,0: a medicao aconteceu em 195 pares
+            # reais e o resultado dela foi DESLIGAR a calibracao (o candidato 1,15 piorou
+            # fora da amostra e ficou registrado como rejeitado). O texto antigo --
+            # "medido contra pares reais do levantamento da concessionaria" -- colapsava
+            # "medida e aplicada" com "medida e rejeitada", e ele entra nas justificativas
+            # que o cliente le: soava como endosso do fator que foi recusado.
+            "origem": _origem_calibracao(r["calibracao"]),
             "n_pares_reais": r["calibracao"].n_pares,
             "validada_em": r["calibracao"].validada_em,
         },
     }
+
+
+def _origem_calibracao(calib: calibracao.Calibracao) -> str:
+    """Como descrever a calibracao para a LLM -- e, por tabela, para o cliente.
+
+    Tres estados, nao dois: sem medicao nenhuma; medida e APLICADA (fator != 1);
+    medida e DESLIGADA (fator 1,0), que e o caso do Rodoanel hoje. Ver o cartao
+    `resumo-validacao.tsx` do painel, que ja fazia essa distincao certa.
+    """
+    if calib.origem != "medida":
+        return "sem calibracao medida: modelo sintetico puro"
+    if abs(calib.fator - 1.0) < 1e-9:
+        return ("calibracao DESLIGADA (fator 1,0): foi medida contra os pares reais do "
+                "levantamento da concessionaria e o fator candidato foi testado e REJEITADO "
+                "fora da amostra; a curva aqui e o modelo sem correcao")
+    return "medida contra pares reais do levantamento da concessionaria e aplicada"
 
 
 def linha_de_previsao(trecho_id: int, r: dict) -> dict:

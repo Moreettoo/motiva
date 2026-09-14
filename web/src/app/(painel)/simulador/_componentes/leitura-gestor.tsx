@@ -65,14 +65,33 @@ export async function LeituraGestor({
           juntos, nunca um sem o outro. O terceiro ramo abaixo so existe pela
           garantia do tipo (`number | null`) -- se aparecer na tela, um
           registro de `ia.calibracoes` foi criado sem `validacao_id`. */}
+      {/* "medida" quer dizer que HOUVE validação contra campo, não que o fator esteja
+          corrigindo alguma coisa: com fator 1,0 a medição aconteceu e o resultado dela
+          foi DESLIGAR a calibração (o candidato 1,15 piorou fora da amostra e ficou
+          registrado como rejeitado). O texto anterior — "fator 1,00, medido em 195 pares
+          reais do Rodoanel" — lia como endosso do fator recusado. O cartão
+          `validacao/_componentes/resumo-validacao.tsx` já fazia essa distinção; esta é a
+          mesma redação. */}
       {calibracao.origem === "medida" && calibracao.nPares != null && calibracao.validadaEm != null ? (
         <p className="text-xs text-ink-2">
-          Calibração: fator {fmt.d2(calibracao.fator)}, medido em {fmt.n(calibracao.nPares)} pares reais do
-          Rodoanel em {fmt.dataMedia(calibracao.validadaEm)}.
+          {calibracao.fator === 1 ? (
+            <>
+              Calibração desligada (fator 1,00): medida em {fmt.n(calibracao.nPares)} pares reais do Rodoanel
+              em {fmt.dataMedia(calibracao.validadaEm)} e o fator candidato foi testado e rejeitado fora da
+              amostra — a curva abaixo é o modelo sem correção.
+            </>
+          ) : (
+            <>
+              Calibração: fator {fmt.d2(calibracao.fator)}, medido em {fmt.n(calibracao.nPares)} pares reais do
+              Rodoanel em {fmt.dataMedia(calibracao.validadaEm)}.
+            </>
+          )}
         </p>
       ) : calibracao.origem === "medida" ? (
         <p className="text-xs text-ink-2">
-          Calibração: fator {fmt.d2(calibracao.fator)} (detalhes da validação indisponíveis).
+          {calibracao.fator === 1
+            ? "Calibração desligada (fator 1,00): houve validação contra campo e o fator candidato foi rejeitado (detalhes da validação indisponíveis)."
+            : `Calibração: fator ${fmt.d2(calibracao.fator)} (detalhes da validação indisponíveis).`}
         </p>
       ) : (
         <p className="text-xs text-ink-2">Sem calibração medida para este ponto: a curva é o modelo sintético puro.</p>
