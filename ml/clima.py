@@ -212,6 +212,38 @@ def buscar_serie(lat: float, lon: float, hoje: date,
     return Serie(dias + cauda, aquecimento, complemento, ano, aviso)
 
 
+def buscar_serie_arquivo(lat: float, lon: float, inicio: date, fim: date,
+                         aquecimento: int = HORIZONTE_DIAS) -> Serie:
+    """Serie DIARIA do arquivo ERA5 para uma janela no PASSADO: [inicio - aquecimento, fim].
+
+    `buscar_serie` serve o lote, que olha de hoje para a frente e so alcanca ~63
+    dias para tras pela API de previsao. A validacao contra o levantamento de
+    marco/2026 precisa de uma janela de meses atras com o MESMO aquecimento de
+    balde que o lote usa -- e o que isto faz, numa chamada so ao arquivo.
+
+    Todos os dias saem com fonte "observado": ERA5 e reanalise do que aconteceu.
+    A janela [inicio, fim) tem que estar INTEIRA na resposta; dia faltando e
+    erro, nao silencio, porque `montar_features` encurtaria a janela sem avisar.
+    """
+    if fim <= inicio:
+        raise ValueError("fim precisa ser depois de inicio")
+    corpo = _pedir(API_ARQUIVO, {
+        "latitude": lat, "longitude": lon, "daily": DIARIAS,
+        "start_date": (inicio - timedelta(days=aquecimento)).isoformat(),
+        "end_date": fim.isoformat(),
+        "timezone": "America/Sao_Paulo",
+    })
+    dias = _ler(corpo, "observado")
+    if not dias:
+        raise RuntimeError("O arquivo do Open-Meteo voltou sem nenhum dia utilizavel.")
+    presentes = {d.data for d in dias}
+    faltam = [inicio + timedelta(days=i) for i in range((fim - inicio).days) if inicio + timedelta(days=i) not in presentes]
+    if faltam:
+        raise RuntimeError("O arquivo do Open-Meteo nao cobre a janela: faltam "
+                           + ", ".join(d.isoformat() for d in faltam))
+    return Serie(dias, sum(1 for d in dias if d.data < inicio), None, None, None)
+
+
 # ----------------------------------------------------------------------
 # Balanco de agua no solo
 # ----------------------------------------------------------------------
