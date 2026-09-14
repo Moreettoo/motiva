@@ -79,7 +79,11 @@ def test_carregar_todas_busca_cada_zona_na_posicao_certa_do_eixo(tmp_path, monke
     nao com que coordenadas. Uma troca na tabela `ZONAS` (norte e sul
     invertidos, por exemplo) nao mudaria a contagem de chamadas e passaria
     despercebida ali. Aqui a EixoFalso devolve coordenadas diferentes para
-    cada lado do divisor e o teste confere que as DUAS aparecem.
+    cada lado do divisor e o teste confere a ORDEM das chamadas (uma lista,
+    nao um set): `ZONAS` sempre visita "norte" antes de "sul" em
+    `enumerate`, entao um `set` das coordenadas fica identico se os dois
+    valores de `ZONAS` forem trocados entre si -- so a lista na ordem certa
+    pega essa troca.
     """
     monkeypatch.setattr(clima_janela, "DERIVADOS", tmp_path)
     chamadas = []
@@ -94,7 +98,7 @@ def test_carregar_todas_busca_cada_zona_na_posicao_certa_do_eixo(tmp_path, monke
             return (-23.5, -46.8) if km_m < 14_650 else (-23.6, -46.83)
 
     clima_janela.carregar_todas(EixoFalso(), buscar=falso)
-    assert set(chamadas) == {(-23.5, -46.8), (-23.6, -46.83)}
+    assert chamadas == [(-23.5, -46.8), (-23.6, -46.83)]
 
 
 def test_nome_do_arquivo_de_cache_e_a_cobertura_real_e_nao_a_janela_pedida(tmp_path, monkeypatch):

@@ -71,6 +71,20 @@ def test_dia_faltando_so_no_aquecimento_nao_e_erro(monkeypatch):
     assert {d.data for d in s.dias} >= {date(2026, 1, 5), date(2026, 1, 6), date(2026, 1, 7)}
 
 
+def test_dia_faltando_exatamente_no_fim_nao_e_erro(monkeypatch):
+    """`fim` e exclusivo na cobertura exigida: um buraco EXATAMENTE em `fim`
+    (2026-01-08), fora da janela `[inicio, fim)`, nao pode ser erro. Os dois
+    testes de "dia faltando" acima so furam dias DENTRO da janela
+    (2026-01-02, 2026-01-06); nenhum fura o proprio `fim`. Um mutante que
+    trocasse `range((fim - inicio).days)` por
+    `range((fim - inicio).days + 1)` (cobertura passando a incluir `fim`)
+    passaria despercebido por todos eles e so estoura aqui.
+    """
+    monkeypatch.setattr(clima, "_pedir", lambda url, params: _corpo(date(2026, 1, 1), 10, pular={date(2026, 1, 8)}))
+    s = clima.buscar_serie_arquivo(-23.5, -46.8, date(2026, 1, 5), date(2026, 1, 8), aquecimento=4)
+    assert date(2026, 1, 8) not in {d.data for d in s.dias}
+
+
 def test_fim_antes_do_inicio_e_erro():
     with pytest.raises(ValueError):
         clima.buscar_serie_arquivo(-23.5, -46.8, date(2026, 1, 8), date(2026, 1, 5))
