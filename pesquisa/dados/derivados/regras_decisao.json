@@ -1,0 +1,423 @@
+{
+  "protocolo": {
+    "regras": [
+      "q50",
+      "q10",
+      "q90",
+      "banda_toda",
+      "banda_qualquer",
+      "sem_mudanca"
+    ],
+    "criterio_escolha": "acuracia nos km pares (validacao.km_par); empate = primeira regra da lista fixa",
+    "km_par_n": 103,
+    "km_impar_n": 92,
+    "descricao": "estudo extra, fora dos itens numerados do plano -- pedido pontual do humano. protocolo pre-registrado em .superpowers/sdd/2026-09-13-dados-reais-rodoanel/"
+  },
+  "n_total": 195,
+  "tabela_km_par_km_impar": {
+    "q50": {
+      "km_par": {
+        "n": 103,
+        "acuracia": 0.6116504854368932,
+        "J": 0.046992481203007475,
+        "matriz": {
+          "1": {
+            "1": 40,
+            "2": 27,
+            "3": 0
+          },
+          "2": {
+            "1": 12,
+            "2": 17,
+            "3": 0
+          },
+          "3": {
+            "1": 0,
+            "2": 1,
+            "3": 6
+          }
+        },
+        "transicoes_total": 19,
+        "transicoes_detectadas": 7,
+        "estaveis_total": 84,
+        "alarmes_falsos": 27
+      },
+      "km_impar": {
+        "n": 92,
+        "acuracia": 0.5978260869565217,
+        "J": -0.11904761904761904,
+        "matriz": {
+          "1": {
+            "1": 37,
+            "2": 26,
+            "3": 0
+          },
+          "2": {
+            "1": 9,
+            "2": 14,
+            "3": 0
+          },
+          "3": {
+            "1": 2,
+            "2": 0,
+            "3": 4
+          }
+        },
+        "transicoes_total": 14,
+        "transicoes_detectadas": 3,
+        "estaveis_total": 78,
+        "alarmes_falsos": 26
+      }
+    },
+    "q10": {
+      "km_par": {
+        "n": 103,
+        "acuracia": 0.8155339805825242,
+        "J": 0.0,
+        "matriz": {
+          "1": {
+            "1": 67,
+            "2": 0,
+            "3": 0
+          },
+          "2": {
+            "1": 18,
+            "2": 11,
+            "3": 0
+          },
+          "3": {
+            "1": 1,
+            "2": 0,
+            "3": 6
+          }
+        },
+        "transicoes_total": 19,
+        "transicoes_detectadas": 0,
+        "estaveis_total": 84,
+        "alarmes_falsos": 0
+      },
+      "km_impar": {
+        "n": 92,
+        "acuracia": 0.8478260869565217,
+        "J": 0.0,
+        "matriz": {
+          "1": {
+            "1": 63,
+            "2": 0,
+            "3": 0
+          },
+          "2": {
+            "1": 12,
+            "2": 11,
+            "3": 0
+          },
+          "3": {
+            "1": 2,
+            "2": 0,
+            "3": 4
+          }
+        },
+        "transicoes_total": 14,
+        "transicoes_detectadas": 0,
+        "estaveis_total": 78,
+        "alarmes_falsos": 0
+      }
+    },
+    "q90": {
+      "km_par": {
+        "n": 103,
+        "acuracia": 0.5145631067961165,
+        "J": 0.25375939849624063,
+        "matriz": {
+          "1": {
+            "1": 22,
+            "2": 45,
+            "3": 0
+          },
+          "2": {
+            "1": 4,
+            "2": 25,
+            "3": 0
+          },
+          "3": {
+            "1": 0,
+            "2": 1,
+            "3": 6
+          }
+        },
+        "transicoes_total": 19,
+        "transicoes_detectadas": 15,
+        "estaveis_total": 84,
+        "alarmes_falsos": 45
+      },
+      "km_impar": {
+        "n": 92,
+        "acuracia": 0.44565217391304346,
+        "J": -0.005494505494505475,
+        "matriz": {
+          "1": {
+            "1": 18,
+            "2": 45,
+            "3": 0
+          },
+          "2": {
+            "1": 4,
+            "2": 19,
+            "3": 0
+          },
+          "3": {
+            "1": 2,
+            "2": 0,
+            "3": 4
+          }
+        },
+        "transicoes_total": 14,
+        "transicoes_detectadas": 8,
+        "estaveis_total": 78,
+        "alarmes_falsos": 45
+      }
+    },
+    "banda_toda": {
+      "km_par": {
+        "n": 103,
+        "acuracia": 0.8155339805825242,
+        "J": 0.0,
+        "matriz": {
+          "1": {
+            "1": 67,
+            "2": 0,
+            "3": 0
+          },
+          "2": {
+            "1": 18,
+            "2": 11,
+            "3": 0
+          },
+          "3": {
+            "1": 1,
+            "2": 0,
+            "3": 6
+          }
+        },
+        "transicoes_total": 19,
+        "transicoes_detectadas": 0,
+        "estaveis_total": 84,
+        "alarmes_falsos": 0
+      },
+      "km_impar": {
+        "n": 92,
+        "acuracia": 0.8478260869565217,
+        "J": 0.0,
+        "matriz": {
+          "1": {
+            "1": 63,
+            "2": 0,
+            "3": 0
+          },
+          "2": {
+            "1": 12,
+            "2": 11,
+            "3": 0
+          },
+          "3": {
+            "1": 2,
+            "2": 0,
+            "3": 4
+          }
+        },
+        "transicoes_total": 14,
+        "transicoes_detectadas": 0,
+        "estaveis_total": 78,
+        "alarmes_falsos": 0
+      }
+    },
+    "banda_qualquer": {
+      "km_par": {
+        "n": 103,
+        "acuracia": 0.5145631067961165,
+        "J": 0.25375939849624063,
+        "matriz": {
+          "1": {
+            "1": 22,
+            "2": 45,
+            "3": 0
+          },
+          "2": {
+            "1": 4,
+            "2": 25,
+            "3": 0
+          },
+          "3": {
+            "1": 0,
+            "2": 1,
+            "3": 6
+          }
+        },
+        "transicoes_total": 19,
+        "transicoes_detectadas": 15,
+        "estaveis_total": 84,
+        "alarmes_falsos": 45
+      },
+      "km_impar": {
+        "n": 92,
+        "acuracia": 0.44565217391304346,
+        "J": -0.005494505494505475,
+        "matriz": {
+          "1": {
+            "1": 18,
+            "2": 45,
+            "3": 0
+          },
+          "2": {
+            "1": 4,
+            "2": 19,
+            "3": 0
+          },
+          "3": {
+            "1": 2,
+            "2": 0,
+            "3": 4
+          }
+        },
+        "transicoes_total": 14,
+        "transicoes_detectadas": 8,
+        "estaveis_total": 78,
+        "alarmes_falsos": 45
+      }
+    },
+    "sem_mudanca": {
+      "km_par": {
+        "n": 103,
+        "acuracia": 0.8155339805825242,
+        "J": 0.0,
+        "matriz": {
+          "1": {
+            "1": 67,
+            "2": 0,
+            "3": 0
+          },
+          "2": {
+            "1": 18,
+            "2": 11,
+            "3": 0
+          },
+          "3": {
+            "1": 1,
+            "2": 0,
+            "3": 6
+          }
+        },
+        "transicoes_total": 19,
+        "transicoes_detectadas": 0,
+        "estaveis_total": 84,
+        "alarmes_falsos": 0
+      },
+      "km_impar": {
+        "n": 92,
+        "acuracia": 0.8478260869565217,
+        "J": 0.0,
+        "matriz": {
+          "1": {
+            "1": 63,
+            "2": 0,
+            "3": 0
+          },
+          "2": {
+            "1": 12,
+            "2": 11,
+            "3": 0
+          },
+          "3": {
+            "1": 2,
+            "2": 0,
+            "3": 4
+          }
+        },
+        "transicoes_total": 14,
+        "transicoes_detectadas": 0,
+        "estaveis_total": 78,
+        "alarmes_falsos": 0
+      }
+    }
+  },
+  "regra_escolhida": "q10",
+  "regra_escolhida_venceu_so_por_nunca_prever_mudanca": true,
+  "resultado_km_impar_da_escolhida": {
+    "n": 92,
+    "acuracia": 0.8478260869565217,
+    "J": 0.0,
+    "matriz": {
+      "1": {
+        "1": 63,
+        "2": 0,
+        "3": 0
+      },
+      "2": {
+        "1": 12,
+        "2": 11,
+        "3": 0
+      },
+      "3": {
+        "1": 2,
+        "2": 0,
+        "3": 4
+      }
+    },
+    "transicoes_total": 14,
+    "transicoes_detectadas": 0,
+    "estaveis_total": 78,
+    "alarmes_falsos": 0
+  },
+  "resultado_geral_da_escolhida": {
+    "n": 195,
+    "acuracia": 0.8307692307692308,
+    "J": 0.0,
+    "matriz": {
+      "1": {
+        "1": 130,
+        "2": 0,
+        "3": 0
+      },
+      "2": {
+        "1": 30,
+        "2": 22,
+        "3": 0
+      },
+      "3": {
+        "1": 3,
+        "2": 0,
+        "3": 10
+      }
+    },
+    "transicoes_total": 33,
+    "transicoes_detectadas": 0,
+    "estaveis_total": 162,
+    "alarmes_falsos": 0
+  },
+  "baseline_sem_mudanca_geral": {
+    "n": 195,
+    "acuracia": 0.8307692307692308,
+    "J": 0.0,
+    "matriz": {
+      "1": {
+        "1": 130,
+        "2": 0,
+        "3": 0
+      },
+      "2": {
+        "1": 30,
+        "2": 22,
+        "3": 0
+      },
+      "3": {
+        "1": 3,
+        "2": 0,
+        "3": 10
+      }
+    },
+    "transicoes_total": 33,
+    "transicoes_detectadas": 0,
+    "estaveis_total": 162,
+    "alarmes_falsos": 0
+  }
+}
