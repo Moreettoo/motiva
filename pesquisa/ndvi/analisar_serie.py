@@ -76,26 +76,44 @@ def main() -> None:
     # documento na MESMA secao.
     br = relatorio._br
     recall_txt = "—" if conf["recall"] is None else f"{conf['recall']:.0%}"
+    eventos_total = saida["eventos_total"]
     # `p_valor_delta` vem de ndvi_analise.json (saida real da Tarefa 14), nunca digitado: e o
     # mesmo numero citado na secao acima deste documento, gerada por analisar_ndvi.py.
-    leitura_recall = ""
-    if conf["recall"] is not None and conf["recall"] < 0.5:
-        p_delta = None
-        caminho_ndvi_analise = DERIVADOS / "ndvi_analise.json"
-        if caminho_ndvi_analise.exists():
-            analise_tarefa14 = json.loads(caminho_ndvi_analise.read_text(encoding="utf-8"))
-            r14 = next((r for r in analise_tarefa14["analises"] if r.get("n_rocados") is not None), None)
-            p_delta = r14["p_valor_delta"] if r14 else None
-        p_txt = f", p = {br(p_delta, 4)}" if p_delta is not None else ""
-        leitura_recall = (f" Recall baixo é consistente com o achado da Tarefa 14 (AUC invertida, teste de corte "
-                          f"sem diferença significativa{p_txt}): uma série mais longa não recuperou o que três "
-                          f"datas não acharam.")
+    p_delta = None
+    caminho_ndvi_analise = DERIVADOS / "ndvi_analise.json"
+    if caminho_ndvi_analise.exists():
+        analise_tarefa14 = json.loads(caminho_ndvi_analise.read_text(encoding="utf-8"))
+        r14 = next((r for r in analise_tarefa14["analises"] if r.get("n_rocados") is not None), None)
+        p_delta = r14["p_valor_delta"] if r14 else None
+    p_txt = f", p = {br(p_delta, 4)}" if p_delta is not None else ""
+    # Aviso de leitura, logo apos a tabela (nao rodape): a tabela de cortes por ano, sozinha, le
+    # como um historico de rocada -- so a frase ao lado, chaveada no recall calculado (nao um
+    # texto fixo), deixa explicito que 190 cortes com recall de 5% nao sao evidencia de 190
+    # rocadas. O tom muda com o proprio recall, do mesmo jeito que a leitura do AUC em
+    # `_leitura_separacao` muda com o proprio AUC, em vez de afirmar uma conclusao fixa.
+    if conf["recall"] is None:
+        leitura_eventos = ""
+    elif conf["recall"] < 0.5:
+        leitura_eventos = (
+            f"\n\nCom recall de {recall_txt} nesta conferência (o detector achou {conf['detectados']} das "
+            f"{conf['n_rocados']} roçadas conhecidas), os {eventos_total} cortes detectados na tabela acima são "
+            f"mais prováveis de refletir variação sazonal de NDVI ou ruído do sensor do que roçadas reais — a "
+            f"contagem por ano **não** deve ser lida como histórico de roçada. Consistente com o achado da Tarefa "
+            f"14 (AUC invertida, teste de corte sem diferença significativa{p_txt}): uma série mais longa não "
+            f"recuperou o que três datas não acharam.")
+    else:
+        leitura_eventos = (
+            f"\n\nRecall de {recall_txt} nesta conferência (o detector achou {conf['detectados']} das "
+            f"{conf['n_rocados']} roçadas conhecidas) é consistente com parte dos {eventos_total} cortes "
+            f"detectados sendo roçadas reais, mas sem confirmação independente para os cortes fora da janela de "
+            f"março/2026 — a contagem por ano ainda não é um histórico de roçada validado.")
     texto = (f"\n## Série 2019–{date.today().year} e detector de corte\n\nGerado por `pesquisa/ndvi/analisar_serie.py` em {saida['gerado_em']} (commit {saida['commit']}).\n\n"
-             f"{n_obs} observações limpas em {len(por_marco)} segmentos (~{br(saida['observacoes_por_segmento_ano'], 1)} por segmento por ano). "
+             f"{br(n_obs, 0)} observações limpas em {len(por_marco)} segmentos (~{br(saida['observacoes_por_segmento_ano'], 1)} por segmento por ano). "
              f"Detector: queda ≥ {br(QUEDA_MINIMA, 2)} em ≤ {MAX_DIAS} dias partindo de NDVI ≥ {br(MINIMO_ANTES, 2)}.\n\n"
              f"| ano | cortes detectados |\n|---|---|\n" + "\n".join(f"| {a} | {n} |" for a, n in sorted(por_ano.items())) +
+             leitura_eventos +
              f"\n\nConferência contra as {conf['n_rocados']} roçadas inferidas de 13→20/03/2026: **{conf['detectados']} detectadas** "
-             f"(recall {recall_txt}), {conf['falsos']} segmento(s) com queda sem roçada inferida.{leitura_recall}\n")
+             f"(recall {recall_txt}), {conf['falsos']} segmento(s) com queda sem roçada inferida.\n")
     with (DOCS_PESQUISA / "03-ndvi.md").open("a", encoding="utf-8") as f:
         f.write(texto)
     print(saida)
