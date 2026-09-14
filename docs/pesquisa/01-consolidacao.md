@@ -1,6 +1,6 @@
 # 01 · Consolidação dos dados da Motiva
 
-Gerado por `pesquisa/consolidar.py` em 13/09/2026 22:02 (commit 0a793ae).
+Gerado por `pesquisa/consolidar.py` em 13/09/2026 23:20 (commit 5c15cf1).
 
 ## Fontes
 
@@ -15,7 +15,7 @@ Adotam-se as datas dos nomes.
 ## Eixo
 
 30 marcos reordenados (`[-23.41620665170857, -46.73676819732765]` … `[-23.63253885917052, -46.83184134075487]`), comprimento **29,025 m**,
-escala para o km da planilha **1.0095**.
+escala para o km da planilha **1,0095**.
 
 ## Pares de observação (13/03 → 20/03)
 
@@ -128,7 +128,8 @@ escala para o km da planilha **1.0095**.
   método vem de `<name>` e o km inteiro de `<description>`. `area_m2` já é líquida de buracos
   (`<innerBoundaryIs>`); a geometria (`aneis`/`aneis_internos`) é que precisa da subtração
   explícita — ver `poligonos.py`.
-- O eixo (`Marco km_rodoanel 2.kmz`) tem 2 marcos fora de ordem no arquivo, corrigidos por `marcos.ORDEM_CORRIGIDA`; mesmo corrigido, resta uma lacuna real de **2,042 m** sem marco intermediário, entre os km de planilha **23.67** e **25.73** (entre os km 23 e 26). Nesse trecho o eixo reordenado vira uma corda reta onde a rodovia de verdade faz curva, e a atribuição de polígono → marco (`metodo_rocada`/`area_rocada_m2` dos segmentos nesse trecho) é por isso menos confiável: **54** dos **70** polígonos cujo centróide diverge por mais de 1 km do seu km descrito caem nesse trecho (**77%**). Não é erro de projeção: mesmo o pior caso (polígono 596, descrito no km 25, projetando a 1.96 km de distância disso) fica a só **18 m** do eixo — bem abaixo da mediana geral de **56 m**. É lacuna de levantamento da Motiva, não defeito de projeção: **30** marcos não dá para cobrir os **29.3 km** da planilha sem aproximar em algum trecho. Ver o docstring de `poligonos.atribuir`.
+- O eixo (`Marco km_rodoanel 2.kmz`) tem 2 marcos fora de ordem no arquivo, corrigidos por `marcos.ORDEM_CORRIGIDA`; mesmo corrigido, resta uma lacuna real de **2,042 m** sem marco intermediário, entre os km de planilha **23,67** e **25,73** (entre os km 23 e 26). Nesse trecho o eixo reordenado vira uma corda reta onde a rodovia de verdade faz curva, e a atribuição de polígono → marco (`metodo_rocada`/`area_rocada_m2` dos segmentos nesse trecho) é por isso menos confiável: **54** dos **70** polígonos cujo centróide diverge por mais de 1 km do seu km descrito caem nesse trecho (**77%**). Não é erro de projeção: mesmo o pior caso (polígono 596, descrito no km 25, projetando a 1,96 km de distância disso) fica a só **18 m** do eixo — bem abaixo da mediana geral de **56 m**. É lacuna de levantamento da Motiva, não defeito de projeção: **30** marcos não dá para cobrir os **29,3 km** da planilha sem aproximar em algum trecho. Ver o docstring de `poligonos.atribuir`.
+- **6** dos **60** segmentos não têm nenhum polígono de roçada atribuído (`metodo_rocada`/`area_rocada_m2` ficam vazios/zero): km 2,50–3,50; km 7,50–8,50; km 29,00–29,30. Não é erro de agrupamento — a soma de polígonos por marco continua cobrindo o lote inteiro (**642** polígonos); é ausência de cobertura desses trechos no KML de roçada da Motiva.
 - **8** das **12** faixas transversais da planilha
   ficam fora do escopo contratual (ver `planilha.CODIGOS_EM_ESCOPO`): a medição derivada usa a
   pior classe apenas dentre as **4** faixas em escopo (canteiro

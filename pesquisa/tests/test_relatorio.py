@@ -84,3 +84,47 @@ def test_consolidacao_nao_digita_numero_a_mao_bate_com_as_contagens_de_entrada()
     assert len(segs) == 60 and segs[0].km_marco_m == 0
     assert segs[0].latitude == -23.4 and segs[0].longitude == -46.7
     assert "-23,400" in texto and "-46,700" in texto
+
+    # Neste cenario so o marco 0 tem poligono no resumo: os outros 59
+    # segmentos ficam com metodo_rocada None e tem que virar UM trecho
+    # continuo no bullet de limitacao (km 0,50 ate 29,30), nao 59 linhas
+    # soltas nem um numero errado.
+    faltando = [s for s in segs if s.metodo_rocada is None]
+    assert len(faltando) == 59
+    assert f"**{len(faltando)}** dos **{len(segs)}** segmentos" in texto
+    assert "km 0,50–29,30" in texto
+    # decimais em virgula (padrao BR), nao ponto -- ver auditoria de decimais
+    assert "0.50" not in texto and "29.30" not in texto
+
+
+def test_paragrafo_sem_poligono_quando_todos_os_segmentos_tem_poligono():
+    """Guarda o outro lado do bullet novo: se NENHUM segmento ficar sem
+    poligono, o texto nao pode tentar formatar uma lista de trechos vazia
+    (e nao pode, por exemplo, imprimir "0 dos 60" como se fosse um problema).
+    """
+    eixo = _eixo_toy()
+    segs = segmentos.montar_segmentos(eixo, {m: {"metodo_dominante": "Apenas manual", "area_total_m2": 1.0,
+                                                  "areas": {"Apenas manual": 1.0}, "n_poligonos": 1}
+                                              for m in segmentos.MARCOS})
+    assert all(s.metodo_rocada is not None for s in segs)
+    texto = relatorio._paragrafo_sem_poligono(segs, [])
+    assert f"Todos os **{len(segs)}** segmentos" in texto
+    assert "dos **" not in texto   # nao usa o formato "N dos M" quando N=0
+
+
+def test_paragrafo_sem_poligono_agrupa_trechos_nao_adjacentes_separadamente():
+    """Dois marcos sem poligono que NAO sao vizinhos (500 e 2000, com marcos
+    cobertos entre eles) tem que virar DOIS trechos no texto, nao um so --
+    o agrupamento por adjacencia so deve unir segmentos consecutivos na
+    lista, nunca todos os que faltam poligono no lote inteiro.
+    """
+    eixo = _eixo_toy()
+    resumo = {m: {"metodo_dominante": "Apenas manual", "area_total_m2": 1.0,
+                  "areas": {"Apenas manual": 1.0}, "n_poligonos": 1}
+              for m in segmentos.MARCOS if m not in (500, 2000)}
+    segs = segmentos.montar_segmentos(eixo, resumo)
+    texto = relatorio._paragrafo_sem_poligono(segs, [])
+    assert "**2** dos **60** segmentos" in texto
+    assert "km 0,50–1,00" in texto
+    assert "km 2,00–2,50" in texto
+    assert "km 0,50–2,50" not in texto   # nao pode fundir os dois trechos

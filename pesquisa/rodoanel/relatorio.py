@@ -45,6 +45,14 @@ def _tabela(cabecalho: list[str], linhas: list[list]) -> str:
     return "\n".join(out)
 
 
+def _br(v: float, casas: int = 2) -> str:
+    """Formata um float com virgula decimal (padrao BR) fora de tabela --
+    mesma conversao que _tabela ja aplica por celula, reaproveitada na prosa
+    corrida do relatorio (que e a unica parte deste modulo com acentuacao
+    normal em portugues -- ver o docstring do modulo)."""
+    return f"{v:.{casas}f}".replace(".", ",")
+
+
 def _lacuna_do_eixo(eixo) -> tuple[float, float, float]:
     """(tamanho em m, km de planilha inicial, km de planilha final) do maior
     salto de chainage entre marcos consecutivos do eixo reordenado."""
@@ -82,7 +90,7 @@ def _paragrafo_lacuna(eixo, poligonos, mediana_dist_m: float) -> str:
     discordantes = _discordancia_poligonos(eixo, poligonos)
     base = (f"O eixo (`Marco km_rodoanel 2.kmz`) tem 2 marcos fora de ordem no arquivo, corrigidos "
             f"por `marcos.ORDEM_CORRIGIDA`; mesmo corrigido, resta uma lacuna real de **{lacuna_m:,.0f} m** "
-            f"sem marco intermediário, entre os km de planilha **{km_ini:.2f}** e **{km_fim:.2f}** "
+            f"sem marco intermediário, entre os km de planilha **{_br(km_ini)}** e **{_br(km_fim)}** "
             f"(entre os km {faixa.start} e {faixa.stop - 1}). Nesse trecho o eixo reordenado vira uma "
             f"corda reta onde a rodovia de verdade faz curva, e a atribuição de polígono → marco "
             f"(`metodo_rocada`/`area_rocada_m2` dos segmentos nesse trecho) é por isso menos confiável")
@@ -95,11 +103,36 @@ def _paragrafo_lacuna(eixo, poligonos, mediana_dist_m: float) -> str:
             f"diverge por mais de 1 km do seu km descrito caem nesse trecho "
             f"(**{100 * len(na_lacuna) / len(discordantes):.0f}%**). Não é erro de projeção: mesmo o "
             f"pior caso (polígono {pior[0].indice}, descrito no km {pior[0].km_descricao}, projetando "
-            f"a {pior[1]:.2f} km de distância disso) fica a só **{pior[2]:.0f} m** do eixo — bem abaixo "
+            f"a {_br(pior[1])} km de distância disso) fica a só **{pior[2]:.0f} m** do eixo — bem abaixo "
             f"da mediana geral de **{mediana_dist_m:.0f} m**. É lacuna de levantamento da Motiva, não "
             f"defeito de projeção: **{len(eixo.pontos)}** marcos não dá para cobrir os "
-            f"**{eixo.comprimento_m * eixo.escala / 1000:.1f} km** da planilha sem aproximar em algum "
+            f"**{_br(eixo.comprimento_m * eixo.escala / 1000, 1)} km** da planilha sem aproximar em algum "
             f"trecho. Ver o docstring de `poligonos.atribuir`.")
+
+
+def _paragrafo_sem_poligono(segmentos, poligonos) -> str:
+    """Paragrafo de limitacao sobre segmentos sem nenhum poligono de rocada
+    atribuido (`metodo_rocada is None`). `segmentos` chega ordenado por
+    km_marco_m crescente (a mesma ordem de segmentos.MARCOS), entao dois
+    segmentos vizinhos sem poligono viram um unico trecho contiguo no texto
+    em vez de duas linhas soltas.
+    """
+    faltando = [s for s in segmentos if s.metodo_rocada is None]
+    if not faltando:
+        return (f"Todos os **{len(segmentos)}** segmentos têm pelo menos um polígono de roçada "
+                f"atribuído.")
+    trechos: list[list[float]] = []
+    for s in faltando:
+        if trechos and trechos[-1][1] == s.km_inicio:
+            trechos[-1][1] = s.km_fim
+        else:
+            trechos.append([s.km_inicio, s.km_fim])
+    lista_trechos = "; ".join(f"km {_br(a)}–{_br(b)}" for a, b in trechos)
+    return (f"**{len(faltando)}** dos **{len(segmentos)}** segmentos não têm nenhum polígono de "
+            f"roçada atribuído (`metodo_rocada`/`area_rocada_m2` ficam vazios/zero): {lista_trechos}. "
+            f"Não é erro de agrupamento — a soma de polígonos por marco continua cobrindo o lote "
+            f"inteiro (**{len(poligonos)}** polígonos); é ausência de cobertura desses trechos no "
+            f"KML de roçada da Motiva.")
 
 
 def consolidacao(*, lev1, lev2, eixo, segmentos, pares, matriz, poligonos, atribuicao) -> str:
@@ -115,6 +148,7 @@ def consolidacao(*, lev1, lev2, eixo, segmentos, pares, matriz, poligonos, atrib
     linhas_seg = [[s.km_marco_m, s.km_inicio, s.km_fim, s.latitude, s.longitude, s.metodo_rocada or "—", round(s.area_rocada_m2)] for s in segmentos]
 
     paragrafo_lacuna = _paragrafo_lacuna(eixo, poligonos, dist[len(dist) // 2])
+    paragrafo_sem_poligono = _paragrafo_sem_poligono(segmentos, poligonos)
     n_faixas_fora_de_escopo = len(planilha.FAIXAS) - len(planilha.CODIGOS_EM_ESCOPO)
 
     return f"""# 01 · Consolidação dos dados da Motiva
@@ -134,7 +168,7 @@ Adotam-se as datas dos nomes.
 ## Eixo
 
 30 marcos reordenados (`{list(eixo.pontos[0])}` … `{list(eixo.pontos[-1])}`), comprimento **{eixo.comprimento_m:,.0f} m**,
-escala para o km da planilha **{eixo.escala:.4f}**.
+escala para o km da planilha **{_br(eixo.escala, 4)}**.
 
 ## Pares de observação (13/03 → 20/03)
 
@@ -164,6 +198,7 @@ escala para o km da planilha **{eixo.escala:.4f}**.
   (`<innerBoundaryIs>`); a geometria (`aneis`/`aneis_internos`) é que precisa da subtração
   explícita — ver `poligonos.py`.
 - {paragrafo_lacuna}
+- {paragrafo_sem_poligono}
 - **{n_faixas_fora_de_escopo}** das **{len(planilha.FAIXAS)}** faixas transversais da planilha
   ficam fora do escopo contratual (ver `planilha.CODIGOS_EM_ESCOPO`): a medição derivada usa a
   pior classe apenas dentre as **{len(planilha.CODIGOS_EM_ESCOPO)}** faixas em escopo (canteiro
