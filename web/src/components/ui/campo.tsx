@@ -6,10 +6,11 @@ import {
   isValidElement,
   useId,
   useRef,
+  useState,
   type ReactElement,
   type ReactNode,
 } from "react";
-import { ChevronDown, CircleAlert, Search, X } from "lucide-react";
+import { ChevronDown, CircleAlert, Eye, EyeOff, Search, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -130,6 +131,36 @@ export function Entrada({
       aria-invalid={ariaInvalido ?? (invalido || undefined)}
       className={cn(BASE_CONTROLE, "h-9 px-3", className)}
     />
+  );
+}
+
+/** `Entrada` de senha com botão para revelar o texto — o campo nasce oculto. */
+export function EntradaSenha({
+  className,
+  invalido,
+  "aria-invalid": ariaInvalido,
+  ...props
+}: Omit<React.ComponentProps<"input">, "type"> & { invalido?: boolean }) {
+  const [visivel, setVisivel] = useState(false);
+
+  return (
+    <span className="relative flex w-full items-center">
+      <input
+        {...props}
+        type={visivel ? "text" : "password"}
+        aria-invalid={ariaInvalido ?? (invalido || undefined)}
+        className={cn(BASE_CONTROLE, "h-9 pr-9 pl-3", className)}
+      />
+      <button
+        type="button"
+        onClick={() => setVisivel((v) => !v)}
+        aria-label={visivel ? "Ocultar senha" : "Mostrar senha"}
+        aria-pressed={visivel}
+        className="absolute right-1.5 inline-flex size-6 items-center justify-center rounded-sm text-ink-3 hover:bg-surface-3 hover:text-ink"
+      >
+        {visivel ? <EyeOff aria-hidden="true" className="size-4" /> : <Eye aria-hidden="true" className="size-4" />}
+      </button>
+    </span>
   );
 }
 

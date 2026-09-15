@@ -44,3 +44,40 @@ export function escolherCalibracao(linhas: LinhaCalibracao[], rodovia: string | 
     especie: melhor.l.especie,
   };
 }
+
+/**
+ * Os TRÊS estados da calibração, não dois.
+ *
+ * `origem: "medida"` quer dizer que existe uma validação contra campo, não que
+ * o fator dela esteja corrigindo alguma coisa. No Rodoanel o fator vigente é
+ * 1,0: a medição aconteceu em 195 pares reais e o resultado dela foi DESLIGAR a
+ * calibração — o candidato 1,15 piorou fora da amostra e ficou registrado como
+ * rejeitado. Colapsar "medida e aplicada" com "medida e rejeitada" soa como
+ * endosso do fator que foi recusado, e esse texto chega ao cliente.
+ */
+export type EstadoCalibracao = "aplicada" | "desligada" | "ausente";
+
+export function estadoDaCalibracao(c: CalibracaoVigente): EstadoCalibracao {
+  if (c.origem !== "medida") return "ausente";
+  return Math.abs(c.fator - 1) < 1e-9 ? "desligada" : "aplicada";
+}
+
+/**
+ * Como descrever a calibração para a LLM. Espelha `_origem_calibracao` em
+ * `ml/analise.py`, porque as duas IAs 2 — a do lote e a do simulador — têm que
+ * receber a mesma descrição do mesmo fato.
+ */
+export function origemParaIA(c: CalibracaoVigente): string {
+  switch (estadoDaCalibracao(c)) {
+    case "ausente":
+      return "sem calibração medida: modelo sintético puro";
+    case "desligada":
+      return (
+        "calibração DESLIGADA (fator 1,0): foi medida contra os pares reais do levantamento da " +
+        "concessionária e o fator candidato foi testado e REJEITADO fora da amostra; a curva aqui " +
+        "é o modelo sem correção"
+      );
+    case "aplicada":
+      return "medida contra pares reais do levantamento da concessionária e aplicada";
+  }
+}

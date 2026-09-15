@@ -6,7 +6,7 @@ import { UserPlus } from "lucide-react";
 
 import { Aviso } from "@/components/ui/aviso";
 import { Botao } from "@/components/ui/botao";
-import { Campo, Entrada } from "@/components/ui/campo";
+import { Campo, Entrada, EntradaSenha } from "@/components/ui/campo";
 import { aceitarConvite } from "@/lib/auth/acoes-convite";
 import { SENHA_MINIMA, erroDaSenha } from "@/lib/auth/tokens";
 
@@ -83,8 +83,7 @@ export function FormularioAceite({
         dica={`Pelo menos ${SENHA_MINIMA} caracteres, com letras e números.`}
         obrigatorio
       >
-        <Entrada
-          type="password"
+        <EntradaSenha
           autoComplete="new-password"
           value={senha}
           onChange={(e) => setSenha(e.target.value)}
@@ -92,8 +91,7 @@ export function FormularioAceite({
       </Campo>
 
       <Campo rotulo="Repita a senha" obrigatorio>
-        <Entrada
-          type="password"
+        <EntradaSenha
           autoComplete="new-password"
           value={confirmacao}
           onChange={(e) => setConfirmacao(e.target.value)}

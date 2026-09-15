@@ -7,6 +7,7 @@
  */
 
 import { balancoSolo, type DiaClima, type FonteDia, type Janela } from "./clima";
+import { somarDias } from "./format";
 import type { Intervalo } from "./modelo/arvores";
 import { extrapolacoes, preverCrescimento, type Extrapolacao } from "./modelo/campos";
 import type { Especie } from "./types";
@@ -204,4 +205,28 @@ export function bandaQueCruza(
     mediana: diaQueCruza(sim, limiteCm, "mediana"),
     tarde: diaQueCruza(sim, limiteCm, "min"),
   };
+}
+
+/**
+ * O dia de por a equipe na estrada: o cruzamento menos a mobilizacao, nunca
+ * antes de hoje. Espelha `data_ideal` em `ml/analise.py`, com uma diferenca que
+ * o lote nao tem -- la o prazo e contado de hoje, aqui do INICIO do periodo
+ * simulado, que pode estar no passado ou no futuro.
+ *
+ * `hoje` entra por parametro, e nao de `isoHoje()`, para este arquivo continuar
+ * puro: ele nao le relogio, nao le banco e nao chama rede, e e por isso que a
+ * conta que importa da para testar.
+ */
+export function diaIdealDeRocada(
+  inicioDoPeriodo: string,
+  cruzaEmDias: number | null,
+  mobilizacaoDias: number,
+  hoje: string,
+): string | null {
+  if (cruzaEmDias == null) return null;
+  const ideal = somarDias(inicioDoPeriodo, cruzaEmDias - mobilizacaoDias).toISOString().slice(0, 10);
+  // Comparacao lexicografica: AAAA-MM-DD ordena como data. Um cruzamento que ja
+  // passou, ou que vem antes da mobilizacao acabar, cai em hoje -- nunca em
+  // ontem, que seria uma data que ninguem pode cumprir.
+  return ideal < hoje ? hoje : ideal;
 }

@@ -81,7 +81,7 @@ export function BarraLateral({ cargo, ultimaAnalise }: { cargo: Cargo; ultimaAna
           aria-label="HighwAI: ir para o painel"
           className={cn("min-w-0 rounded-md py-1", expandida ? "fade block" : "hidden")}
         >
-          <span className="brilho-marca relative block overflow-hidden truncate text-sm leading-none font-semibold tracking-tight text-ink">
+          <span className="block truncate text-sm leading-none font-semibold tracking-tight text-ink">
             HighwAI
           </span>
         </Link>

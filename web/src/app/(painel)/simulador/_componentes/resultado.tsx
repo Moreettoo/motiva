@@ -5,12 +5,13 @@ import { Cartao, CartaoCabecalho, CartaoCorpo } from "@/components/ui/cartao";
 import { Indicador } from "@/components/ui/indicador";
 import { Leitura } from "@/components/ui/leitura";
 import { fatorVigente } from "@/lib/calibracao";
+import { origemParaIA } from "@/lib/calibracao-regra";
 import { resumir } from "@/lib/clima";
 import { ESPECIE, REGIME } from "@/lib/dominio";
 import { fmt, isoHoje } from "@/lib/format";
 import { janelaDoPeriodo } from "@/lib/open-meteo";
-import { trechoMaisProximo } from "@/lib/queries";
-import { bandaQueCruza, simular } from "@/lib/simulacao";
+import { mobilizacaoDaRodovia, trechoMaisProximo } from "@/lib/queries";
+import { bandaQueCruza, diaIdealDeRocada, simular } from "@/lib/simulacao";
 import { soloDoPonto } from "@/lib/solo";
 
 import { Curva } from "./curva";
@@ -43,7 +44,10 @@ export async function Resultado({ pedido }: { pedido: Pedido }) {
   // ponto solto do mapa -- por isso depende de `vizinho` e nao entra no
   // `Promise.all` de cima. Sem trecho perto, `fatorVigente` recebe rodovia
   // nula e cai no "qualquer rodovia" ou em `SEM_CALIBRACAO`, nunca falha.
-  const calibracao = await fatorVigente(vizinho?.trecho.rodovia ?? null, pedido.especie);
+  const [calibracao, mobilizacao] = await Promise.all([
+    fatorVigente(vizinho?.trecho.rodovia ?? null, pedido.especie),
+    mobilizacaoDaRodovia(vizinho?.trecho.rodovia ?? null),
+  ]);
 
   const simulacao = simular(
     {
@@ -75,6 +79,10 @@ export async function Resultado({ pedido }: { pedido: Pedido }) {
   // encolher junto — senão o cartão anuncia uma data que a curva não alcança.
   const dataFinal = janela.dias[diasSimulados - 1]?.data ?? pedido.periodo.fim;
   const noPassado = pedido.periodo.fim < isoHoje();
+
+  // O dia de mobilizar a equipe, e nao o dia do cruzamento: e ele que a IA 2 usa
+  // como `data_sugerida` desde que o lote passou a mandar o mesmo campo.
+  const diaIdeal = diaIdealDeRocada(pedido.periodo.inicio, cruza, mobilizacao.dias, isoHoje());
 
   return (
     <div className="flex flex-col gap-6 lg:gap-8">
@@ -265,11 +273,12 @@ export async function Resultado({ pedido }: { pedido: Pedido }) {
               fronteira entre simulações e o texto da anterior fica na tela
               enquanto a nova carrega. */}
           <Suspense
-            key={`${pedido.especie}|${pedido.regime}|${pedido.latitude}|${pedido.longitude}|${pedido.alturaCm}|${pedido.periodo.inicio}|${pedido.periodo.fim}|${pedido.diasDesdeRocada}|${fertilidade}|${capacidadeMm}`}
+            key={`${pedido.especie}|${pedido.regime}|${pedido.latitude}|${pedido.longitude}|${pedido.alturaCm}|${pedido.periodo.inicio}|${pedido.periodo.fim}|${pedido.diasDesdeRocada}|${fertilidade}|${capacidadeMm}|${calibracao.fator}|${mobilizacao.dias}`}
             fallback={<LeituraCarregando />}
           >
             <LeituraGestor
               calibracao={calibracao}
+              mobilizacao={mobilizacao}
               contexto={{
                 especie: pedido.especie,
                 latitude: pedido.latitude,
@@ -293,6 +302,14 @@ export async function Resultado({ pedido }: { pedido: Pedido }) {
                 quando_cruza_o_limite: {
                   mais_cedo_dias: banda?.cedo ?? null,
                   mais_tarde_dias: banda?.tarde ?? null,
+                },
+                dia_ideal_rocada: diaIdeal,
+                tempo_mobilizacao_dias: mobilizacao.dias,
+                calibracao: {
+                  fator: Number(calibracao.fator.toFixed(2)),
+                  origem: origemParaIA(calibracao),
+                  n_pares_reais: calibracao.nPares,
+                  validada_em: calibracao.validadaEm,
                 },
                 altura_limite_de_referencia_cm: limiteCm,
                 temperatura_media_prevista_c: Number(resumo.temperaturaMediaC.toFixed(1)),

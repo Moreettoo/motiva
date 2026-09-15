@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { escolherCalibracao, SEM_CALIBRACAO } from "./calibracao-regra";
+import { escolherCalibracao, estadoDaCalibracao, origemParaIA, SEM_CALIBRACAO } from "./calibracao-regra";
 
 const LINHAS = [
   { fator: "1.30", rodovia: "SP-021 Rodoanel Oeste", especie: "braquiaria", validacoes: { n_pares_usados: 195, executada_em: "2026-09-13T20:00:00Z" } },
@@ -91,5 +91,39 @@ describe("escolherCalibracao", () => {
     expect(escolherCalibracao([{ fator: 2, rodovia: null, especie: "esmeralda" }], "SP-021 Rodoanel Oeste", "braquiaria")).toEqual(
       SEM_CALIBRACAO,
     );
+  });
+});
+
+describe("estadoDaCalibracao", () => {
+  const medida = (fator: number) => ({ ...SEM_CALIBRACAO, fator, origem: "medida" as const });
+
+  it("separa medida-e-aplicada de medida-e-desligada, que é o caso do Rodoanel", () => {
+    expect(estadoDaCalibracao(medida(1.15))).toBe("aplicada");
+    expect(estadoDaCalibracao(medida(1))).toBe("desligada");
+    expect(estadoDaCalibracao(SEM_CALIBRACAO)).toBe("ausente");
+  });
+
+  it("fator 1,0 com ruído de ponto flutuante continua desligada", () => {
+    expect(estadoDaCalibracao(medida(1 + 1e-12))).toBe("desligada");
+  });
+});
+
+describe("origemParaIA", () => {
+  // A frase vai DENTRO do prompt e sai na justificativa que o cliente lê. O que
+  // se prende aqui é a distinção que ela não pode perder: fator 1,0 não é
+  // ausência de medição, e não pode soar como endosso do fator rejeitado.
+  it("diz que a calibração foi desligada, e não que não houve medição", () => {
+    const frase = origemParaIA({ ...SEM_CALIBRACAO, fator: 1, origem: "medida" });
+    expect(frase).toContain("DESLIGADA");
+    expect(frase).toContain("REJEITADO");
+    expect(frase).not.toContain("sem calibração medida");
+  });
+
+  it("sem calibração nenhuma, avisa que é simulação pura", () => {
+    expect(origemParaIA(SEM_CALIBRACAO)).toContain("modelo sintético puro");
+  });
+
+  it("com fator diferente de 1, diz que foi medida e aplicada", () => {
+    expect(origemParaIA({ ...SEM_CALIBRACAO, fator: 1.15, origem: "medida" })).toContain("aplicada");
   });
 });

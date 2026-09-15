@@ -37,6 +37,7 @@ importa num horizonte de tres meses. Quando ele recusa, o padrao dos 16 dias
 previstos se repete ciclicamente, e a serie diz qual dos dois valeu.
 """
 
+import os
 import time
 from datetime import date, timedelta
 from typing import Iterable, NamedTuple
@@ -57,7 +58,14 @@ PREVISAO_DIAS = 16
 #: Horizonte da busca do cruzamento. E o teto de `dias_periodo` no treino.
 HORIZONTE_DIAS = 120
 
-TIMEOUT_S = 45.0
+#: Segundos de espera por consulta. O padrao de 45 s cobre o Open-Meteo em dia
+#: normal, mas a latencia dele varia MUITO por rede: medido daqui em 2026-09-15,
+#: tres chamadas seguidas ao mesmo endpoint levaram 1 s, 29 s e 81 s. Com o valor
+#: presos em 45 s as tres tentativas de `_pedir` estouram juntas e a zona inteira
+#: cai em "ERRO no ambiente", que o lote reporta como trecho sem previsao nova --
+#: um numero de rede virando um buraco na agenda. Por isso ele e ajustavel: em
+#: rede ruim, `CLIMA_TIMEOUT_S=180 python analisar_lote.py`.
+TIMEOUT_S = float(os.getenv("CLIMA_TIMEOUT_S", "45"))
 PAUSA_S = 0.6
 #: Tentativas por consulta. Ver `_pedir`: o estrangulamento do IP do CI so
 #: aparece da segunda chamada em diante, entao uma tentativa nao basta.

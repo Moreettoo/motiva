@@ -1,5 +1,7 @@
-import { Body, Container, Head, Hr, Html, Preview, Section, Text } from "@react-email/components";
+import { Body, Container, Head, Hr, Html, Img, Preview, Section, Text } from "@react-email/components";
 import type { ReactNode } from "react";
+
+import { urlDoApp } from "@/lib/auth/links";
 
 /**
  * UNICA excecao a regra "nenhum hex fora de globals.css": cliente de e-mail nao
@@ -26,12 +28,15 @@ export function BaseEmail({ previa, children }: { previa: string; children: Reac
       <Preview>{previa}</Preview>
       <Body style={{ margin: 0, backgroundColor: CORES.fundo, fontFamily: FONTE, color: CORES.tinta }}>
         <Container style={{ maxWidth: 520, margin: "0 auto", padding: "32px 16px" }}>
-          {/* O filete de limao e a unica cor de marca: no e-mail ele faz o papel do simbolo. */}
+          {/* O filete de limao e a unica cor de marca alem do logo: no e-mail ele faz o papel do simbolo. */}
           <Section style={{ height: 3, backgroundColor: CORES.limao, borderRadius: "10px 10px 0 0" }} />
           <Section style={{ backgroundColor: CORES.cartao, border: `1px solid ${CORES.borda}`, borderRadius: "0 0 10px 10px", padding: 28 }}>
-            <Text style={{ margin: "0 0 16px", fontSize: 12, letterSpacing: 0.6, textTransform: "uppercase", color: CORES.tinta3 }}>
-              HighwAI · Regulação de solo para a Motiva
-            </Text>
+            <Section style={{ marginBottom: 16 }}>
+              <Img src={urlDoApp("/icones/highwai-logo.png")} width={22} height={22} alt="HighwAI" style={{ display: "inline-block", verticalAlign: "middle" }} />
+              <Text style={{ display: "inline-block", verticalAlign: "middle", margin: "0 0 0 10px", fontSize: 12, letterSpacing: 0.6, textTransform: "uppercase", color: CORES.tinta3 }}>
+                HighwAI · Regulação de solo para a Motiva
+              </Text>
+            </Section>
             {children}
           </Section>
           <Hr style={{ borderColor: CORES.borda, margin: "20px 0 8px" }} />

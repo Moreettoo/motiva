@@ -381,6 +381,51 @@ export const trechoMaisProximo = cache(
   },
 );
 
+/** Mobilizacao usada quando a rodovia nao tem concessionaria vinculada. E o
+ *  mesmo default da coluna `ia.concessionarias.mobilizacao_dias`, e o mesmo
+ *  `MOBILIZACAO_PADRAO_DIAS` de `ml/analise.py`. */
+export const MOBILIZACAO_PADRAO_DIAS = 7;
+
+/**
+ * Quantos dias a concessionaria de uma rodovia leva para por turma na estrada.
+ *
+ * O lote le isso pelo embed do trecho desde 14/09; o simulador nao tem trecho,
+ * tem o VIZINHO, e e a concessionaria dele que responde. Sem este numero a IA 2
+ * sugeria o proprio dia do cruzamento -- uma data que ja nasce tarde para quem
+ * precisa mobilizar equipe antes dela.
+ *
+ * `daConcessionaria: false` diz que o 7 e premissa, e nao leitura: 17 dos 50
+ * trechos nao tem `concessionaria_id`, e a tela precisa poder dizer qual dos
+ * dois esta mostrando.
+ */
+export const mobilizacaoDaRodovia = cache(
+  async (rodovia: string | null): Promise<{ dias: number; daConcessionaria: boolean }> => {
+    const premissa = { dias: MOBILIZACAO_PADRAO_DIAS, daConcessionaria: false };
+    if (!rodovia) return premissa;
+
+    const { data, error } = await db
+      .from("trechos")
+      .select("concessionarias(mobilizacao_dias)")
+      .eq("rodovia", rodovia)
+      .not("concessionaria_id", "is", null)
+      .limit(1);
+    if (error) throw new Error(`Falha ao ler a mobilizacao de ${rodovia}: ${error.message}`);
+
+    // O embed `concessionarias(...)` volta OBJETO quando o PostgREST prova que
+    // a FK e unica e LISTA quando nao prova. E a mesma armadilha que
+    // `mobilizacao_do_trecho` em `ml/analise.py` defende explicitamente: sem a
+    // guarda, a forma inesperada derruba a pagina inteira.
+    const bruto = (data?.[0] as { concessionarias?: unknown } | undefined)?.concessionarias;
+    const conc = (Array.isArray(bruto) ? bruto[0] : bruto) as { mobilizacao_dias?: number | null } | undefined;
+    const dias = Number(conc?.mobilizacao_dias);
+    // `>= 0` e nao `> 0`: o CHECK da coluna aceita zero, que significa equipe
+    // que entra no mesmo dia. `Number(null)` e 0, entao o teste de nulidade vem
+    // antes, senao a ausencia do embed viraria "mobilizacao zero".
+    if (conc?.mobilizacao_dias == null || !Number.isFinite(dias) || dias < 0) return premissa;
+    return { dias, daConcessionaria: true };
+  },
+);
+
 export type TrechosPorRodovia = Awaited<ReturnType<typeof trechosPorRodovia>>;
 export type SerieCrescimento = Awaited<ReturnType<typeof serieCrescimentoPorEspecie>>;
 export type CargaEquipes = Awaited<ReturnType<typeof cargaDasEquipes>>;

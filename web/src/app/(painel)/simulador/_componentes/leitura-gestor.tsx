@@ -1,12 +1,40 @@
-import { CalendarClock, Sparkles } from "lucide-react";
+import { CalendarClock, Scale, Sparkles } from "lucide-react";
 
 import { Aviso } from "@/components/ui/aviso";
 import { ChipRisco } from "@/components/ui/chip";
 import { Esqueleto } from "@/components/ui/esqueleto";
-import type { CalibracaoVigente } from "@/lib/calibracao-regra";
+import { estadoDaCalibracao, type CalibracaoVigente } from "@/lib/calibracao-regra";
 import { PRIORIDADE, riscoPorPrazo, rotuloPrazo } from "@/lib/dominio";
 import { fmt } from "@/lib/format";
 import { lerSimulacao, type ContextoLeitura } from "@/lib/leitura-ia";
+
+/**
+ * A calibração em uma frase, nos três estados de `estadoDaCalibracao`.
+ *
+ * "Medida" quer dizer que HOUVE validação contra campo, não que o fator esteja
+ * corrigindo alguma coisa: no Rodoanel ele é 1,0 porque a medição aconteceu e o
+ * resultado dela foi DESLIGAR a calibração. `nPares` e `validadaEm` vêm do mesmo
+ * embed de `validacoes` e são nulos juntos ou preenchidos juntos -- a redação
+ * sem detalhes existe pela garantia do tipo, e se aparecer na tela é porque
+ * alguém criou uma linha de `ia.calibracoes` sem `validacao_id`.
+ */
+function fraseDaCalibracao(c: CalibracaoVigente): string {
+  const medida =
+    c.nPares != null && c.validadaEm != null
+      ? `medida em ${fmt.n(c.nPares)} pares reais${c.rodovia ? ` da ${c.rodovia}` : ""} em ${fmt.dataMedia(
+          c.validadaEm,
+        )}`
+      : "medida contra o campo (detalhes da validação indisponíveis)";
+
+  switch (estadoDaCalibracao(c)) {
+    case "ausente":
+      return "Sem calibração medida para este ponto: a curva acima é o modelo sintético puro.";
+    case "desligada":
+      return `Calibração desligada (fator 1,00): ${medida}, e o fator candidato foi testado e rejeitado fora da amostra — a curva acima é o modelo sem correção.`;
+    case "aplicada":
+      return `Calibração aplicada: fator ${fmt.d2(c.fator)}, ${medida}.`;
+  }
+}
 
 /**
  * A IA 2.
@@ -23,9 +51,11 @@ import { lerSimulacao, type ContextoLeitura } from "@/lib/leitura-ia";
 export async function LeituraGestor({
   contexto,
   calibracao,
+  mobilizacao,
 }: {
   contexto: ContextoLeitura;
   calibracao: CalibracaoVigente;
+  mobilizacao: { dias: number; daConcessionaria: boolean };
 }) {
   const leitura = await lerSimulacao(contexto);
 
@@ -50,6 +80,20 @@ export async function LeituraGestor({
   const doPrazo = riscoPorPrazo(contexto.dias_ate_cruzar_o_limite);
   const discordou = prioridade !== doPrazo;
 
+  // A mobilização é o que separa "o dia em que o capim passa do limite" do "dia
+  // de pôr turma na estrada". Ela vem da concessionária do trecho vizinho; sem
+  // vínculo, é a premissa de 7 dias e a tela diz isso em vez de calar.
+  const mob = `mobilização de ${fmt.contar(mobilizacao.dias, "dia")}${
+    mobilizacao.daConcessionaria ? "" : " (premissa)"
+  }`;
+  const ideal = contexto.dia_ideal_rocada;
+  const notaDaData =
+    ideal == null
+      ? "o limite não é cruzado dentro do período"
+      : ideal === data_sugerida
+        ? `${mob} já descontada`
+        : `dia ideal ${fmt.dataMedia(ideal)} · ${mob}`;
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -58,44 +102,12 @@ export async function LeituraGestor({
           <CalendarClock aria-hidden="true" className="size-4 text-ink-3" />
           <span className="tnum font-medium">{fmt.dataMedia(data_sugerida)}</span>
         </span>
+        {/* A data ideal so aparece quando ela NAO e a data sugerida: quando as
+            duas coincidem, repetir o mesmo dia em dois lugares e ruido. Quando
+            diferem, o gestor precisa ver que a LLM adiou de proposito -- o
+            porque esta na justificativa logo abaixo. */}
+        <span className="text-xs text-ink-3">{notaDaData}</span>
       </div>
-
-      {/* `nPares` e `validadaEm` vem do MESMO embed de `validacoes` em
-          `escolherCalibracao`: os dois sao nulos juntos, ou preenchidos
-          juntos, nunca um sem o outro. O terceiro ramo abaixo so existe pela
-          garantia do tipo (`number | null`) -- se aparecer na tela, um
-          registro de `ia.calibracoes` foi criado sem `validacao_id`. */}
-      {/* "medida" quer dizer que HOUVE validação contra campo, não que o fator esteja
-          corrigindo alguma coisa: com fator 1,0 a medição aconteceu e o resultado dela
-          foi DESLIGAR a calibração (o candidato 1,15 piorou fora da amostra e ficou
-          registrado como rejeitado). O texto anterior — "fator 1,00, medido em 195 pares
-          reais do Rodoanel" — lia como endosso do fator recusado. O cartão
-          `validacao/_componentes/resumo-validacao.tsx` já fazia essa distinção; esta é a
-          mesma redação. */}
-      {calibracao.origem === "medida" && calibracao.nPares != null && calibracao.validadaEm != null ? (
-        <p className="text-xs text-ink-2">
-          {calibracao.fator === 1 ? (
-            <>
-              Calibração desligada (fator 1,00): medida em {fmt.n(calibracao.nPares)} pares reais do Rodoanel
-              em {fmt.dataMedia(calibracao.validadaEm)} e o fator candidato foi testado e rejeitado fora da
-              amostra — a curva abaixo é o modelo sem correção.
-            </>
-          ) : (
-            <>
-              Calibração: fator {fmt.d2(calibracao.fator)}, medido em {fmt.n(calibracao.nPares)} pares reais do
-              Rodoanel em {fmt.dataMedia(calibracao.validadaEm)}.
-            </>
-          )}
-        </p>
-      ) : calibracao.origem === "medida" ? (
-        <p className="text-xs text-ink-2">
-          {calibracao.fator === 1
-            ? "Calibração desligada (fator 1,00): houve validação contra campo e o fator candidato foi rejeitado (detalhes da validação indisponíveis)."
-            : `Calibração: fator ${fmt.d2(calibracao.fator)} (detalhes da validação indisponíveis).`}
-        </p>
-      ) : (
-        <p className="text-xs text-ink-2">Sem calibração medida para este ponto: a curva é o modelo sintético puro.</p>
-      )}
 
       {discordou ? (
         <Aviso tom="warning" titulo="A LLM discordou da regra de prazo">
@@ -120,13 +132,24 @@ export async function LeituraGestor({
         </ul>
       ) : null}
 
-      <p className="flex items-start gap-2 border-t border-border pt-3 text-2xs text-ink-3">
-        <Sparkles aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
-        <span>
-          Texto escrito pela LLM a partir dos números acima. Ela não recalcula o crescimento, recebe
-          o resultado do modelo pronto e decide a data, exatamente como no lote diário.
-        </span>
-      </p>
+      {/* Procedencia, junta e no fim: de onde veio o TEXTO e de onde veio o
+          NUMERO que ele cita. As duas frases eram blocos separados em alturas
+          diferentes da seçao, e a de calibraçao vinha em tres ramos de ternario
+          no meio do caminho -- ela nao e uma etapa da decisao, e a nota de
+          rodape dela. */}
+      <ul className="flex flex-col gap-1.5 border-t border-border pt-3 text-2xs text-ink-3">
+        <li className="flex items-start gap-2">
+          <Sparkles aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
+          <span>
+            Texto escrito pela LLM a partir dos números acima. Ela não recalcula o crescimento,
+            recebe o resultado do modelo pronto e decide a data, exatamente como no lote diário.
+          </span>
+        </li>
+        <li className="flex items-start gap-2">
+          <Scale aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
+          <span>{fraseDaCalibracao(calibracao)}</span>
+        </li>
+      </ul>
     </div>
   );
 }

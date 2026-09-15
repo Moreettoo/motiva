@@ -7,7 +7,7 @@ import { LogIn } from "lucide-react";
 
 import { Aviso } from "@/components/ui/aviso";
 import { Botao } from "@/components/ui/botao";
-import { Campo, Entrada } from "@/components/ui/campo";
+import { Campo, Entrada, EntradaSenha } from "@/components/ui/campo";
 import { entrar } from "@/lib/auth/acoes";
 
 export function FormularioEntrar({ proximo }: { proximo: string | null }) {
@@ -37,7 +37,6 @@ export function FormularioEntrar({ proximo }: { proximo: string | null }) {
     <form onSubmit={enviar} noValidate className="space-y-5">
       <div>
         <h1 className="text-lg font-semibold text-ink">Entrar</h1>
-        <p className="mt-1 text-sm text-ink-3">Acesso por convite. Não existe cadastro.</p>
       </div>
 
       {erro ? <Aviso tom="critical" titulo={erro} /> : null}
@@ -46,7 +45,7 @@ export function FormularioEntrar({ proximo }: { proximo: string | null }) {
         <Entrada type="email" inputMode="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} />
       </Campo>
       <Campo rotulo="Senha" obrigatorio>
-        <Entrada type="password" autoComplete="current-password" value={senha} onChange={(e) => setSenha(e.target.value)} />
+        <EntradaSenha autoComplete="current-password" value={senha} onChange={(e) => setSenha(e.target.value)} />
       </Campo>
 
       <Botao type="submit" variante="primario" className="w-full" carregando={pendente} iconeEsquerda={<LogIn />}>

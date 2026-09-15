@@ -6,7 +6,7 @@ import { KeyRound } from "lucide-react";
 
 import { Aviso } from "@/components/ui/aviso";
 import { Botao } from "@/components/ui/botao";
-import { Campo, Entrada } from "@/components/ui/campo";
+import { Campo, EntradaSenha } from "@/components/ui/campo";
 import { definirSenha } from "@/lib/auth/acoes";
 import { SENHA_MINIMA, erroDaSenha } from "@/lib/auth/tokens";
 
@@ -41,10 +41,10 @@ export function FormularioDefinirSenha({ nome }: { nome: string }) {
       </div>
       {erro ? <Aviso tom="critical" titulo={erro} /> : null}
       <Campo rotulo="Nova senha" dica={`Pelo menos ${SENHA_MINIMA} caracteres, com letras e números.`} obrigatorio>
-        <Entrada type="password" autoComplete="new-password" value={senha} onChange={(e) => setSenha(e.target.value)} />
+        <EntradaSenha autoComplete="new-password" value={senha} onChange={(e) => setSenha(e.target.value)} />
       </Campo>
       <Campo rotulo="Repita a senha" obrigatorio>
-        <Entrada type="password" autoComplete="new-password" value={confirmacao} onChange={(e) => setConfirmacao(e.target.value)} />
+        <EntradaSenha autoComplete="new-password" value={confirmacao} onChange={(e) => setConfirmacao(e.target.value)} />
       </Campo>
       <Botao type="submit" variante="primario" className="w-full" carregando={pendente} iconeEsquerda={<KeyRound />}>
         Guardar senha

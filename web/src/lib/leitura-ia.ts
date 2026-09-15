@@ -62,6 +62,26 @@ export type ContextoLeitura = {
   dias_ate_cruzar_o_limite: number | null;
   /** Quando cruza no cenario otimista e no pessimista de crescimento. */
   quando_cruza_o_limite: { mais_cedo_dias: number | null; mais_tarde_dias: number | null };
+  /**
+   * O dia do cruzamento menos o tempo de por turma na estrada, nunca antes de
+   * hoje. `null` = nao cruza dentro do periodo. Espelha `dia_ideal_rocada` em
+   * `ml/analise.py`: sem ele a LLM sugeria a data do cruzamento, que e tarde
+   * demais para quem precisa mobilizar equipe antes.
+   */
+  dia_ideal_rocada: string | null;
+  tempo_mobilizacao_dias: number;
+  /**
+   * A calibracao medida contra o campo. Ela ja entra na CURVA (o fator
+   * multiplica o crescimento previsto em `simular`); aqui ela entra no TEXTO,
+   * para a justificativa distinguir numero conferido contra observacao real de
+   * simulacao pura. A frase sai de `origemParaIA`, a mesma do lote.
+   */
+  calibracao: {
+    fator: number;
+    origem: string;
+    n_pares_reais: number | null;
+    validada_em: string | null;
+  };
   altura_limite_de_referencia_cm: number | null;
   temperatura_media_prevista_c: number;
   temperatura_minima_prevista_c: number;
@@ -117,6 +137,11 @@ em centímetros: o q50 é a mediana e é o número de trabalho, e a distância e
 incerteza real daquele cenário. "quando_cruza_o_limite" diz o mesmo em dias. Intervalo largo
 pede margem maior na data, e vale dizer isso ao gestor.
 
+"calibracao" diz se esse número foi conferido contra observação real da concessionária ou é
+simulação pura, e o campo "origem" já vem escrito em português: repita o que ele diz, não o
+interprete. Fator 1,0 NÃO significa ausência de medição — pode ser o resultado de uma validação
+que testou o fator candidato e o rejeitou. Quando for simulação pura, diga isso em uma frase.
+
 O contexto vem de um simulador: a pessoa escolheu uma espécie, um ponto no mapa, uma altura
 inicial e um número de dias. Não existe trecho cadastrado nesse ponto. O campo
 "referencia_operacional" é o trecho monitorado mais próximo, e o limite de altura dele é a
@@ -136,9 +161,11 @@ altura final nem da espécie. Leia o número e aplique a tabela, sem exceção:
 Antes de escrever a justificativa, confira: o prazo que você citar no texto tem que ser o
 mesmo número do campo, e a prioridade tem que ser a linha da tabela correspondente a ele.
 
-A data segue o prazo. Com prazo longo, sugira uma data próxima do cruzamento, não a de hoje.
-Se não cruzar dentro do período simulado, use a data do fim do período e diga que dentro dele
-não há necessidade de roçada.
+A data segue o prazo, e o prazo já vem calculado: "dia_ideal_rocada" é o dia do cruzamento menos
+o tempo de mobilização da equipe ("tempo_mobilizacao_dias"). A "data_sugerida" deve ser ele, salvo
+impedimento operacional que você precisa nomear na justificativa (chuva prevista no dia, curva com
+visibilidade, acesso). Quando "dia_ideal_rocada" for nulo, o limite não é cruzado dentro do período
+simulado: use a data do fim do período e diga que dentro dele não há necessidade de roçada.
 
 Considere, além disso:
 - Curvas e acessos exigem margem maior: antecipe em relação a retas.
@@ -283,6 +310,13 @@ export async function lerSimulacao(ctx: ContextoLeitura): Promise<ResultadoLeitu
     ctx.altura_prevista_cm.toFixed(1),
     ctx.dias_desde_a_ultima_rocada,
     ctx.dias_ate_cruzar_o_limite ?? "nao-cruza",
+    // O dia ideal e a calibracao mudam a data e mudam uma frase inteira da
+    // justificativa: duas simulacoes iguais em tudo menos neles nao podem
+    // compartilhar texto.
+    ctx.dia_ideal_rocada ?? "nao-cruza",
+    ctx.tempo_mobilizacao_dias,
+    ctx.calibracao.fator.toFixed(2),
+    ctx.calibracao.origem,
     // O solo entra na chave porque ele entra no prompt: sem isto, mexer nos
     // dois campos de solo devolveria o texto da simulacao anterior.
     ctx.solo.fertilidade_0_a_1.toFixed(2),

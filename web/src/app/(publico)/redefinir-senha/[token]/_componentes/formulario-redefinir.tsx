@@ -7,7 +7,7 @@ import { KeyRound } from "lucide-react";
 
 import { Aviso } from "@/components/ui/aviso";
 import { Botao } from "@/components/ui/botao";
-import { Campo, Entrada } from "@/components/ui/campo";
+import { Campo, EntradaSenha } from "@/components/ui/campo";
 import { redefinirSenha } from "@/lib/auth/acoes-senha";
 import { SENHA_MINIMA, erroDaSenha } from "@/lib/auth/tokens";
 
@@ -53,8 +53,7 @@ export function FormularioRedefinir({ token }: { token: string }) {
       ) : null}
 
       <Campo rotulo="Nova senha" dica={`Pelo menos ${SENHA_MINIMA} caracteres, com letras e números.`} obrigatorio>
-        <Entrada
-          type="password"
+        <EntradaSenha
           autoComplete="new-password"
           value={senha}
           onChange={(e) => setSenha(e.target.value)}
@@ -62,8 +61,7 @@ export function FormularioRedefinir({ token }: { token: string }) {
       </Campo>
 
       <Campo rotulo="Repita a senha" obrigatorio>
-        <Entrada
-          type="password"
+        <EntradaSenha
           autoComplete="new-password"
           value={confirmacao}
           onChange={(e) => setConfirmacao(e.target.value)}

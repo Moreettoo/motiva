@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { DiaClima, Janela } from "./clima";
-import { bandaQueCruza, diaQueCruza, simular, type PedidoSimulacao } from "./simulacao";
+import { bandaQueCruza, diaIdealDeRocada, diaQueCruza, simular, type PedidoSimulacao } from "./simulacao";
 
 /** Clima de primavera paulista: quente, úmido, chuva moderada. */
 function janela(total: number, v: Partial<DiaClima> = {}): Janela {
@@ -222,5 +222,31 @@ describe("bandaQueCruza", () => {
     expect(cedo).not.toBeNull();
     expect(cedo as number).toBeLessThanOrEqual(mediana as number);
     if (tarde != null) expect(mediana as number).toBeLessThanOrEqual(tarde);
+  });
+});
+
+describe("diaIdealDeRocada", () => {
+  const HOJE = "2026-09-15";
+
+  it("desconta a mobilização do dia do cruzamento", () => {
+    // Período começa hoje, cruza em 30 dias, equipe leva 7 para entrar: 15/10 - 7.
+    expect(diaIdealDeRocada(HOJE, 30, 7, HOJE)).toBe("2026-10-08");
+  });
+
+  it("conta do início do PERÍODO, não de hoje — é a diferença para o lote", () => {
+    expect(diaIdealDeRocada("2026-10-01", 10, 3, HOJE)).toBe("2026-10-08");
+  });
+
+  it("nunca devolve data no passado: ninguém consegue cumprir ontem", () => {
+    expect(diaIdealDeRocada("2026-08-01", 5, 7, HOJE)).toBe(HOJE);
+    expect(diaIdealDeRocada(HOJE, 3, 7, HOJE)).toBe(HOJE);
+  });
+
+  it("sem cruzamento não há dia ideal, e isso é resposta, não falha", () => {
+    expect(diaIdealDeRocada(HOJE, null, 7, HOJE)).toBeNull();
+  });
+
+  it("mobilização zero é legítima: equipe que entra no mesmo dia", () => {
+    expect(diaIdealDeRocada(HOJE, 30, 0, HOJE)).toBe("2026-10-15");
   });
 });
