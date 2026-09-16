@@ -1,5 +1,5 @@
 import {
-  CalendarRange, ClipboardCheck, ClipboardList, FlaskConical, LayoutDashboard, MessageSquareText, Smartphone, Users, Waypoints,
+  CalendarRange, ClipboardList, FlaskConical, LayoutDashboard, MessageSquareText, Users, Waypoints,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -33,8 +33,6 @@ export const NAVEGACAO: ItemNavegacao[] = [
   { href: "/agenda", rotulo: "Agenda", icone: CalendarRange, descricao: "Roçadas sugeridas e aprovadas", grupo: "operacao" },
   { href: "/chamados", rotulo: "Chamados", icone: ClipboardList, descricao: "Ordens de roçada: execução, aprovação e adiamentos", grupo: "operacao" },
   { href: "/copiloto", rotulo: "Copiloto", icone: MessageSquareText, descricao: "Perguntas em português sobre a malha", grupo: "operacao" },
-  { href: "/validacao", rotulo: "Validação", icone: ClipboardCheck, descricao: "O modelo contra o campo: acertos, erros e calibração", grupo: "operacao" },
-  { href: "/campo", rotulo: "Campo", icone: Smartphone, descricao: "A tela da equipe, para suporte e teste", grupo: "operacao" },
   { href: "/usuarios", rotulo: "Usuários", icone: Users, descricao: "Convites, cargos e equipes lideradas", grupo: "administracao" },
   { href: "/simulador", rotulo: "Simulador", icone: FlaskConical, descricao: "Crescimento previsto em um ponto qualquer", grupo: "laboratorio" },
 ];
