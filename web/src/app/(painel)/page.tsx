@@ -14,7 +14,6 @@ import { exigirCargo } from "@/lib/auth/sessao";
 import { diasEntre, fmt, isoHoje, proximaReanalise } from "@/lib/format";
 import {
   cargaDasEquipes,
-  lacunasDeDados,
   listarAgendamentos,
   listarEquipes,
   listarTrechos,
@@ -32,7 +31,6 @@ import { CrescimentoPorEspecie } from "./_componentes/crescimento-especies";
 import { DistribuicaoDeRisco } from "./_componentes/distribuicao-risco";
 import { ExigemDecisao, type ItemDecisao } from "./_componentes/exigem-decisao";
 import { Indicadores } from "./_componentes/indicadores";
-import { Lacunas } from "./_componentes/lacunas";
 import { LinkAcao } from "./_componentes/link-acao";
 import { MalhaEmRelance } from "./_componentes/malha-relance";
 
@@ -101,13 +99,12 @@ function variacaoCrescimento(datas: string[], valores: number[]): DeltaIndicador
 export default async function PaginaPainel() {
   const sessao = await exigirCargo("super_admin", "admin", "analista");
   const escreve = podeEscrever(sessao.cargo);
-  const [painel, trechos, porRodovia, serie, carga, lacunas, agendamentos, equipes] = await Promise.all([
+  const [painel, trechos, porRodovia, serie, carga, agendamentos, equipes] = await Promise.all([
     montarPainel(),
     listarTrechos(),
     trechosPorRodovia(),
     serieCrescimentoPorEspecie(45),
     cargaDasEquipes(),
-    lacunasDeDados(),
     // Sem filtro de propósito: `montarPainel` já pediu esta mesma lista, e o
     // `cache()` do React só deduplica quando os argumentos são idênticos.
     listarAgendamentos(),
@@ -303,8 +300,6 @@ export default async function PaginaPainel() {
         totalRodovias={porRodovia.length}
         indice={9}
       />
-
-      <Lacunas lacunas={lacunas} />
     </div>
   );
 }
