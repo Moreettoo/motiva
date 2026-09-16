@@ -14,7 +14,7 @@ function chamado(id: number, status: StatusChamado, data_sugerida: string, extra
   return {
     id, numero: "2026-" + String(id).padStart(4, "0"), status, trecho: TRECHO, data_sugerida,
     prioridade: "media", justificativa: "cruza o limite em 12 dias",
-    altura_inicial_cm: 32, altura_inicial_origem: "prevista", altura_final_cm: null,
+    altura_inicial_cm: 32, altura_inicial_origem: "prevista", altura_inicial_medida_cm: null, altura_final_cm: null,
     iniciado_em: null, finalizado_em: null, comentario_gestor: null, adiamento_pendente: null,
     atualizado_em: data_sugerida + "T09:00:00.000Z", ...extra,
   };
@@ -48,6 +48,15 @@ describe("aplicarPendencias", () => {
   it("leva aberto + iniciado para em_andamento", () => {
     const saida = aplicarPendencias([chamado(1, "aberto", "2026-09-10")], [item("e1", 1, "iniciado", "2026-09-10T08:00:00.000Z")]);
     expect(saida[0].status).toBe("em_andamento");
+  });
+
+  it("leva aberto + iniciado para em_andamento e guarda a altura medida, sem mexer na prevista", () => {
+    const saida = aplicarPendencias(
+      [chamado(1, "aberto", "2026-09-10")],
+      [item("e1", 1, "iniciado", "2026-09-10T08:00:00.000Z", { payload: { altura_inicial_medida_cm: 24 } })],
+    );
+    expect(saida[0].altura_inicial_medida_cm).toBe(24);
+    expect(saida[0].altura_inicial_cm).toBe(32);
   });
 
   it("leva em_andamento + finalizado para aguardando_aprovacao e guarda a altura final", () => {

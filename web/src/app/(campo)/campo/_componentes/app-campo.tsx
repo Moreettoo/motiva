@@ -242,8 +242,17 @@ export function AppCampo() {
           <FluxoIniciar
             chamado={chamadoDaVista}
             aoVoltar={voltar}
-            aoRegistrar={(fotos, eventoId, ocorridoEm) =>
-              gravar({ evento_id: eventoId, chamado_id: chamadoDaVista.id, tipo: "iniciado", payload: {}, ocorrido_em: ocorridoEm }, fotos)
+            aoRegistrar={(fotos, eventoId, ocorridoEm, alturaInicialMedidaCm) =>
+              gravar(
+                {
+                  evento_id: eventoId,
+                  chamado_id: chamadoDaVista.id,
+                  tipo: "iniciado",
+                  payload: { altura_inicial_medida_cm: alturaInicialMedidaCm },
+                  ocorrido_em: ocorridoEm,
+                },
+                fotos,
+              )
             }
           />
         ) : vista.nome === "finalizar" ? (

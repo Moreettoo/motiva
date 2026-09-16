@@ -268,13 +268,34 @@ function CorpoChamado({
       </Secao>
 
       <Secao titulo="Alturas">
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Dado rotulo="Inicial">
             <span className="tnum">{fmt.cm(detalhe.altura_inicial_cm)}</span>
             <span className="block text-2xs text-ink-3">
               {detalhe.altura_inicial_origem === "informada"
                 ? "informada pelo gestor"
                 : "prevista pelo modelo"}
+            </span>
+          </Dado>
+
+          {/* NAO e o mesmo numero do "Inicial" ao lado, de proposito: aquele e
+              o que se sabia ANTES da equipe chegar (previsto ou informado); este
+              e o que ela MEDIU no trecho. Um substituindo o outro apagaria
+              justamente a comparacao que o gestor precisa ver -- e o registro que
+              `ia.medicoes` guarda para o modelo. */}
+          <Dado rotulo="Medida no início">
+            <span className="tnum">{fmt.cm(detalhe.altura_inicial_medida_cm)}</span>
+            <span className="block text-2xs text-ink-3">
+              {detalhe.altura_inicial_medida_cm == null
+                ? "a equipe ainda não mediu"
+                : detalhe.altura_inicial_cm == null
+                  ? "medida pela equipe"
+                  : (() => {
+                      const diferenca = detalhe.altura_inicial_medida_cm - detalhe.altura_inicial_cm;
+                      return diferenca === 0
+                        ? "igual ao previsto"
+                        : `${fmt.cm(Math.abs(diferenca))} ${diferenca > 0 ? "acima" : "abaixo"} do previsto`;
+                    })()}
             </span>
           </Dado>
 

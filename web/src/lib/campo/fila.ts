@@ -26,6 +26,9 @@ export function aplicarPendencias(chamados: ChamadoCampo[], fila: ItemFila[]): C
     if (!c) continue;
     const novo = proximoStatus(c.status, item.tipo, null);
     if (novo) c.status = novo;
+    if (item.tipo === "iniciado" && typeof item.payload.altura_inicial_medida_cm === "number") {
+      c.altura_inicial_medida_cm = item.payload.altura_inicial_medida_cm;
+    }
     if (item.tipo === "finalizado" && typeof item.payload.altura_final_cm === "number") {
       c.altura_final_cm = item.payload.altura_final_cm;
     }

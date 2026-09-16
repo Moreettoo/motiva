@@ -46,6 +46,8 @@ export type ChamadoCampo = {
   altura_inicial_cm: number | null;
   /** "informada pelo gestor" ou "prevista pelo modelo": a tela precisa dizer qual. */
   altura_inicial_origem: "prevista" | "informada";
+  /** O que a EQUIPE mediu ao iniciar o serviço. Não substitui `altura_inicial_cm` — é para comparar com ela, não no lugar dela. */
+  altura_inicial_medida_cm: number | null;
   altura_final_cm: number | null;
   iniciado_em: string | null;
   finalizado_em: string | null;

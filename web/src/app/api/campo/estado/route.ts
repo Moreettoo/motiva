@@ -112,6 +112,7 @@ export async function GET(request: NextRequest) {
       justificativa: c.agendamento.justificativa,
       altura_inicial_cm: c.altura_inicial_cm == null ? null : Number(c.altura_inicial_cm),
       altura_inicial_origem: c.altura_inicial_origem,
+      altura_inicial_medida_cm: c.altura_inicial_medida_cm == null ? null : Number(c.altura_inicial_medida_cm),
       altura_final_cm: c.altura_final_cm == null ? null : Number(c.altura_final_cm),
       iniciado_em: c.iniciado_em,
       finalizado_em: c.finalizado_em,

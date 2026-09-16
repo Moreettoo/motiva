@@ -142,7 +142,7 @@ export const MOTIVOS_ADIAMENTO = ["chuva","equipamento","acesso_bloqueado","segu
 export type MotivoAdiamento = (typeof MOTIVOS_ADIAMENTO)[number];
 
 export type Chamado = { id: number; numero: string; agendamento_id: number; trecho_id: number; status: StatusChamado; status_anterior: StatusChamado | null;
-  altura_inicial_cm: number | null; altura_inicial_origem: "prevista" | "informada"; altura_final_cm: number | null; km_rocados: number | null;
+  altura_inicial_cm: number | null; altura_inicial_origem: "prevista" | "informada"; altura_inicial_medida_cm: number | null; altura_final_cm: number | null; km_rocados: number | null;
   custo_reais: number | null; observacao_conclusao: string | null; sem_evidencia: boolean; iniciado_em: string | null; finalizado_em: string | null;
   concluido_em: string | null; cancelado_em: string | null; criado_em: string; atualizado_em: string };
 
