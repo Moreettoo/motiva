@@ -450,12 +450,27 @@ async function semearChamados({ equipes, lideres, adminId }) {
     ).map((a) => a.trecho_id),
   );
   const livres = ou(
-    await db.from("trechos").select("id, rodovia, km_inicio, km_fim, latitude, longitude").order("id"),
+    await db.from("trechos").select("id, rodovia, km_inicio, km_fim, latitude, longitude, fonte_cadastro, ativo").order("id"),
     "listar trechos",
     // Sem coordenada nao da para posicionar a foto, e a gaveta mostra a
     // distancia do GPS ao ponto medio do trecho — "0 m de um ponto nulo" seria
     // a tela inventando precisao.
-  ).filter((t) => !ocupados.has(t.id) && t.latitude !== null && t.longitude !== null);
+  ).filter(
+    (t) =>
+      // Trava explicita: o Rodoanel real (`levantamento_motiva`) nunca pode
+      // virar palco de chamado de mentira. Antes desta linha a exclusao
+      // dependia so da ordem de id dos trechos livres, que e coincidencia,
+      // nao garantia.
+      t.fonte_cadastro !== "levantamento_motiva" &&
+      // So trecho ATIVO: um trecho desativado fica fora do painel e da malha,
+      // entao um chamado nele nasce invisivel em toda tela — foi o que
+      // aconteceu com os 50 trechos antigos da primeira demonstracao (ids
+      // baixos, todos `ativo = false`), que o `order("id")` colocava na frente.
+      t.ativo === true &&
+      !ocupados.has(t.id) &&
+      t.latitude !== null &&
+      t.longitude !== null,
+  );
 
   if (livres.length < ROTEIRO.length) {
     parar(`só há ${livres.length} trecho(s) sem agendamento aberto; o roteiro precisa de ${ROTEIRO.length}`);
