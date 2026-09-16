@@ -185,15 +185,17 @@ export function detectarAgrupamentos(trechos: TrechoStatus[], hoje: Date): Agrup
 
 /* O colapso do card mora no localStorage, não na URL: diferente dos filtros
    da malha, não é algo que um gestor precise mandar por link para a equipe,
-   é preferência de tela, e sem persistência o card voltaria expandido a cada
-   carregamento de /malha.
+   é preferência de tela, e sem persistência o card voltaria minimizado a
+   cada carregamento de /malha — o agrupamento é uma sugestão secundária,
+   não o motivo da visita à página, então por natureza ele nasce fechado até
+   alguém pedir para ver.
 
    Lido via `useSyncExternalStore` (mesma ideia de `alternador-tema.tsx`, sem
    o listener entre abas, não é crítico aqui) em vez de `useState` +
    `useEffect`: escrever no state dentro de um efeito de leitura cascateia
    um render extra que o lint de hooks já rejeita, e a marcação do servidor
-   (sempre expandido, já que não há localStorage lá) precisa continuar batendo
-   com o primeiro quadro do cliente para não estourar a hidratação. */
+   (sempre colapsado, já que não há localStorage lá) precisa continuar
+   batendo com o primeiro quadro do cliente para não estourar a hidratação. */
 const CHAVE_COLAPSO = "solo-agrupamento-colapsado";
 const ouvintesColapso = new Set<() => void>();
 let colapsoCache: boolean | null = null;
@@ -201,9 +203,9 @@ let colapsoCache: boolean | null = null;
 function lerColapsoSalvo(): boolean {
   if (colapsoCache === null) {
     try {
-      colapsoCache = localStorage.getItem(CHAVE_COLAPSO) === "1";
+      colapsoCache = localStorage.getItem(CHAVE_COLAPSO) !== "0";
     } catch {
-      colapsoCache = false;
+      colapsoCache = true;
     }
   }
   return colapsoCache;
@@ -224,9 +226,9 @@ function assinarColapso(avisar: () => void) {
   return () => ouvintesColapso.delete(avisar);
 }
 
-/** Marcação do servidor: sempre expandido, porque não há localStorage lá. */
+/** Marcação do servidor: sempre colapsado, porque não há localStorage lá. */
 function colapsoNoServidor(): boolean {
-  return false;
+  return true;
 }
 
 export function BlocoAgrupamento({
