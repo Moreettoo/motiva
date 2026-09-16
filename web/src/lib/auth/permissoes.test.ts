@@ -12,7 +12,7 @@ import {
 
 describe("podeVerRota", () => {
   it("super_admin vê tudo, inclusive o Laboratório", () => {
-    for (const rota of ["/", "/malha", "/agenda", "/trechos/31", "/copiloto", "/validacao", "/chamados", "/usuarios", "/campo", "/simulador"]) {
+    for (const rota of ["/", "/malha", "/agenda", "/trechos/31", "/copiloto", "/evidencia", "/validacao", "/chamados", "/usuarios", "/campo", "/simulador"]) {
       expect(podeVerRota("super_admin", rota)).toBe(true);
     }
   });
@@ -23,17 +23,23 @@ describe("podeVerRota", () => {
     expect(podeVerRota("admin", "/campo")).toBe(true);
   });
   it("analista vê painel, malha, agenda, trecho, copiloto e validação; nada de operação", () => {
-    for (const rota of ["/", "/malha", "/agenda", "/trechos/3", "/copiloto", "/validacao"]) expect(podeVerRota("analista", rota)).toBe(true);
+    for (const rota of ["/", "/malha", "/agenda", "/trechos/3", "/copiloto", "/evidencia", "/validacao"]) expect(podeVerRota("analista", rota)).toBe(true);
     for (const rota of ["/chamados", "/usuarios", "/campo", "/simulador"]) expect(podeVerRota("analista", rota)).toBe(false);
   });
   it("rocador só vê /campo", () => {
     expect(podeVerRota("rocador", "/campo")).toBe(true);
-    for (const rota of ["/", "/agenda", "/copiloto", "/validacao", "/chamados", "/usuarios", "/simulador"]) expect(podeVerRota("rocador", rota)).toBe(false);
+    for (const rota of ["/", "/agenda", "/copiloto", "/evidencia", "/validacao", "/chamados", "/usuarios", "/simulador"]) expect(podeVerRota("rocador", rota)).toBe(false);
   });
   it("prefixo não vaza: /campoX não é /campo", () => {
     expect(podeVerRota("rocador", "/campos")).toBe(false);
   });
   it("validação é leitura para os três cargos de painel e fechada ao roçador — a página expõe as fraquezas medidas do modelo, e é a única tela cuja função é essa exposição", () => {
+    expect(podeVerRota("super_admin", "/evidencia")).toBe(true);
+    expect(podeVerRota("admin", "/evidencia")).toBe(true);
+    expect(podeVerRota("analista", "/evidencia")).toBe(true);
+    expect(podeVerRota("rocador", "/evidencia")).toBe(false);
+    // A rota antiga continua liberada: ela so redireciona para `/evidencia`, e
+    // um proxy que a recusasse mandaria quem tem o link velho para "sem acesso".
     expect(podeVerRota("super_admin", "/validacao")).toBe(true);
     expect(podeVerRota("admin", "/validacao")).toBe(true);
     expect(podeVerRota("analista", "/validacao")).toBe(true);

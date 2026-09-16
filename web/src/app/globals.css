@@ -533,3 +533,37 @@ html[data-arrastando] * { user-select: none; }
   .viz-fill-1 { fill: url(#hachura-45) !important; }
   .viz-fill-2 { fill: url(#hachura-135) !important; }
 }
+
+/* ------------------------------------------------------------------ *
+ * Encaixe de seções (uma por rolagem)
+ * ------------------------------------------------------------------ */
+
+/* Ligado por `<EncaixeDeSecoes>` (`evidencia/_componentes/encaixe.tsx`), que
+   carimba a classe em <html> enquanto aquela página está montada e a remove ao
+   sair. A regra mora aqui, e não num `style` inline, porque quem rola a página
+   do painel é o documento: o `<main>` do Shell não é contêiner de rolagem, e
+   `scroll-snap-type` só vale em quem rola.
+
+   `proximity`, nunca `mandatory`: com `mandatory` uma seção mais alta que a
+   janela — um notebook baixo, um zoom de acessibilidade — fica impossível de
+   ler até o fim, porque o navegador puxa de volta para o começo dela. Com
+   `proximity` o encaixe acontece quando a rolagem para perto, e sai do caminho
+   quando não cabe. */
+html.encaixar-secoes {
+  scroll-snap-type: y proximity;
+}
+
+/* Sem isto o encaixe alinharia a seção sob a barra superior, que é
+   `sticky top-0` e tem 3.5rem. */
+html.encaixar-secoes .secao-encaixada {
+  scroll-snap-align: start;
+  scroll-margin-top: 3.5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Rolagem que se move sozinha é exatamente o que este modo pede para não
+     acontecer. A página continua inteira; só deixa de puxar. */
+  html.encaixar-secoes {
+    scroll-snap-type: none;
+  }
+}

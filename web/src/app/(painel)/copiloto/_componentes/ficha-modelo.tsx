@@ -202,7 +202,7 @@ export function FichaModelo({ modeloLlm, validacao }: { modeloLlm: string | null
               ({fmt.dataMedia(validacao.janela_de)} → {fmt.dataMedia(validacao.janela_ate)}): {fmt.n(validacao.transicoes_detectadas ?? 0)} de{" "}
               {fmt.n(validacao.transicoes_total ?? 0)} transições detectadas, {fmt.n(validacao.alarmes_falsos ?? 0)} alarmes falsos em{" "}
               {fmt.n(validacao.estaveis_total ?? 0)} pontos estáveis, fator de calibração {fmt.d2(Number(validacao.fator_calibracao))}.{" "}
-              <Link href="/validacao" className="underline underline-offset-2">Ver a validação inteira.</Link>
+              <Link href="/evidencia" className="underline underline-offset-2">Ver a evidência inteira.</Link>
             </p>
           ) : (
             <p className="mt-2 text-xs text-warning-ink">Nenhuma validação contra campo gravada: o número que o painel mostra é do modelo sintético puro.</p>

@@ -8,7 +8,7 @@ import { fmt } from "@/lib/format";
 import type { LevantamentosDoTrecho } from "@/lib/levantamentos/queries";
 import type { TrechoStatus } from "@/lib/types";
 
-import { ChipClasse } from "../../validacao/_componentes/chip-classe";
+import { ChipClasse } from "@/components/viz/chip-classe";
 
 /**
  * O que a equipe da Motiva anotou neste segmento, faixa por faixa, nas

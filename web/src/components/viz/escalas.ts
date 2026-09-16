@@ -176,7 +176,9 @@ export function comprimentoLinha(pontos: Ponto[]): number {
   return Math.ceil(total * 1.06) || 1;
 }
 
-export type LadoArredondado = "direita" | "cima";
+/** "esquerda" existe para barra divergente: num grafico com zero no meio, a
+ *  metade negativa cresce para a ESQUERDA e e la que fica a ponta do dado. */
+export type LadoArredondado = "direita" | "esquerda" | "cima";
 
 /**
  * Retângulo de barra com raio só na ponta do dado: a base fica quadrada,
@@ -204,6 +206,19 @@ export function caminhoBarra(
       `V${q(y + a - r)}`,
       `A${q(r)} ${q(r)} 0 0 1 ${q(x + l - r)} ${q(y + a)}`,
       `H${q(x)}`,
+      "Z",
+    ].join(" ");
+  }
+
+  if (lado === "esquerda") {
+    const r = Math.min(raio, l, a / 2);
+    return [
+      `M${q(x + l)} ${q(y)}`,
+      `H${q(x + r)}`,
+      `A${q(r)} ${q(r)} 0 0 0 ${q(x)} ${q(y + r)}`,
+      `V${q(y + a - r)}`,
+      `A${q(r)} ${q(r)} 0 0 0 ${q(x + r)} ${q(y + a)}`,
+      `H${q(x + l)}`,
       "Z",
     ].join(" ");
   }

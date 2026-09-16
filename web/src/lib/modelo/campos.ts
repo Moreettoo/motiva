@@ -308,3 +308,49 @@ export function posicaoNaFaixa(l: Limite, valor: number): number {
   if (l.max === l.min) return 0.5;
   return Math.min(1, Math.max(0, (valor - l.min) / (l.max - l.min)));
 }
+
+/* ------------------------------------------------------------------ *
+ * Rotulos das features
+ * ------------------------------------------------------------------ */
+
+/**
+ * O nome de cada entrada do modelo em portugues, para a tela.
+ *
+ * Vive aqui, e nao dentro de um componente, porque DUAS telas escrevem esses
+ * nomes -- a ficha do modelo no Copiloto e a pagina `/evidencia` -- e duas
+ * copias de uma lista de 20 rotulos e como elas divergem. `campos.test.ts`
+ * prende a cobertura contra `CAMPOS_ENTRADA`: uma feature nova num retreino
+ * fica sem rotulo e o teste avisa, em vez de `agua_solo_media_pct` aparecer
+ * cru num eixo.
+ *
+ * `uf` e `mes` sumiram na v3.1: a geografia e a estacao ja entram por latitude
+ * e pelo clima diario.
+ */
+export const ROTULOS_FEATURES: Record<string, string> = {
+  especie: "Tipo de capim",
+  dias_periodo: "Quantos dias",
+  altura_inicial_cm: "Altura no começo",
+  dias_desde_rocada_inicio: "Tempo desde a última roçada",
+  temperatura_media_c: "Temperatura média",
+  temperatura_min_c: "Temperatura à noite",
+  temperatura_max_c: "Temperatura no pico do dia",
+  graus_dia_acumulados: "Calor acumulado",
+  umidade_media_pct: "Umidade do ar",
+  precipitacao_total_mm: "Chuva total",
+  dias_com_chuva: "Dias de chuva",
+  et0_medio_mm_dia: "Evaporação",
+  radiacao_media_mj_m2: "Sol",
+  agua_solo_media_pct: "Água no solo",
+  capacidade_agua_solo_mm: "Quanta água o solo segura",
+  fertilidade_solo: "Força do solo",
+  latitude: "Posição no mapa",
+  geadas_no_periodo: "Dias de geada",
+  dias_encharcado: "Dias de solo encharcado",
+  dias_floracao: "Dias em floração",
+};
+
+/** Nunca devolve o nome cru: um eixo escrito `agua_solo_media_pct` e pior que
+ *  um rotulo generico, porque parece defeito de dado e nao falta de traducao. */
+export function rotuloDaFeature(campo: string): string {
+  return ROTULOS_FEATURES[campo] ?? campo;
+}

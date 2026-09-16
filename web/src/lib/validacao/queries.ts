@@ -4,6 +4,7 @@ import { cache } from "react";
 
 import { db } from "../supabase";
 import type { NdviAnalise, Validacao } from "../types";
+import { projetarPares, type ParBruto, type ParProjetado } from "./fronteira";
 
 function erro(contexto: string, e: { message: string } | null): never {
   throw new Error(`Falha ao ler ${contexto}: ${e?.message ?? "erro desconhecido"}`);
@@ -39,37 +40,22 @@ export const ndviAnalises = cache(async (): Promise<NdviAnalise[]> => {
   return [...porAlvo.values()].sort((a, b) => a.data_alvo.localeCompare(b.data_alvo));
 });
 
-function mediana(valores: number[]): number | null {
-  if (valores.length === 0) return null;
-  const s = [...valores].sort((a, b) => a - b);
-  const meio = Math.floor(s.length / 2);
-  return s.length % 2 ? s[meio] : (s[meio - 1] + s[meio]) / 2;
-}
-
-/** Onde a classe 1 vira classe 2 (`CLASSE_ALTURA`: "abaixo de 10 cm" / "de 10 a
- *  30 cm"). Vive aqui, e não em `dominio.ts`, porque só esta consulta soma
- *  contra ela — se um segundo lugar precisar, ela sobe para lá. */
-const FRONTEIRA_CLASSE_1_2_CM = 10;
-
 /**
- * A distância, em cm, entre a fronteira de 10 cm e a mediana das alturas
- * finais previstas (`altura_inicial_cm + q50_cm`) entre os pares que
- * partiram da classe 1 — o número que sustenta a frase de `Limitacoes` sobre
- * a régua cortar perto da previsão típica do modelo. `null` quando a
- * validação vigente não tem nenhum par partindo da classe 1 (não é o caso do
- * Rodoanel hoje, mas a função nunca assume isso de outra validação).
+ * Os pares da validacao ja projetados contra a regua de tres classes.
+ *
+ * Substituiu `distanciaFronteiraClasse1`, que fazia esta mesma consulta para
+ * devolver UM numero. A pagina passou a mostrar a distribuicao inteira, e duas
+ * consultas quase iguais sobre a mesma tabela e como as duas divergem.
+ *
+ * A conta mora em `fronteira.ts`, sem `server-only`, para ter teste: e ela que
+ * sustenta a frase mais forte da pagina.
  */
-export const distanciaFronteiraClasse1 = cache(async (vigente: Validacao): Promise<number | null> => {
+export const paresDaValidacao = cache(async (vigente: Validacao): Promise<ParProjetado[]> => {
   const { data, error } = await db
     .from("validacao_pares")
-    .select("altura_inicial_cm, q50_cm")
+    .select("classe_inicial, classe_final_observada, altura_inicial_cm, q10_cm, q50_cm, q90_cm")
     .eq("validacao_id", vigente.id)
-    .eq("classe_inicial", 1)
     .eq("incluido", true);
-  if (error) erro("a distância da fronteira de classe", error);
-  const finais = (data as { altura_inicial_cm: number | string; q50_cm: number | string }[]).map(
-    (p) => Number(p.altura_inicial_cm) + Number(p.q50_cm),
-  );
-  const medianaFinal = mediana(finais);
-  return medianaFinal == null ? null : Math.abs(medianaFinal - FRONTEIRA_CLASSE_1_2_CM);
+  if (error) erro("os pares da validacao", error);
+  return projetarPares(data as ParBruto[]);
 });

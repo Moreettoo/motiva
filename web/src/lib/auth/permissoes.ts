@@ -23,6 +23,10 @@ const TELAS: readonly Tela[] = [
   { prefixo: "/agenda", cargos: LEITURA },
   { prefixo: "/trechos", cargos: LEITURA },
   { prefixo: "/copiloto", cargos: LEITURA },
+  { prefixo: "/evidencia", cargos: LEITURA },
+  // Continua na matriz porque a rota antiga ainda existe: ela so
+  // redireciona para `/evidencia`, e um redirect que o proxy recusasse
+  // mandaria quem tem o link velho para "sem acesso".
   { prefixo: "/validacao", cargos: LEITURA },
   { prefixo: "/chamados", cargos: GESTAO },
   { prefixo: "/usuarios", cargos: GESTAO },
