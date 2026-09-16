@@ -149,7 +149,7 @@ export function EstadoAtual({
           <Leitura
             rotulo="Última medição"
             icone={<Ruler />}
-            valor={trecho.medido_em ? fmt.dataMedia(trecho.medido_em) : "—"}
+            valor={trecho.medido_em ? fmt.dataCurta(trecho.medido_em) : "—"}
             nota={
               trecho.medido_em
                 ? [relativoEmDias(trecho.medido_em, hoje), alturaMedida == null ? null : fmt.cm(alturaMedida)]
@@ -162,7 +162,7 @@ export function EstadoAtual({
           <Leitura
             rotulo="Última roçada"
             icone={<Scissors />}
-            valor={trecho.rocado_em ? fmt.dataMedia(trecho.rocado_em) : "—"}
+            valor={trecho.rocado_em ? fmt.dataCurta(trecho.rocado_em) : "—"}
             nota={trecho.rocado_em ? relativoEmDias(trecho.rocado_em, hoje) : "sem execução registrada"}
           />
         </CartaoCorpo>
