@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ehRotaCampo,
   ehRotaPublica,
   motivoParaNaoAlterar,
   podeConvidar,
@@ -105,5 +106,19 @@ describe("ehRotaPublica", () => {
     expect(ehRotaPublica("/redefinir-senha/xyz")).toBe(true);
     expect(ehRotaPublica("/esqueci-a-senha")).toBe(true);
     expect(ehRotaPublica("/")).toBe(false);
+  });
+});
+
+describe("ehRotaCampo", () => {
+  it("reconhece /campo e seus filhos", () => {
+    expect(ehRotaCampo("/campo")).toBe(true);
+    expect(ehRotaCampo("/campo/qualquer-coisa")).toBe(true);
+  });
+  it("prefixo não vaza: /campos não é /campo", () => {
+    expect(ehRotaCampo("/campos")).toBe(false);
+  });
+  it("não é público nem outra rota qualquer", () => {
+    expect(ehRotaCampo("/")).toBe(false);
+    expect(ehRotaCampo("/entrar")).toBe(false);
   });
 });

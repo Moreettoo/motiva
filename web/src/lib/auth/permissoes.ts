@@ -42,6 +42,21 @@ export function ehRotaPublica(pathname: string): boolean {
 }
 
 /**
+ * `/campo` funciona sem sinal por desenho: a página é estática (sem cookie,
+ * sem banco — ver `(campo)/campo/page.tsx`) e quem guarda a segurança de
+ * verdade é a API (`/api/campo/*`, que continua exigindo sessão e devolvendo
+ * 401 em JSON). O proxy não é camada de segurança (ver `proxy.ts`); ele só
+ * refresca o token e redireciona por conveniência — e um refresh que precisa
+ * de rede não pode arrancar a equipe de uma tela que ela abriu OFFLINE. Sem
+ * isto, fechar o app com o token vencido e reabrir sem sinal levava a
+ * `/entrar`, que também exige rede: a equipe ficava sem ver nem o que já
+ * tinha sincronizado.
+ */
+export function ehRotaCampo(pathname: string): boolean {
+  return casa("/campo", pathname);
+}
+
+/**
  * Rota desconhecida (ex.: `/api/...`) devolve true: quem a serve decide.
  * Excecao: Rocador so tem `/campo`; para ele, o que nao e tela conhecida e
  * recusado, senao um prefixo parecido (`/campos`) passaria pelo proxy.

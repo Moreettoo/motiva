@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { ehRotaPublica, podeVerRota } from "@/lib/auth/permissoes";
+import { ehRotaCampo, ehRotaPublica, podeVerRota } from "@/lib/auth/permissoes";
 import type { Cargo } from "@/lib/types";
 
 /**
@@ -53,7 +53,12 @@ export async function proxy(request: NextRequest) {
   const publica = ehRotaPublica(caminho);
 
   if (!claims?.sub) {
-    if (publica) return resposta;
+    /* `/campo` não desvia para `/entrar` sem sessão: ver `ehRotaCampo`. Sem
+       isto, um token vencido (a rede caiu por uma hora, ou o refresh precisou
+       de rede e não teve) mandava a equipe para uma tela de login que TAMBÉM
+       precisa de rede — trocando "app que abre offline" por "app preso do
+       lado de fora", que é o oposto do que este proxy existe para fazer. */
+    if (publica || ehRotaCampo(caminho)) return resposta;
     if (ehApi) return NextResponse.json({ erro: "Sessão necessária." }, { status: 401 });
     const destino = request.nextUrl.clone();
     destino.pathname = "/entrar";
